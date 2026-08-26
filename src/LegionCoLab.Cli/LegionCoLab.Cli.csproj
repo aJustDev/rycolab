@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>colab</AssemblyName>
+    <RootNamespace>LegionCoLab.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LegionCoLab.Core\LegionCoLab.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    inpoutx64.dll es la capa de acceso a puertos que necesita ZenStates.Core.
+    Se toma de la instalacion local de Legion Toolkit y NO se redistribuye.
+  -->
+  <PropertyGroup>
+    <InpOutSource Condition="'$(InpOutSource)' == ''">$(ProgramW6432)\LenovoLegionToolkit\inpoutx64.dll</InpOutSource>
+  </PropertyGroup>
+
+  <Target Name="CopyInpOut" AfterTargets="Build">
+    <Copy SourceFiles="$(InpOutSource)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(InpOutSource)')" />
+    <Warning Text="No se encontro inpoutx64.dll en '$(InpOutSource)'. colab no podra abrir el CPU. Pasa -p:InpOutSource=RUTA."
+             Condition="!Exists('$(InpOutSource)')" />
+  </Target>
+
+</Project>
