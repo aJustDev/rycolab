@@ -85,20 +85,67 @@ Con un solo lógico los hilos auxiliares compiten con el de cálculo y no avanza
 `-W` da aislamiento limpio: cada núcleo con su carpeta, su `prime.txt` y su
 `results.txt`.
 
-### Pendiente: no satura el núcleo
+### Confirmado en el código fuente
 
+Leído de `commonb.c` (repositorio `shafferjohn/Prime95`), lo que zanja las
+tentativas de arriba:
+
+```c
+case SET_PRIORITY_TORTURE:
+    bind_type = 0;                          // afinidad a UN nucleo concreto
+    core = get_ranked_core (info->torture_core_num);
+    break;
+
+case SET_PRIORITY_NORMAL_WORK:
+    sprintf (section_name, "Worker #%d", info->worker_num+1);
+    p = IniSectionGetStringRaw (INI_FILE, section_name, "Affinity");   // <- solo aqui
 ```
-Prime95 clavado al nucleo 11        2,98 W   1.442 MHz efectivos
-un bucle trivial de PowerShell     14,10 W   2.696 MHz efectivos
+
+**La tortura nunca lee `Affinity=`.** Es exclusivo del trabajo normal de GIMPS.
+Y en `tortureTest()`:
+
+```c
+sp_info.torture_core_num = thread_num;      // el trabajador N prueba el nucleo N
 ```
 
-Un bucle tonto carga cinco veces más. El núcleo va a ~30 % de ocupación, así
-que como detector de inestabilidad todavía no sirve: un margen malo puede pasar
-desapercibido simplemente porque no se le está exigiendo.
+O sea que la asignación de núcleo es el índice del trabajador, sin forma de
+redirigirla por configuración. Para llegar al núcleo 11 harían falta doce
+trabajadores.
 
-Antes de seguir derivando a ciegas la configuración de tortura —que está sin
-documentar— lo sensato es leer cómo la genera **CoreCycler** (sp00n), que es el
-proyecto de referencia para esto y lleva años con ello resuelto.
+`TortureCores` y `TortureThreads` **no existen**: las claves reales son
+`MinTortureFFT`, `MaxTortureFFT`, `TortureMem`, `TortureTime`,
+`TortureHyperthreading`, `TortureWeak`, `TortureAlternateInPlace` y
+`TortureMultiThreadedFFTs`.
+
+Queda una sola vía limpia, y es la que ya funciona:
+
+```c
+if (! IniGetInt (INI_FILE, "EnableSetAffinity", 1)) return;   // sale sin tocar nada
+```
+
+Con `EnableSetAffinity=0`, Prime95 no fija afinidad alguna y manda la máscara
+del proceso. Verificado: cae en el núcleo pedido.
+
+### Sobre medir la carga — corrección
+
+Se llegó a concluir que Prime95 «no saturaba» comparando 2,98 W y 1.442 MHz
+efectivos contra los 14,10 W del bucle de PowerShell. **Esa conclusión no se
+sostiene**, por dos motivos:
+
+1. El reloj efectivo de LibreHardwareMonitor se deriva de dos muestras
+   consecutivas. `colab probe` las toma con milisegundos de separación, así que
+   en ventana corta el valor no es fiable — de ahí cifras absurdas en los
+   dieciséis núcleos a la vez.
+2. Comparar vatios entre cargas distintas no mide estrés. El bucle de PowerShell
+   es escalar a ~5,4 GHz; Prime95 usa AVX-512, que baja frecuencia y consume
+   distinto haciendo mucho más trabajo por ciclo.
+
+El indicador que sí aguanta: **ritmo de líneas en `results.txt`**. Un trabajador
+solo escribió una línea en 45 s; la pasada de 16 trabajadores escribió 19 en
+55 s. Mismo ritmo por trabajador — estaba trabajando con normalidad.
+
+La pregunta «¿es buen detector?» no se contesta con vatios. Se contesta con la
+Fase 0: bajar un núcleo hasta que cante un error.
 
 ## Reparto de papeles
 
