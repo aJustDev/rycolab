@@ -28,6 +28,8 @@ try
     {
         "probe" => ProbeCommand.Run(opts),
         "sensors" => SensorsCommand.Run(opts),
+        "apply" => ApplyCommand.Run(opts),
+        "reset" => ResetCommand.Run(opts),
         _ => Unknown(command),
     };
 }
@@ -69,6 +71,8 @@ static void PrintHelp()
 
         ORDENES
           probe      Lee el margen PSM aplicado en cada nucleo
+          apply      Escribe margenes (camina el paso, verifica cada parada)
+          reset      Devuelve los 16 nucleos a la base
           sensors    Vuelca los sensores disponibles con su nombre exacto
           help       Esta ayuda
 
@@ -77,7 +81,25 @@ static void PrintHelp()
                              Por defecto usa el de Legion Toolkit.
           --no-compare       No comparar con ningun perfil.
           --json <ruta>      Guardar la lectura con marca de tiempo.
-          --sensors          Anadir una instantanea de telemetria.
+          --sensors          Anadir reloj efectivo y potencia por nucleo.
+
+        apply
+          --margin <n>       Margen objetivo. Solo valores <= 0.
+          --core <n>         Un solo nucleo.       Sin --core ni --ccd: los 16.
+          --ccd <1|2>        Un CCD completo.
+          --profile <ruta>   Por nucleo, desde un JSON con CoreValues.
+          --dry-run          Enseña el plan y no escribe nada.
+
+        reset
+          --to <n>           Base a la que volver. Por defecto -5.
+          --dry-run          Enseña el plan y no escribe nada.
+
+        SEGURIDAD
+          Margen admitido: -30 a 0. Un valor positivo SUBE el voltaje y se
+          rechaza siempre. Toda escritura se relee y se aborta si no coincide.
+          Un movimiento grande se recorre en tramos de 3 cuentas como mucho,
+          verificando en cada parada. Si el proceso muere a medias, los nucleos
+          vuelven a como estaban; y un reinicio los devuelve a los de la BIOS.
 
         CODIGOS DE SALIDA
           0  correcto        2  perfil y hardware NO coinciden

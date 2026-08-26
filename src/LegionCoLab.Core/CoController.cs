@@ -97,6 +97,17 @@ public sealed class CoController : IDisposable
                 $"{(readback.HasValue ? readback.Value.ToString() : "nada")}.");
     }
 
+    /// <summary>
+    /// Escritura sin comprobar corriente ni releer. SOLO para la ruta de panico,
+    /// donde el objetivo es devolver el equipo a un valor ya conocido y no queda
+    /// tiempo ni garantias para nada mas. El tope de margen se sigue aplicando.
+    /// </summary>
+    public void WriteCoreUnchecked(int coreIndex, int margin)
+    {
+        Safety.ValidateMargin(margin, $"nucleo {coreIndex}: margen");
+        _cpu.SetPsmMarginSingleCore(Topology.CoreMask(_cpu, coreIndex), margin);
+    }
+
     /// <summary>Escribe los 16 nucleos y devuelve la lectura de verificacion.</summary>
     public IReadOnlyList<CoreReading> WriteAll(IReadOnlyList<int> margins)
     {
