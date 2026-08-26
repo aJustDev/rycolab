@@ -1,41 +1,123 @@
-﻿# Motores de estrés
+# Motores de estrés
 
-Notas de campo medidas en esta máquina, no leídas en un foro.
+Notas de campo medidas en esta máquina y contrastadas con la fuente. Las
+anclas `fichero:línea` están en `FUENTES.md`.
 
-## y-cruncher — `stress` NO se puede clavar a un núcleo
+## Prime95 — receta que clava UN trabajador a UN núcleo
 
-Versión probada: **v0.8.7.9547b**, 26/08/2026.
-
-```
-cmd /c start /affinity 400000 /b /wait y-cruncher.exe stress -D:40 -M:64M SVT
-```
-
-`start /affinity` fija la máscara en la creación del proceso, sin carrera. Aun
-así y-cruncher **reservó memoria para los 32 procesadores lógicos**:
+Versión: **30.19 build 20**. La receta vive en **un solo sitio**,
+`scripts/prime95-recipe.txt`; todos los guiones la copian a
+`tools/prime95/work/coreN/prime.txt`.
 
 ```
-Allocating Memory...
-  Core   0:  32.0 MiB  node 0 (100%)
-  Core   1:  32.0 MiB  node 0 (100%)
-  ...
-  Core  31:  32.0 MiB  node 0 (100%)
+StressTester=1
+V24OptionsConverted=1     <- sin esto sale el dialogo de bienvenida y SE QUEDA ESPERANDO
+V30OptionsConverted=1
+UsePrimenet=0
+NumCores=1                <- LA CLAVE: fija HW_NUM_CORES=1 (commonc.c:487),
+                             y -t arranca TortureCores=HW_NUM_CORES trabajadores
+                             (Prime95Doc.cpp:1164). Sin ella: 16 trabajadores.
+NumThreads=1
+NumWorkers=1
+CoresPerTest=1
+EnableSetAffinity=0       <- que Prime95 no se fije afinidad; manda la del proceso
+TortureHyperthreading=0
+MinTortureFFT=4
+MaxTortureFFT=32          <- FFT pequena, cabe en L2: castiga el nucleo, no la memoria
+TortureMem=0
+TortureTime=1             <- un solo autotest por longitud de FFT (commonb.c:7776)
+AffinityVerbosityTorture=1
 ```
 
-Enumera las CPU del sistema por su cuenta —vía API de grupos de procesador— y
-se fija su propia afinidad, ignorando la máscara heredada.
+Lanzar `prime95.exe -t -W<directorio del nucleo>` y fijar al proceso la
+máscara de afinidad `3 << 2N` (los dos lógicos del núcleo físico N).
 
-El escape obvio no existe:
+**Comprobación obligatoria en cada arranque: contar las ventanas `Worker #N`
+del proceso. Tiene que ser exactamente una.** Si no, la receta no manda y toda
+medida posterior es de otra carga. `scripts/read-p95-window.ps1` las lista;
+`diag-relaunch.ps1` aborta si no es una.
+
+Esta receta es la de CoreCycler (`script-corecycler.ps1:7542-7634`), que
+existe precisamente para hacer esto y la tiene depurada desde 2021.
+
+### Lo que se probó antes y por qué falló
+
+| Qué | Resultado | Por qué (fuente) |
+|---|---|---|
+| `Affinity=22` en `[Worker #1]` | Ignorado; 16 núcleos cargados | La tortura nunca lee `Affinity=`; solo `SET_PRIORITY_NORMAL_WORK` |
+| `NumCores=1` con `Affinity=22` | Cae en el núcleo 0 | `Affinity=` seguía sin leerse; faltaba `EnableSetAffinity=0` + máscara del proceso |
+| `TortureCores=1` + `EnableSetAffinity=0` + máscara | **Funcionaba** (26/08, `p95-pin4.ps1`) | `TortureCores` es la clave que `-t` lee directamente |
+| Receta sin `TortureCores` ni `NumCores` (27/08, 00:07-00:46) | 16 trabajadores contra 2 lógicos | Se retiró `TortureCores` creyendo, por leer solo `commonb.c`, que no existía. Existe en `Prime95Doc.cpp:1164` |
+| `NumWorkers=1` solo | Sin efecto sobre la tortura | `commonc.c:1797-1800` lo lee y lo reescribe, pero `-t` no lo usa |
+| `ErrorCheck=1`, `SumInputsErrorCheck=1` (último commit de CoreCycler) | No entran | `ERRCHK` solo se usa en LL/PRP (`commonb.c:6564, 8859, 11781`); la tortura ya comprueba redondeo sin condición (`7713`) |
+
+**Lección de proceso:** el 26/08 se leyó un solo fichero de la fuente y se
+documentó una ausencia como hecho. Un guion que funcionaba se «corrigió» a
+partir de ese documento. Ante una discrepancia entre un documento nuestro y un
+guion que funcionó, se investiga; no se toca el guion.
+
+### Qué escribe y cuándo
+
+`results.txt` en el directorio del núcleo. Solo recibe el veredicto de cada
+autotest, nunca progreso intermedio:
 
 ```
-y-cruncher stress -PF:none ...
-  -> Invalid Parameter: -PF
+[Thu Aug 27 00:47:29 2026]
+Self-test 4608 passed!          <- commonb.c:7202
+Self-test 5K passed!
 ```
 
-`-PF` y `-TD` solo los aceptan `bench`, `benchio`, `bbp` y `custom`. **`stress`
-no lleva ninguna opción de hilos.**
+Fallos (`commonb.c:7194-7200`), siempre al mismo fichero vía `OutputBoth`:
 
-Queda la vía de `y-cruncher config fichero.cfg`, pero ese formato está sin
-documentar y hay que generarlo desde la interfaz interactiva. No compensa.
+```
+TORTURE TEST FAILED on worker #1.
+FATAL ERROR: Final result was XXXXXXXX, expected: YYYYYYYY.
+Hardware failure detected running 4K FFT size, consult stress.txt file.
+FATAL ERROR: Rounding was 0.5, expected less than 0.4
+ERROR: ILLEGAL SUMOUT                      <- unico caso con reintento (goto restart_test)
+Possible hardware failure, consult readme.txt file, restarting test.
+```
+
+Criterio de CoreCycler, que adoptamos: **línea nueva que contenga `error`**.
+
+### Determinismo
+
+La secuencia de longitudes de FFT no usa `rand()` (`commonb.c:8118-8135`) y con
+`TortureTime=1` cada longitud ejecuta un único autotest. Con el directorio
+borrado en cada arranque, **cada pasada ejecuta exactamente el mismo trabajo**.
+Medido: primera línea siempre a los 40 s, 5 de 5 pasadas, con 16 trabajadores.
+Por eso el tiempo hasta el primer autotest sirve como señal: si el trabajo es
+el mismo y tarda más de 3× la línea base, algo va mal en el núcleo.
+
+### Un lógico o los dos
+
+Con 16 trabajadores, un solo lógico no progresaba. Eso ya no vale como dato:
+hay que **re-medir con un trabajador**. CoreCycler ofrece ambos modos
+(`assignBothVirtualCoresForSingleThread`, por defecto un lógico).
+
+### Sobre medir la carga — corrección
+
+Comparar vatios entre cargas distintas no mide estrés. El bucle escalar de
+PowerShell a 5,4 GHz y Prime95 en AVX-512 consumen distinto haciendo trabajo
+distinto. El indicador fiable es el **ritmo de `results.txt`** y, mejor aún,
+el **tiempo hasta el primer autotest** frente a la línea base del mismo núcleo.
+
+## y-cruncher — SÍ se puede clavar a un núcleo (corrección)
+
+Versión probada: **v0.8.7.9547b**.
+
+Lo medido el 26/08 sigue siendo cierto: con `start /affinity` y `stress`
+reserva memoria para los 32 lógicos, y `-PF`/`-TD` solo existen en `bench`,
+`benchio`, `bbp` y `custom`.
+
+**Lo que se concluyó de ahí era falso.** CoreCycler lo clava: genera un
+`stressTest.cfg` (`script-corecycler.ps1:1230, 1279`) y fija la afinidad del
+proceso con `SetProcessAffinityMask` (`1793`). El binario para Zen 5 es
+`24-ZN5 ~ Komari` (AVX-512; `510`, `527`, `1261`), elegido en
+`Test-WhichYCruncherBinary` (`8418`). Las pruebas que CoreCycler considera más
+duras: **SFTv4, FFTv4, N63**.
+
+Pendiente: leer cómo construye el `.cfg` antes de escribir `YCruncherEngine`.
 
 ### PELIGRO — se queda esperando una tecla
 
@@ -50,109 +132,10 @@ En un arnés desatendido eso es un cuelgue silencioso que parece una prueba en
 curso. **Todo motor se lanza con la entrada estándar redirigida a NUL y con un
 plazo máximo por encima de la duración pedida.** Sin excepción.
 
-## Prime95 — sí se deja clavar, pero no satura
-
-Versión probada: **30.19 build 20**, 26/08/2026. Seis tentativas hasta dar con
-la combinación que clava la carga a un núcleo:
-
-| Qué se probó | Resultado |
-|---|---|
-| `Affinity=22` en `[Worker #1]` de `prime.txt` | **Ignorado.** Esa sección es para el trabajo normal de GIMPS, no para la tortura. Se cargaron los 16 núcleos, 172 W, 100 °C |
-| `NumCores=1` | Limita a un núcleo, pero **redefine la topología**: Prime95 pasa a creer que la máquina tiene un solo núcleo, la numeración lógica queda en 0-1 y `Affinity=22` cae fuera de rango. Carga el núcleo 0 |
-| `TortureCores=1` sin `NumCores` | Limita a un núcleo, sigue cayendo en el 0 |
-| `TortureCores=1` + `EnableSetAffinity=0` + máscara del proceso a **un** lógico | Cae en el núcleo correcto, pero `results.txt` queda vacío: apenas trabaja |
-| ...con máscara a **los dos** lógicos del núcleo | **Funciona.** `Self-test 4608 passed!` en `results.txt` y el núcleo correcto cargado |
-
-Configuración mínima que funciona, en `prime.txt` del directorio del núcleo:
-
-```
-StressTester=1
-V24OptionsConverted=1     <- sin esto sale el dialogo de bienvenida y SE QUEDA ESPERANDO
-UsePrimenet=0
-MinTortureFFT=4
-MaxTortureFFT=32
-TortureMem=0
-TortureTime=1
-TortureHyperthreading=0
-TortureCores=1
-EnableSetAffinity=0       <- que no se fije el su propia afinidad
-```
-
-Se lanza con `prime95.exe -t -W<directorio del nucleo>` y se le pone al proceso
-una máscara de afinidad de **los dos lógicos del núcleo físico** (`3 << 2N`).
-Con un solo lógico los hilos auxiliares compiten con el de cálculo y no avanza.
-
-`-W` da aislamiento limpio: cada núcleo con su carpeta, su `prime.txt` y su
-`results.txt`.
-
-### Confirmado en el código fuente
-
-Leído de `commonb.c` (repositorio `shafferjohn/Prime95`), lo que zanja las
-tentativas de arriba:
-
-```c
-case SET_PRIORITY_TORTURE:
-    bind_type = 0;                          // afinidad a UN nucleo concreto
-    core = get_ranked_core (info->torture_core_num);
-    break;
-
-case SET_PRIORITY_NORMAL_WORK:
-    sprintf (section_name, "Worker #%d", info->worker_num+1);
-    p = IniSectionGetStringRaw (INI_FILE, section_name, "Affinity");   // <- solo aqui
-```
-
-**La tortura nunca lee `Affinity=`.** Es exclusivo del trabajo normal de GIMPS.
-Y en `tortureTest()`:
-
-```c
-sp_info.torture_core_num = thread_num;      // el trabajador N prueba el nucleo N
-```
-
-O sea que la asignación de núcleo es el índice del trabajador, sin forma de
-redirigirla por configuración. Para llegar al núcleo 11 harían falta doce
-trabajadores.
-
-`TortureCores` y `TortureThreads` **no existen**: las claves reales son
-`MinTortureFFT`, `MaxTortureFFT`, `TortureMem`, `TortureTime`,
-`TortureHyperthreading`, `TortureWeak`, `TortureAlternateInPlace` y
-`TortureMultiThreadedFFTs`.
-
-Queda una sola vía limpia, y es la que ya funciona:
-
-```c
-if (! IniGetInt (INI_FILE, "EnableSetAffinity", 1)) return;   // sale sin tocar nada
-```
-
-Con `EnableSetAffinity=0`, Prime95 no fija afinidad alguna y manda la máscara
-del proceso. Verificado: cae en el núcleo pedido.
-
-### Sobre medir la carga — corrección
-
-Se llegó a concluir que Prime95 «no saturaba» comparando 2,98 W y 1.442 MHz
-efectivos contra los 14,10 W del bucle de PowerShell. **Esa conclusión no se
-sostiene**, por dos motivos:
-
-1. El reloj efectivo de LibreHardwareMonitor se deriva de dos muestras
-   consecutivas. `colab probe` las toma con milisegundos de separación, así que
-   en ventana corta el valor no es fiable — de ahí cifras absurdas en los
-   dieciséis núcleos a la vez.
-2. Comparar vatios entre cargas distintas no mide estrés. El bucle de PowerShell
-   es escalar a ~5,4 GHz; Prime95 usa AVX-512, que baja frecuencia y consume
-   distinto haciendo mucho más trabajo por ciclo.
-
-El indicador que sí aguanta: **ritmo de líneas en `results.txt`**. Un trabajador
-solo escribió una línea en 45 s; la pasada de 16 trabajadores escribió 19 en
-55 s. Mismo ritmo por trabajador — estaba trabajando con normalidad.
-
-La pregunta «¿es buen detector?» no se contesta con vatios. Se contesta con la
-Fase 0: bajar un núcleo hasta que cante un error.
-
 ## Reparto de papeles
 
 | | Motor | Por qué |
 |---|---|---|
-| **Por núcleo** | Prime95, FFT pequeña | Respeta la afinidad del proceso y tiene número de trabajadores explícito en `local.txt`. Es lo que usa CoreCycler, y ahora se ve por qué |
-| **Chip completo** | y-cruncher `stress` | Que use los 16 núcleos es justo lo que se quiere en la validación final. Matemática distinta a Prime95, así que caza fallos distintos |
-
-No es el reparto que se planteó al principio: y-cruncher parecía el fácil por
-ser cómodo de invocar, pero el que se deja clavar a un núcleo es Prime95.
+| **Por núcleo, tortura** | Prime95, FFT 4-32K, un trabajador | Estándar de la comunidad (CoreCycler). Determinista. Receta verificada en fuente |
+| **Por núcleo, carga ligera** | Prime95 SSE, FFT Huge, con suspensión periódica | Perfil `low-load-scenario` de CoreCycler. La inestabilidad de CO clásica aparece a reloj bajo |
+| **Chip completo, validación** | y-cruncher SFTv4/FFTv4/N63 | Matemática distinta, caza fallos distintos. Clavable si hiciera falta |
