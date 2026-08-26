@@ -40,7 +40,7 @@ public static class SensorsCommand
         Console.WriteLine($"     Pot. nuc.0   {s.TargetPower?.ToString("F3") ?? "NO ENCONTRADO"} W");
         Console.WriteLine($"     Paquete      {s.PackagePower?.ToString("F1") ?? "NO ENCONTRADO"}");
         Console.WriteLine($"     Tctl         {s.Tctl?.ToString("F1") ?? "NO ENCONTRADO"}");
-        Console.WriteLine($"     CCD1 / CCD2  {s.Ccd1Temp?.ToString("F1") ?? "—"} / {s.Ccd2Temp?.ToString("F1") ?? "—"}");
+        Console.WriteLine($"     CCD0 / CCD1  {s.Ccd0Temp?.ToString("F1") ?? "—"} / {s.Ccd1Temp?.ToString("F1") ?? "—"}");
         Console.WriteLine();
         Console.WriteLine("  Si algo sale NO ENCONTRADO, hay que corregir los patrones en Core/Telemetry.cs.");
         Console.WriteLine();

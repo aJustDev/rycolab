@@ -21,8 +21,22 @@ public static class Topology
 
     public static int CcdOf(int coreIndex) => coreIndex / CoresPerCcd;
 
-    /// <summary>Nombre legible del CCD, 1-indexado como en HWiNFO.</summary>
-    public static string CcdName(int coreIndex) => $"CCD{CcdOf(coreIndex) + 1}";
+    /// <summary>
+    /// Nombre del CCD, 0-indexado igual que Legion Toolkit ("CCD 0", "CCD 1")
+    /// y que la propia codificacion de la mascara SMU.
+    ///
+    /// CUIDADO: HWiNFO y LibreHardwareMonitor numeran desde 1. Nuestro CCD0 es
+    /// su sensor "CCD1 (Tdie)". La traduccion vive en <see cref="CcdTempSensor"/>
+    /// y en ningun otro sitio.
+    /// </summary>
+    public static string CcdName(int coreIndex) => $"CCD{CcdOf(coreIndex)}";
+
+    public static string CcdNameFromIndex(int ccdIndex) => $"CCD{ccdIndex}";
+
+    /// <summary>Unico punto donde se traduce nuestra numeracion a la de LibreHardwareMonitor.</summary>
+    public static string CcdTempSensor(int ccdIndex) => $"CCD{ccdIndex + 1} (Tdie)";
+
+    public static int FirstCoreOfCcd(int ccdIndex) => ccdIndex * CoresPerCcd;
 
     public static uint CoreMask(Cpu cpu, int coreIndex)
     {

@@ -86,7 +86,7 @@ static void PrintHelp()
         apply
           --margin <n>       Margen objetivo. Solo valores <= 0.
           --core <n>         Un solo nucleo.       Sin --core ni --ccd: los 16.
-          --ccd <1|2>        Un CCD completo.
+          --ccd <0|1>        Un CCD completo (0 = nucleos 0-7).
           --profile <ruta>   Por nucleo, desde un JSON con CoreValues.
           --dry-run          Enseña el plan y no escribe nada.
 

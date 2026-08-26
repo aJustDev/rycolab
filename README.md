@@ -59,6 +59,10 @@ Cosas medidas en esta máquina, no supuestas:
 - Lo que **sí** discrimina por núcleo es `Core #N (SMU)` (potencia) y el reloj
   efectivo. Con carga clavada al núcleo 8: 14,10 W y 2.696 MHz frente a
   0,05–0,49 W del resto.
+- Los CCD se numeran **desde 0**, igual que Legion Toolkit (`CCD {coreIndex / 8}`) y
+  que la máscara SMU. HWiNFO y LibreHardwareMonitor numeran desde 1: nuestro
+  CCD0 es su sensor `CCD1 (Tdie)`. La traducción vive en `Topology.CcdTempSensor`
+  y en ningún otro sitio.
 - Las temperaturas por CCD responden correctamente y sirven para confirmar que
   la carga cayó donde se pretendía.
 - Cada núcleo físico ocupa dos procesadores lógicos: el núcleo N es el lógico 2N.

@@ -186,12 +186,12 @@ public static class ApplyCommand
 
         if (args.GetInt("ccd") is { } ccd)
         {
-            if (ccd is not (1 or 2))
+            if (ccd is not (0 or 1))
             {
-                Console.Error.WriteLine("--ccd tiene que ser 1 o 2.");
+                Console.Error.WriteLine("--ccd tiene que ser 0 o 1 (numeracion de Legion Toolkit).");
                 return null;
             }
-            var first = (ccd - 1) * Topology.CoresPerCcd;
+            var first = Topology.FirstCoreOfCcd(ccd);
             return Enumerable.Range(first, Topology.CoresPerCcd)
                              .Where(c => c < co.CoreCount)
                              .Select(c => (c, margin))

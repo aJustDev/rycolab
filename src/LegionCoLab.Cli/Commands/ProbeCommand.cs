@@ -92,7 +92,7 @@ public static class ProbeCommand
         {
             Console.WriteLine();
             Console.WriteLine($"  Paquete {Fmt(s.PackagePower, "W", 1)}   Tctl {Fmt(s.Tctl, "C", 1)}   " +
-                              $"CCD1 {Fmt(s.Ccd1Temp, "C", 1)}   CCD2 {Fmt(s.Ccd2Temp, "C", 1)}   " +
+                              $"CCD0 {Fmt(s.Ccd0Temp, "C", 1)}   CCD1 {Fmt(s.Ccd1Temp, "C", 1)}   " +
                               $"reloj medio {Fmt(s.MaxCoreClock, "MHz", 0)}");
         }
         else if (args.Has("sensors"))
