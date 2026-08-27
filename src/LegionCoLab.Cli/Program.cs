@@ -105,7 +105,7 @@ static void PrintHelp()
           --dry-run          Enseña el plan y no escribe nada.
 
         SEGURIDAD
-          Margen admitido: -30 a 0. Un valor positivo SUBE el voltaje y se
+          Margen admitido: -40 a 0. Un valor positivo SUBE el voltaje y se
           rechaza siempre. Toda escritura se relee y se aborta si no coincide.
           Un movimiento grande se recorre en tramos de 3 cuentas como mucho,
           verificando en cada parada. Si el proceso muere a medias, los nucleos

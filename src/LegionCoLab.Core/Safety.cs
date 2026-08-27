@@ -10,8 +10,13 @@ public sealed class SafetyViolationException(string message) : Exception(message
 /// </summary>
 public static class Safety
 {
-    /// <summary>Nada mas agresivo que esto, pase lo que pase.</summary>
-    public const int AbsoluteMinMargin = -30;
+    /// <summary>
+    /// Nada mas agresivo que esto, pase lo que pase.
+    /// -30 hasta el 27/08/2026; subido a -40 por decision del usuario tras
+    /// pasar los nucleos 0 y 11 a -30 en cuatro regimenes, incluido fMax
+    /// (docs/RESULTADOS.md). CoreCycler admite -50 en Ryzen 7000+.
+    /// </summary>
+    public const int AbsoluteMinMargin = -40;
 
     /// <summary>Un margen positivo SUBE el voltaje. Nunca es lo que queremos.</summary>
     public const int AbsoluteMaxMargin = 0;
