@@ -12,7 +12,9 @@ param(
     [int]$Margin  = -8,
     [int]$Base    = -5,
     [int]$Seconds = 180,
-    [int]$Veces   = 3
+    [int]$Veces   = 3,
+    [string]$Receta = 'prime95-recipe.txt',   # en scripts\; p.ej. prime95-recipe-sse-huge.txt
+    [switch]$Suspender                        # cada 10 s suspende los hilos 1 s (CoreCycler suspendPeriodically)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +22,37 @@ $repo = "$env:USERPROFILE\Proyectos\legion-co-lab"
 $exe  = "$repo\src\LegionCoLab.Cli\bin\Release\net9.0-windows\win-x64\colab.exe"
 $P95  = "$repo\tools\prime95"
 $runs = "$repo\runs\fase0"
-$log  = "$runs\diag-margin$Margin.log"
+$tag  = if ($Receta -ne 'prime95-recipe.txt') { '-' + ([IO.Path]::GetFileNameWithoutExtension($Receta) -replace '^prime95-recipe-', '') } else { '' }
+if ($Suspender) { $tag += '-susp' }
+$log  = "$runs\diag-margin$Margin$tag.log"
+
+# Suspension de hilos: SuspendThread/ResumeThread sobre cada hilo del proceso
+# (CoreCycler script-corecycler.ps1:1813-1818, 3473-3475, 3628).
+Add-Type -TypeDefinition @'
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+public static class Hilos {
+    [DllImport("kernel32.dll")] static extern IntPtr OpenThread(uint access, bool inherit, uint tid);
+    [DllImport("kernel32.dll")] static extern int SuspendThread(IntPtr h);
+    [DllImport("kernel32.dll")] static extern int ResumeThread(IntPtr h);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+    const uint THREAD_SUSPEND_RESUME = 0x0002;
+    public static int Suspend(int pid) { return Apply(pid, true); }
+    public static int Resume(int pid)  { return Apply(pid, false); }
+    static int Apply(int pid, bool suspend) {
+        int n = 0;
+        foreach (ProcessThread t in Process.GetProcessById(pid).Threads) {
+            IntPtr h = OpenThread(THREAD_SUSPEND_RESUME, false, (uint)t.Id);
+            if (h == IntPtr.Zero) continue;
+            int r = suspend ? SuspendThread(h) : ResumeThread(h);
+            if (r >= 0) n++;
+            CloseHandle(h);
+        }
+        return n;
+    }
+}
+'@
 
 New-Item -ItemType Directory -Force $runs | Out-Null
 
@@ -59,7 +91,7 @@ try {
         $work = Join-Path $P95 "work\core$Core"
         Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
         New-Item -ItemType Directory -Force $work | Out-Null
-        Copy-Item "$PSScriptRoot\prime95-recipe.txt" (Join-Path $work 'prime.txt')   # UNICA copia de la receta
+        Copy-Item "$PSScriptRoot\$Receta" (Join-Path $work 'prime.txt')   # las recetas viven SOLO en scripts\
         $res = Join-Path $work 'results.txt'
 
         $p = Start-Process -FilePath (Join-Path $P95 'prime95.exe') `
@@ -71,24 +103,32 @@ try {
         Say ("  pid $($p.Id)  afinidad 0x{0:X}" -f [int64]$p.ProcessorAffinity)
 
         # Telemetria a 1 Hz del nucleo bajo carga (reloj, efectivo, W, Tctl, tabla PM cruda)
-        $wj = Join-Path $runs "watch-m$Margin-p$i.jsonl"
-        $ws = Join-Path $runs "watch-m$Margin-p$i.json"
+        $wj = Join-Path $runs "watch-m$Margin$tag-p$i.jsonl"
+        $ws = Join-Path $runs "watch-m$Margin$tag-p$i.json"
         $wp = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden `
-                -RedirectStandardOutput (Join-Path $runs "watch-m$Margin-p$i.txt") `
+                -RedirectStandardOutput (Join-Path $runs "watch-m$Margin$tag-p$i.txt") `
                 -ArgumentList 'watch','--core',$Core,'--seconds',$Seconds,'--interval','1000','--raw','--jsonl',$wj,'--summary',$ws
 
         $t0 = Get-Date
         $primera = $null
         $error95 = $null
+        $suspensiones = 0
         while (((Get-Date) - $t0).TotalSeconds -lt $Seconds) {
-            Start-Sleep -Seconds 10
+            if ($Suspender -and -not $p.HasExited) {
+                Start-Sleep -Seconds 9
+                $ns = [Hilos]::Suspend($p.Id); Start-Sleep -Milliseconds 1000; [Hilos]::Resume($p.Id) | Out-Null
+                $suspensiones++
+            } else {
+                Start-Sleep -Seconds 10
+            }
             $el = [int]((Get-Date) - $t0).TotalSeconds
             $n  = Count-Lines $res
             if ($n -gt 0 -and -not $primera) { $primera = $el }
 
             $txt = if (Test-Path $res) { Get-Content $res -Raw } else { '' }
-            if ($txt -match 'FATAL ERROR|Hardware failure|Rounding was' -and -not $error95) {
-                $error95 = @($txt -split "`n" | Where-Object { $_ -match 'FATAL ERROR|Hardware failure|Rounding was' }) -join ' | '
+            # 'error' a secas es el criterio de CoreCycler (script-corecycler.ps1:9952)
+            if ($txt -match 'FATAL ERROR|Hardware failure|Rounding was|(?i)error' -and -not $error95) {
+                $error95 = @($txt -split "`n" | Where-Object { $_ -match 'FATAL ERROR|Hardware failure|Rounding was|(?i)error' }) -join ' | '
                 Say "  ERROR DE CALCULO a los ${el}s: $error95"
             }
 
@@ -108,7 +148,7 @@ try {
         Start-Sleep -Seconds 2
         $tele = if (Test-Path $ws) { Get-Content $ws -Raw | ConvertFrom-Json } else { $null }
         $resumen += [pscustomobject]@{ Pasada = $i; Lineas = $n; Primera = $primera; Error = $error95; Tele = $tele }
-        Say "  pasada ${i}: $n lineas, primera $(if($primera){"${primera}s"}else{'nunca'})"
+        Say "  pasada ${i}: $n lineas, primera $(if($primera){"${primera}s"}else{'nunca'})$(if($Suspender){"  suspensiones $suspensiones"})"
         if ($tele) {
             Say ("  telemetria: {0} muestras  reloj {1:F0}  efectivo {2:F0} (p10 {3:F0})  V {4:F4} (max {5:F4})  GHz {6:F3}  W nucleo {7:F2}  W paquete {8:F1}  T {9:F1} (max {10:F1})" -f `
                  $tele.samples, $tele.clockMedian, $tele.clockEffectiveMedian, $tele.clockEffectiveP10, $tele.voltMedian, $tele.voltMax, $tele.freqMedian, $tele.powerMedian, $tele.packagePowerMedian, $tele.tempMedian, $tele.tempMax)
