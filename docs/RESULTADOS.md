@@ -217,6 +217,11 @@ limpio en ambos. Cada prueba restaura −5. JSON por núcleo en `runs/fase1/`.
 | 16:06:08 | 2 | −45 | `24-ZN5` | ídem | 99 s | — |
 | 16:26:06 | 3 | −50 | `24-ZN5` | ídem | 29 s | — |
 | 16:46:15 | 4 | −50 | `24-ZN5` | **reinicio en frío** (Kernel-Power 41, 16:46:32) | ~45 s | — |
+| 20:33:37 | 8 | −50 | `24-ZN5` | **WHEA 47** (corregido, componente memoria, dir. física `0x100b3d5207`); la prueba pasó | 35 s | 1,063 / 5,385 |
+| 20:45:42 | 9 | −50 | `24-ZN5` | `SFTv4 Failed`, `Checksum Mismatch` | 9 s | — |
+| 20:53:32 | 9 | −45 | `24-ZN5` | ídem | 59 s | — |
+| 21:25:35 | 11 | −50 | `24-ZN5` | `Bottom word mismatch` | 9 s | — |
+| 21:48:37 | 12 | −50 | `24-ZN5` | `Checksum Mismatch` | 19 s | — |
 
 El crash del núcleo 0 a −50 con `04-P4P` no se reprodujo en la repetición
 (1/2). Evidencia en `runs/fase1/positivos/core0-m50-04P4P/` (salida, log,
@@ -234,9 +239,23 @@ telemetría, `.dmp`). WHEA: 0 en todo el día, incluido el reinicio.
 | 5 | **−45**² | no probado | limpio / limpio | — | 1,033 |
 | 6 | **−45**² | no probado | limpio / limpio | — | 1,041 |
 | 7 | **−45**² | no probado | limpio / limpio | — | 1,042 |
-| 8-15 | pendiente | | | | |
+
+### Límites (CCD1, sin V-Cache; 20:26-22:39, desde −50)
+
+| Núcleo | Límite | −50 `04-P4P` / `24-ZN5` | −45 `04-P4P` / `24-ZN5` | −40 `04-P4P` / `24-ZN5` | V a fMax en el límite |
+|---|---|---|---|---|---|
+| 8 | **−50**³ | limpio / limpio (WHEA 47 a los 35 s) | — | — | 1,078 |
+| 9 | **−40** | limpio / falla 9 s | limpio / falla 59 s | limpio / limpio | 1,096 |
+| 10 | **−50** | limpio / limpio | — | — | 1,090 |
+| 11 | **−45** | limpio / falla 9 s | limpio / limpio | — | 1,108 |
+| 12 | **−45** | limpio / falla 19 s | limpio / limpio | — | 1,079 |
+| 13 | **−50** | limpio / limpio | — | — | 1,092 |
+| 14 | **−50** | limpio / limpio | — | — | 1,109 |
+| 15 | **−50** | limpio / limpio | — | — | 1,107 |
 
 ¹ crash 1/2 en la repetición.
+³ Único WHEA del proyecto (id 47, corregido, memoria) durante esa prueba.
+El −50 del núcleo 8 queda marcado: no es un límite limpio.
 ² Segunda tanda (19:29-20:19, `-Nucleos 4,5,6,7 -Inicio -45`): −50 no se
 probó en 5-7 (4/4 anteriores habían fallado y el 4 reinició la máquina).
 Límite según definición, pero sin positivo propio. Todos limpios a la
@@ -244,13 +263,28 @@ primera con ambos motores; WHEA 0; −5 × 16 al terminar.
 
 Patrón: `04-P4P` (SSE3) pasa −50 en todos; el que discrimina en CCD0 es
 `24-ZN5` (AVX-512), y el tiempo hasta el error crece al subir el margen
-(−50: 9-39 s; −45: 79-99 s). El núcleo 11 (CCD1) pasó −50 con ambos.
+(−50: 9-39 s; −45: 79-99 s). En CCD1 el mismo motor discrimina (9, 11, 12
+fallan a −50 en 9-19 s); 8, 10, 13, 14, 15 pasan −50 con ambos. El 11 solo
+había pasado −50 con `04-P4P` (12:43-14:10); con `24-ZN5` falla a −50.
+
+Tabla completa (16 núcleos), límite en 6 min con ambos motores:
+
+```
+CCD0   0:-40  1:-40  2:-40  3:-45  4:-45  5:-45  6:-45  7:-45
+CCD1   8:-50* 9:-40 10:-50 11:-45 12:-45 13:-50 14:-50 15:-50     * WHEA 47
+```
+
+CCD1 llega a fMax 5,45 GHz con `04-P4P`; CCD0 se queda en 5,15 GHz.
 
 ## WHEA
 
 `Microsoft-Windows-WHEA-Logger`: **0 eventos** en todo el histórico del
-registro del sistema (comprobado 27/08/2026 00:41 y tras cada margen de la
-Fase 0b, última 11:02).
+registro del sistema hasta el 27/08/2026 20:33. Primer evento: **27/08/2026
+20:33:37, id 47, Advertencia**, "Error de hardware corregido. Componente:
+memoria. Origen: Corrected Machine Check", `PhysicalAddress = 0x100b3d5207`,
+`ErrorSource = 1`, `ValidBits = 0x2`, Node/Bank/Row/Column = 0. Durante el
+núcleo 8 a −50 con `24-ZN5` (20:33:03-20:39:14), prueba que pasó. Sin más
+eventos hasta las 22:45.
 
 ## Histórico anterior a este repositorio (de `UNDERVOLT.md`)
 

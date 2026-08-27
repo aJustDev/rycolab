@@ -104,3 +104,15 @@ Si se va a consultar más de dos veces, clonar a `~/Proyectos/`.
 
 Método: `colab watch --raw` en dos márgenes, `scripts/pm-diff.ps1`. Con otra
 versión de tabla, repetir.
+
+### Referencias externas leídas el 27/08/2026 (investigación durante la Fase 1)
+
+| Qué | Dónde |
+|---|---|
+| CoreCycler corre 8 tests de y-cruncher por defecto: `BKT, BBP, SFTv4, SNT, SVT, FFTv4, N63, VT3`; tabla de carga CPU/Mem por test (`BKT` entero escalar, `BBP`/`SVT`/`SNT` en caché) | clon `configs/default.config.ini:330-345` |
+| "Use 04-P4P for low load testing and 19-ZN2 for higher/AVX2"; "It is unclear yet how Zen 5 / Ryzen 9000 CPUs will turn out" | `configs/default.config.ini:314-318` |
+| 9950X3D: CO por CCD −25 (V-Cache) / −20; Curve Shaper Low/Med −30, High −25, Max −10; fMax 5550 (V-Cache) vs 5750; cuatro cargas: OCCT memoria (ligera), y-cruncher BKT (ligera), y-cruncher bench (AVX), OCCT AVX (pesada) | skatterbencher.com/2025/03/11/skatterbencher-85-ryzen-9-9950x3d-overclocked-to-5900-mhz/ |
+| "an unstable undervolt usually crashes at idle or light load, not under an all-core stress test"; `CLOCK_WATCHDOG_TIMEOUT`; ~1,13 V a 5,1 GHz all-core frente a ~1,40 V VID en boost ligero | techfuelhq.com/articles/9800x3d-undervolt-guide-2026/ |
+| "Stop one or two steps above your first instability, not at it" | msi.com/blog/how-to-use-curve-optimizer-to-lower-ryzen-9-9950x3d-temperatures-and-boost-performance |
+| Curve Shaper: no bajar el punto Min Frequency (afecta a la tensión de reposo) | SkatterBencher #85 (arriba) |
+| Sin datos publicados del 9955HX3D ni del 16AFR10H | búsquedas 27/08/2026 |
