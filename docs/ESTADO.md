@@ -150,8 +150,10 @@ Pendientes de la Fase 1:
   tapada a 14 W es la que más sube el reloj.
 - Vigilar WHEA (ids 17-20, 46, 47) dentro de `fase1.ps1`/el corredor, no
   solo a mano al final.
-- Comprobar si la BIOS expone Curve Shaper; si sí, no tocar el punto Min
-  (afecta a la tensión de reposo).
+- BIOS SMCN20WW (capturas `Desktopbios`, 25-26/08): Performance Tuning solo
+  expone CPU Overclocking, PBO Scalar, Max CPU Boost Clock Override, All Core
+  Curve Optimizer Sign/Magnitude (tope -5), Smart Power, Silent Performance
+  Mode, CTCL Control. **Ni Curve Shaper ni CO por núcleo**: todo por SMU.
 
 ## Después
 
