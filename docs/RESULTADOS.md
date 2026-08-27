@@ -50,10 +50,49 @@ trabajador (Fase 0b).
 Secuencia de autotests completada en 180 s (determinista):
 4608, 5K, 6K, 7K, 7680, 8K, 9K, 10K, 10752, 12K.
 
+### 27/08/2026 — Fase 0b (1 trabajador, 3 × 180 s por margen, núcleo 11)
+
+| Hora | Margen | Trab. | Líneas | Primera | Error | Veredicto |
+|---|---|---|---|---|---|---|
+| 09:41-09:51 | −8 | 1 | 9, 10, 10 | 20 s ×3 | ninguno | señal 3/3 |
+| 09:51-10:01 | −11 | 1 | 10, 10, 10 | 20 s ×3 | ninguno | señal 3/3 |
+| 10:01-10:11 | −14 | 1 | 10, 10, 10 | 20 s ×3 | ninguno | señal 3/3 |
+| 10:11-10:21 | −17 | 1 | 10, 10, 10 | 20 s ×3 | ninguno | señal 3/3 |
+| 10:21-10:31 | −20 | 1 | 10, 10, 10 | 20 s ×3 | ninguno | señal 3/3 |
+| 10:31-10:41 | −23 | 1 | 10, 10, 10 | 20 s ×3 | ninguno | señal 3/3 |
+| 10:42-10:52 | −5 | 1 | 10, 10, 10 | 20 s ×3 | ninguno | señal 3/3 (referencia con telemetría) |
+| 10:52-11:02 | −25 | 1 | 10, 10, 10 | 20 s ×3 | ninguno | señal 3/3 |
+
+Hardware verificado por sonda antes de cada margen; restaurado a −5 y
+verificado después de cada uno. WHEA: 0 en todo momento.
+
+**Sin positivo hasta −25** bajo Prime95 small FFT, un trabajador. El mudo de
+−8 con 16 trabajadores (arriba) no se reproduce con uno: era de la carga, no
+del silicio.
+
+#### Contraste físico −5 / −25 (mismo núcleo, misma carga, 3 pasadas, 176 muestras/pasada)
+
+Medianas de `colab watch` (LHM + tabla PM del SMU v0x621202):
+
+| Margen | Reloj LHM | Efectivo LHM | V núcleo (PM) | GHz (PM) | W núcleo | T núcleo | Tctl |
+|---|---|---|---|---|---|---|---|
+| −5 | 5005 / 5010 / 5010 | 2551 / 2550 / 2547 | 1,0832 | 5,005 | 13,96 / 13,98 / 13,99 | 72,8 | 73,6 / 72,9 / 73,1 |
+| −25 | 5165 / 5165 / 5170 | 2628 / 2632 / 2629 | 1,0675 | 5,167 | 13,96 / 13,92 / 13,96 | 72,7 | 72,9 / 73,0 / 73,4 |
+| Δ | **+160 MHz** | +3,1 % | **−15,7 mV** | +3,2 % | 0 | 0 | 0 |
+
+Comprobación: (5,167/5,005) × (1,0675/1,0832)² = 1,003 → potencia constante.
+El margen está actuando: el núcleo está limitado a ~14 W y el CO se convierte
+en reloj. Telemetría cruda en `runs/fase0/watch-m{-5,-25}-p{1,2,3}.jsonl`
+(ignorado por git).
+
+Efectivo ≈ mitad del reloj porque LHM promedia los dos lógicos y Prime95 usa
+uno. En reposo el núcleo 11 lee 0,64 V / 2,0 GHz / 0,1 W / 39 C.
+
 ## WHEA
 
 `Microsoft-Windows-WHEA-Logger`: **0 eventos** en todo el histórico del
-registro del sistema (comprobado 27/08/2026 00:41).
+registro del sistema (comprobado 27/08/2026 00:41 y tras cada margen de la
+Fase 0b, última 11:02).
 
 ## Histórico anterior a este repositorio (de `UNDERVOLT.md`)
 

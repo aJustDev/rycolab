@@ -82,3 +82,17 @@ Si se va a consultar más de dos veces, clonar a `~/Proyectos/`.
 |---|---|
 | Lectura/escritura del margen PSM por núcleo | `GetPsmMarginSingleCore(uint)`, `SetPsmMarginSingleCore(uint,int)` |
 | Máscara de núcleo `((ccd << 8) \| core) << 20` (APU: índice plano) | `CoreMask` en `Topology.cs`, copiado de LLT |
+| Tabla de potencia del SMU: `Cpu.RefreshPowerTable()`, floats crudos en `Cpu.powerTable.Table`, versión en `Cpu.smu.TableVersion` (NuGet 1.0.1; en `master` es `RyzenSmu.PmTableVersion`) | `Cpu.cs:1147`, `PowerTable.cs:505` |
+| `PowerTable` solo interpreta FCLK/MCLK/UCLK/VDDCR_SOC/CLDO_*; **nada por núcleo** | `PowerTable.cs:500-560` |
+
+### Tabla PM del 9955HX3D (versión `0x621202`, 613 floats) — localizado aquí, no en ninguna fuente
+
+| Posición | Qué | Cómo se verificó (27/08/2026) |
+|---|---|---|
+| `301+N` | potencia del núcleo N (W) | igual a LHM `Core #N+1 (SMU)` |
+| `317+N` | **tensión** del núcleo N (V) | 1,0832 → 1,0675 al pasar de −5 a −25 solo en N=11 |
+| `333+N` | temperatura del núcleo N (C) | igual a Tctl con un núcleo cargado |
+| `349+N` | frecuencia del núcleo N (GHz) | igual a LHM `Core #N+1` |
+
+Método: `colab watch --raw` en dos márgenes, `scripts/pm-diff.ps1`. Con otra
+versión de tabla, repetir.

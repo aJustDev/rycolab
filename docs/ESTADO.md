@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **27/08/2026, 01:30**. Plan completo en revisión 2 (ver el
+Última sesión: **27/08/2026, 11:30**. Plan completo en revisión 2 (ver el
 resumen de fases abajo). **Empezar cada sesión leyendo este fichero y
 `FUENTES.md`.**
 
@@ -19,7 +19,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 01:23.
+CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 11:02.
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -35,48 +35,67 @@ Un reinicio devuelve siempre a −5 en los dieciséis. Esa es la red de segurida
 colab probe [--sensors] [--json f]   lee el margen PSM del hardware
 colab apply --core N --margin M      escribe, camina el paso, verifica
 colab reset --to -5                  devuelve los 16 a la base
+colab watch --core N [--seconds S]   1 Hz: reloj, efectivo, V, GHz, W, T del nucleo (tabla PM)
 scripts\diag-relaunch.ps1            N pasadas identicas SIN tocar el SMU; cuenta trabajadores; linea base
-scripts\diag-margin.ps1 -Margin M    N pasadas a un margen (escribe SMU, consola elevada)
-scripts\fase0.ps1                    control + escalera (escribe SMU, consola elevada)
+scripts\diag-margin.ps1 -Margin M    N pasadas a un margen con watch en paralelo (escribe SMU, elevada)
+scripts\pm-diff.ps1 -A m1 -B m2      compara tablas PM crudas de dos margenes (localiza posiciones)
+scripts\fase0.ps1                    control + escalera (escribe SMU, elevada)  [sin watch]
 scripts\abort.ps1                    corta todo y restaura -5
 scripts\read-p95-window.ps1          lista las ventanas de Prime95
 ```
 
 Consola elevada: `Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-File',<guion>`.
 
-## Hecho el 27/08
+## Hecho el 27/08 (mañana)
 
-- Auditoría completa; plan replanificado (revisión 2).
-- Causa raíz de las medidas malas: `TortureCores` por defecto = 16
-  (`Prime95Doc.cpp:1164`). Receta corregida con `NumCores=1`
-  (`commonc.c:487`), tomada de CoreCycler.
-- **Fase 0a superada**: 1 trabajador, 3/3 con señal, primera línea 20 s,
-  3,11 líneas/min. Línea base del detector para el núcleo 11 en −5.
-- `ErrorCheck=1` verificado en fuente: no afecta a la tortura. No entra.
-- Docs: `FUENTES.md` (anclas), `ENGINES.md` (reescrito), `RESULTADOS.md`.
+- **Fase 0b ejecutada**: −8, −11, −14, −17, −20, −23, −25, 3 × 180 s cada
+  uno, un trabajador. **Sin positivo**: todas 10 líneas / primera 20 s, sin
+  error, WHEA 0. El mudo de −8 de la noche era de los 16 trabajadores.
+- `colab watch` + `PmTable.cs`: tensión, GHz, W y T **por núcleo** desde la
+  tabla PM del SMU (v0x621202, índices `301/317/333/349 + N`, localizados
+  por diferencia −5/−25 con `pm-diff.ps1`).
+- **Contraste físico −5/−25**: +160 MHz, −15,7 mV, misma potencia (14 W).
+  El margen actúa; el núcleo está limitado por potencia y el CO se convierte
+  en reloj. Datos en `RESULTADOS.md`.
 
-## Siguiente paso: FASE 0b — validar el detector
+## Lectura de la Fase 0b
 
-**Escribe en el SMU. Pedir confirmación antes de cada nivel.** Consola elevada.
+La puerta decía: «sin positivo a −25 → el motor no detecta». Lo que se ha
+visto es distinto: el margen actúa (medido) y el núcleo aguanta −25 **bajo
+tortura a plena carga**. Ese régimen no es donde el CO suele romper; la
+inestabilidad clásica aparece en reposo y carga ligera (reloj y corriente
+bajos), que es la Fase 1b, aún sin medir.
 
-1. `scripts\diag-margin.ps1 -Margin -8 -Veces 3` (3 × 180 s, un trabajador).
-   - Señal 3/3 con primera línea ≤ 60 s → el colapso de anoche fue de los 16
-     trabajadores. Seguir con la escalera: −11, −14, −17, −20, −23, −25.
-   - Mudo o primera línea > 60 s, reproducible 2/3 → positivo. Ir al punto 3.
-2. Si −8 sigue mudo: `-Margin -6` y `-Margin -7` para discriminar «escalón
-   real» de «cualquier desviación del valor de la BIOS rompe el motor».
-3. **Puerta**: un positivo reproducible (2/3) por error declarado, WHEA o
-   colapso (> 3× la base). Sin positivo a −25 → parar, el motor no detecta.
+Hasta −25 no hay evidencia de que **Prime95 small FFT detecte nada** en
+este chip. Que el detector funcione (cante un error) sigue sin demostrarse.
 
-`diag-margin.ps1` aún no aplica el umbral 3× automáticamente ni vigila WHEA:
-leer «primera» del resumen y comparar con 20 s a mano; comprobar WHEA con
-`Get-WinEvent -FilterHashtable @{LogName='System';ProviderName='Microsoft-Windows-WHEA-Logger'}`.
+## Siguiente paso: FASE 0b' — buscar el positivo donde puede estar
+
+Escribe en el SMU. Consola elevada. Pedir confirmación antes de cada nivel.
+
+1. **Bajar más, en el mismo régimen**: −28 y −30 (tope de `Safety`), 3 × 180 s
+   con `diag-margin.ps1`. Si canta error → detector validado; anotar V/GHz.
+2. **Cambiar de régimen** (lo que hace CoreCycler para esto): Prime95 con
+   `suspendPeriodically` (SuspendThread ~1 s por tick, `script-corecycler.ps1:3343-3475`)
+   y perfil `low-load-scenario` (SSE, FFT Huge). Requiere adaptar la receta
+   y añadir la suspensión periódica a `diag-margin.ps1` o hacerlo ya en el
+   `Prime95Engine` (Paso 3). Probar en −25 (donde ya sabemos que la tortura
+   pasa) y bajar.
+3. **Contraste con y-cruncher** (Fase 3 adelantada, un núcleo): binario Zen 5
+   `24-ZN5 ~ Komari`, pruebas SFTv4/FFTv4/N63, `stressTest.cfg` generado +
+   afinidad (CoreCycler 1230-1290, 8418-8440).
+4. Si nada de lo anterior da positivo a −30: el gate se cierra con «este
+   núcleo no falla en ningún régimen medido hasta el tope de seguridad», y
+   la Fase 1 barre con detector no validado pero con telemetría física por
+   nivel. Decisión del usuario.
+
+Sin cambios en el detector hasta tener un positivo real que lo calibre.
 
 ## Después
 
 ```
 0c   contraste con CoreCycler (modo manual, mismo nucleo, mismos niveles)   ~1 h
-3    Prime95Engine en C# + panel en vivo; los guiones quedan como diagnostico
+3    Prime95Engine en C# + panel en vivo (watch ya es la base de telemetria)
 5    JSONL + SQLite + colab report (+ tabla baselines)
 6    corredor: plan.json, latido, Hang, --auto-resume (tarea programada, .automode)
 1    barrido por CCD                                    ~4-8 h de maquina

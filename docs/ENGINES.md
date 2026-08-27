@@ -102,6 +102,25 @@ PowerShell a 5,4 GHz y Prime95 en AVX-512 consumen distinto haciendo trabajo
 distinto. El indicador fiable es el **ritmo de `results.txt`** y, mejor aún,
 el **tiempo hasta el primer autotest** frente a la línea base del mismo núcleo.
 
+### Telemetría por núcleo — de dónde sale cada número
+
+| Magnitud | Fuente | Nota |
+|---|---|---|
+| Reloj | LHM `Core #N` | reloj objetivo, no el real |
+| Reloj efectivo | LHM `Core #N (Effective)` | promedia los **dos lógicos**: con un hilo cargado sale ~la mitad. Comparable entre márgenes, no con el reloj |
+| Tensión | **tabla PM del SMU**, posición `317+N` | LHM no la da: `Core #N VID` es un único valor para los 16 |
+| Frecuencia | tabla PM, `349+N` | GHz; coincide con el reloj de LHM |
+| Potencia | tabla PM, `301+N` (= LHM `Core #N (SMU)`) | W |
+| Temperatura | tabla PM, `333+N` | C |
+
+Índices verificados el 27/08/2026 con tabla versión `0x621202` (613 floats),
+por diferencia −5/−25 con un solo núcleo cargado (`scripts/pm-diff.ps1`).
+`colab watch` los usa; `PmTable.cs` los documenta. Otra versión de tabla →
+repetir la localización.
+
+Una muestra aislada de reloj efectivo no vale (la ventana APERF/MPERF es la
+que haya entre dos lecturas): `watch` descarta la primera y usa medianas.
+
 ## y-cruncher — SÍ se puede clavar a un núcleo (corrección)
 
 Versión probada: **v0.8.7.9547b**.
