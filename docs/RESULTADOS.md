@@ -293,3 +293,20 @@ eventos hasta las 22:45.
 | LLT −3 CCD0 / −7 CCD1, sesiones de juego y Cinebench | estable |
 | LLT −15 all-core | Cinebench murió a los 10,5 min |
 | BIOS all-core −5 (base actual) | estable, arranque limpio |
+
+## Fase 1b — soak en reposo con el perfil candidato (27/08/2026, `fase1b.ps1`)
+
+Perfil = límite + 5 (el 8 tratado como −45 por el WHEA 47):
+
+```
+CCD0   0:-35  1:-35  2:-35  3:-40  4:-40  5:-40  6:-40  7:-40
+CCD1   8:-40  9:-35 10:-45 11:-40 12:-40 13:-45 14:-45 15:-45
+```
+
+| Hora | Qué | Resultado |
+|---|---|---|
+| 22:43:38 | `colab apply` a los 16, `probe` | hardware = perfil, verificado |
+| 22:43:48-23:14:40 | 31 min en reposo (escritorio + vídeo), muestra cada 60 s | margen intacto en 31/31; WHEA 0; CPU 0-7 % |
+| 23:14:41 | `reset --to -5`, `probe` | −5 × 16 |
+
+`runs/fase1b/resultado.json`, código 0.

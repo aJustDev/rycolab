@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **27/08/2026, 22:50**. Plan completo en revisión 3
+Última sesión: **27/08/2026, 23:20**. Plan completo en revisión 3
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 22:45 (al terminar la Fase 1).
+CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 23:14 (al terminar la Fase 1b).
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -125,7 +125,9 @@ por definición, sin positivo propio). Un arranque en falso antes: con
 `-File`, `-Nucleos 4,5,6,7` entra como el entero 4567 (falla sin tocar el
 SMU); hay que lanzar con `-Command`.
 
-## Siguiente paso: decidir el perfil candidato y Fase 1b
+## Fase 1b hecha (22:43-23:14): perfil candidato, 30 min en reposo, WHEA 0
+
+## Siguiente paso: Fase 3 (uso real con el candidato)
 
 Candidato propuesto = límite + 5 (las guías: "una o dos paradas por encima
 del primer fallo"); el 8 tratado como −45 por el WHEA:
@@ -135,10 +137,10 @@ CCD0   0:-35  1:-35  2:-35  3:-40  4:-40  5:-40  6:-40  7:-40
 CCD1   8:-40  9:-35 10:-45 11:-40 12:-40 13:-45 14:-45 15:-45
 ```
 
-Decisión del usuario pendiente. Después, Fase 1b: aplicar el perfil a los
-16 (`colab apply` por núcleo, `probe` de verificación), 30 min en reposo
-+ WHEA, y la validación de Fase 3 (uso real ≥ 2 h, despertar de suspensión,
-WHEA). Todo lo que se sabe fuera dice que el CO falla **en reposo y carga
+Perfil aprobado por el usuario y pasado el soak (`fase1b.ps1`). Falta: aplicar el perfil a los
+16 y usar la máquina de verdad ≥ 2 h (juego, navegación, suspensión y despertar),
+contando WHEA y Kernel-Power 41 al final. `fase1b.ps1 -Minutos N` sirve de vigilante (relee
+el margen y cuenta WHEA cada minuto; restaura −5 al salir). Todo lo que se sabe fuera dice que el CO falla **en reposo y carga
 ligera**, no bajo estrés (Kernel-Power 41 / `CLOCK_WATCHDOG_TIMEOUT` en
 escritorio, al despertar, al arrancar un juego); CoreCycler no lo caza.
 
