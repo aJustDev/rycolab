@@ -14,9 +14,11 @@ public static class Safety
     /// Nada mas agresivo que esto, pase lo que pase.
     /// -30 hasta el 27/08/2026; subido a -40 por decision del usuario tras
     /// pasar los nucleos 0 y 11 a -30 en cuatro regimenes, incluido fMax
-    /// (docs/RESULTADOS.md). CoreCycler admite -50 en Ryzen 7000+.
+    /// (docs/RESULTADOS.md). A -50 el mismo dia, tras pasar -35 y -40 en fMax:
+    /// -50 es el minimo que admite el SMU en Ryzen 7000+ (CoreCycler
+    /// default.config.ini:760).
     /// </summary>
-    public const int AbsoluteMinMargin = -40;
+    public const int AbsoluteMinMargin = -50;
 
     /// <summary>Un margen positivo SUBE el voltaje. Nunca es lo que queremos.</summary>
     public const int AbsoluteMaxMargin = 0;
