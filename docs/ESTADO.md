@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **27/08/2026, 13:00**. Plan completo en revisión 3
+Última sesión: **27/08/2026, 14:15**. Plan completo en revisión 3
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 12:50.
+CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 14:09.
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -42,6 +42,7 @@ scripts\diag-margin.ps1 -Margin M [-Receta f] [-Suspender] [-Seconds S]
                                      Prime95 a un margen con watch en paralelo (escribe SMU, elevada)
 scripts\diag-ycruncher.ps1 -Margin M -Modo '04-P4P'|'"24-ZN5 ~ Komari"' [-Suspender]
                                      y-cruncher clavado al nucleo, cfg generado, watch en paralelo (elevada)
+scripts\fase0c.ps1 -Margin M         colab pone el margen, CoreCycler (config.ini del clon) prueba, colab restaura
 scripts\pm-diff.ps1 -A m1 -B m2      compara tablas PM crudas de dos margenes
 scripts\fase0.ps1                    control + escalera (escribe SMU, elevada)  [sin watch, receta pesada]
 scripts\abort.ps1                    corta todo y restaura -5
@@ -68,31 +69,39 @@ Mediodía (plan revisión 3):
   **`04-P4P` es el único motor que lleva el núcleo a fMax** (5,45 GHz,
   1,15 V, 9 W).
 
+Tarde (paso 6, decisiones del usuario):
+- Núcleo 0 (CCD0) a −30 con `04-P4P`: limpio (5,15 GHz, 1,065 V, 7,3 W).
+- Tope de `Safety` subido a −40 (`5bd41ac`) y luego a **−50** (`205697a`),
+  mínimo del SMU. Núcleo 11 con `04-P4P`: −35, −40, −45, −50 **todos
+  limpios**, tensión lineal hasta 1,076 V a 5,45 GHz, sin clock stretching.
+- **Fase 0c hecha**: CoreCycler 0.11.0.4 en modo manual (`fase0c.ps1`,
+  `config.ini` en el clon) sobre el núcleo 11 a −45: sin error, sin WHEA.
+  Coincide con nuestro arnés. Requirió .NET Runtime 8 (instalado).
+
 ## Dónde estamos
 
-El núcleo 11 pasa **−30** (tope de seguridad del arnés) en los cuatro
-regímenes medidos, incluido el de fMax. No hay positivo con el que calibrar
-el detector. Todo está en `RESULTADOS.md` («Resumen del núcleo 11»).
+El núcleo 11 pasa **todo el rango del SMU (−5 … −50)** en 6 min con el motor
+que lo lleva a fMax, y CoreCycler dice lo mismo. Ningún positivo en 27/08.
+El arnés mide bien (margen releído, tensión lineal, velocidad constante,
+CoreCycler de acuerdo); lo que no hay es un fallo que cazar en 6 minutos.
 
-## Siguiente paso: PASO 6 — decisión del usuario (pendiente)
+## Siguiente paso: decisión sobre la definición de «límite» (pendiente)
 
-Opciones sobre la mesa:
+Con 6 min por nivel este chip no da positivo ni al mínimo del SMU. Opciones:
 
-a) Subir el tope de `Safety` a −35 y luego −40, **solo** con `04-P4P`
-   (régimen de fMax) y con `24-ZN5`, 360 s, 3 pasadas, telemetría. Buscar el
-   positivo donde la física dice que está. CoreCycler admite −50 en Ryzen
-   7000+; usuarios de 7945HX reportan hasta −49 por núcleo.
-b) Cerrar la puerta como «el núcleo 11 no falla hasta −30 en ningún régimen
-   medido» y pasar a Fase 1 (barrido por CCD) con tope −30, detector no
-   calibrado pero telemetría física por nivel; validar después con y-cruncher
-   largo, soak en reposo y uso real.
-c) Probar otro núcleo antes de decidir: el detector puede calibrarse en un
-   núcleo peor. CoreCycler y g-helper muestran dispersión de 20 cuentas
-   entre núcleos del mismo chip. Candidato: los que LLT tenía a −3 (CCD0,
-   V-Cache), p.ej. núcleo 0, con `04-P4P` a −25/−30.
+a) **Tiempo**: 30-60 min a −50 con `04-P4P` (y después `24-ZN5`) en el
+   núcleo 11. Si canta, el gate pasa a ser «X min sin error», con X medido.
+   Si no canta, el núcleo no falla en el rango en el tiempo que estamos
+   dispuestos a esperar por nivel.
+b) **Aceptar y barrer**: Fase 1 con tope −50, `04-P4P` + `24-ZN5`, 6 min
+   por núcleo y motor (16 × 12 min ≈ 3,5 h), telemetría por núcleo. El
+   «límite» será el primer fallo o −50. Después, validación larga en reposo y
+   uso real (Fase 3), que es donde la literatura sitúa los fallos de CO.
+c) Ambas: a) sobre el núcleo 11 esta tarde, b) mañana.
 
-Recomendación escrita en la sesión: **c) primero** (barato, 15 min, no toca
-el tope), y según salga, a) o b).
+Nota de método: con estos datos, un fallo de CO en esta máquina, si existe,
+es un evento raro (horas) o de reposo/transición, no de tortura. La Fase 3
+(soak + uso real + WHEA) pesa más que la Fase 1 para el veredicto final.
 
 ## Después
 

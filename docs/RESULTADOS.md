@@ -131,6 +131,51 @@ WHEA 0. −5 verificado después de cada uno.
 9 W)**: es el régimen ligero real, el extremo alto de la curva V/F. El núcleo
 11 lo aguanta a −30, tope de seguridad del arnés.
 
+Núcleo 0 (CCD0, V-Cache), misma prueba:
+
+| Hora | Núcleo | Binario | Iteraciones | Resultado | GHz p50 | V p50 / max | W núcleo | T |
+|---|---|---|---|---|---|---|---|---|
+| 12:56 | 0 | `04-P4P` | 2 | todos `Passed`, vivo | 5,150 | 1,065 / 1,073 | 7,3 | 60,0 |
+
+WHEA 0; −5 verificado después. El CCD con V-Cache tiene fMax más bajo
+(5,15 frente a 5,45) y va a 1,065 V / 7,3 W: más margen aún.
+
+### 27/08/2026 — tope subido a −40 (decisión del usuario, commit `5bd41ac`); núcleo 11, `04-P4P`, 360 s, suspensión
+
+| Hora | Margen | Iteraciones | Resultado | GHz p50 | V p50 / max | W núcleo | T |
+|---|---|---|---|---|---|---|---|
+| 13:05 | −35 | 2 | todos `Passed`, vivo | 5,450 | 1,133 / 1,148 | 8,7 | 64,1 |
+| 13:11 | −40 | 2 | todos `Passed`, vivo | 5,450 | 1,119 / 1,133 | 9,7 | 68,5 |
+
+WHEA 0; −5 verificado después de cada uno. Tensión a fMax por margen:
+−30 → 1,153 V, −35 → 1,133 V, −40 → 1,119 V (≈ −3,4 mV por cuenta, lineal:
+el margen sigue aplicándose). **Sin positivo hasta −40.**
+
+### 27/08/2026 — tope a −50 (commit `205697a`); núcleo 11, `04-P4P`, 360 s, suspensión
+
+| Hora | Margen | Resultado | GHz p50 | V p50 / max | W núcleo | T |
+|---|---|---|---|---|---|---|
+| 13:46 | −45 | todos `Passed`, vivo | 5,450 | 1,095 / 1,113 | 8,2 | 61,6 |
+| 13:53 | −50 | todos `Passed`, vivo | 5,450 | 1,076 / 1,087 | 7,7 | 60,7 |
+
+WHEA 0; −5 verificado después. Velocidad de SFTv4 constante en todo el
+rango (8,3-8,5 × 10⁸ bits/s): sin clock stretching. **Sin positivo en todo
+el rango del SMU (−5 … −50).**
+
+### 27/08/2026 — Fase 0c: contraste con CoreCycler (v0.11.0.4, modo manual)
+
+`colab apply --core 11 --margin -45` → CoreCycler con `config.ini` del clon
+(`coreTestOrder = 11`, y-cruncher `04-P4P`, SFTv4/FFTv4/N63, 6 min,
+`suspendPeriodically = 1`, 1 hilo) → `colab reset`. Sonda cada 30 s durante
+la prueba: −45 las 15 veces. Requirió instalar .NET Runtime 8 (winget
+`Microsoft.DotNet.Runtime.8`, 8.0.30).
+
+Resultado de CoreCycler (`corecycler/logs/CoreCycler_2026-08-27_14-01-44_YCRUNCHER_04-P4P.log`):
+`Test completed in 00h 06m 01s` · `No core has thrown an error` ·
+`No WHEA errors were observed during the test`.
+
+**CoreCycler coincide con nuestro arnés**: el núcleo 11 pasa −45 en 6 min.
+
 ### Resumen del núcleo 11 (27/08/2026)
 
 | Régimen | GHz | V | W | Margen máx. probado | Positivo |
@@ -138,7 +183,11 @@ WHEA 0. −5 verificado después de cada uno.
 | Prime95 small FFT (AVX-512), 180 s | 5,00-5,21 | 1,07-1,08 | 14 | −25 | no |
 | Prime95 SSE Huge + suspensión, 360 s | 5,02-5,21 | 1,07-1,09 | 13,6 | −30 | no |
 | y-cruncher 24-ZN5 + suspensión, 360 s | 5,29 | 1,11 | 10,5 | −30 | no |
-| y-cruncher 04-P4P + suspensión, 360 s | 5,45 | 1,15 | 9,1 | −30 | no |
+| y-cruncher 04-P4P + suspensión, 360 s | 5,45 | 1,15 → 1,08 | 9,1 → 7,7 | **−50** (mínimo del SMU) | no |
+| CoreCycler 0.11.0.4 manual, 04-P4P, 6 min | — | — | — | −45 | no |
+
+Tensión a fMax (04-P4P) por margen: −30 1,153 · −35 1,133 · −40 1,119 ·
+−45 1,095 · −50 1,076 V. Lineal, −3,8 mV por cuenta de media.
 
 ## WHEA
 
