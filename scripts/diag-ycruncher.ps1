@@ -30,6 +30,7 @@ $ycr  = "$env:USERPROFILE\Proyectos\corecycler\test_programs\y-cruncher\Binaries
 $runs = "$repo\runs\fase0"
 $tag  = '-ycr-' + ($Modo -replace '[^0-9A-Za-z]', '')
 if ($Suspender) { $tag += '-susp' }
+if ($Core -ne 11) { $tag += "-c$Core" }   # el 11 fue el primero y sus ficheros no llevan sufijo
 $log  = "$runs\diag-margin$Margin$tag.log"
 
 if (-not (Test-Path $ycr)) { throw "no existe $ycr" }

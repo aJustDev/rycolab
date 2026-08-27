@@ -24,6 +24,7 @@ $P95  = "$repo\tools\prime95"
 $runs = "$repo\runs\fase0"
 $tag  = if ($Receta -ne 'prime95-recipe.txt') { '-' + ([IO.Path]::GetFileNameWithoutExtension($Receta) -replace '^prime95-recipe-', '') } else { '' }
 if ($Suspender) { $tag += '-susp' }
+if ($Core -ne 11) { $tag += "-c$Core" }   # el 11 fue el primero y sus ficheros no llevan sufijo
 $log  = "$runs\diag-margin$Margin$tag.log"
 
 # Suspension de hilos: SuspendThread/ResumeThread sobre cada hilo del proceso
