@@ -102,6 +102,24 @@ PowerShell a 5,4 GHz y Prime95 en AVX-512 consumen distinto haciendo trabajo
 distinto. El indicador fiable es el **ritmo de `results.txt`** y, mejor aún,
 el **tiempo hasta el primer autotest** frente a la línea base del mismo núcleo.
 
+### Dos recetas de Prime95 y lo que cada una hace en esta máquina
+
+| Receta | Fichero | Claves que cambian | Núcleo 11 a −5 |
+|---|---|---|---|
+| Pesada: small FFT, AVX-512 | `scripts/prime95-recipe.txt` | `MinTortureFFT=4`, `MaxTortureFFT=32` | 5,0 GHz, 1,08 V, 14 W |
+| Ligera: SSE, FFT Huge | `scripts/prime95-recipe-sse-huge.txt` | `CpuSupportsAVX/AVX2/FMA3/AVX512=0`, `MinTortureFFT=8960`, `MaxTortureFFT=32768` | 5,0 GHz, 1,09 V, 13,6 W |
+
+La ligera es la que CoreCycler usa por defecto (`readme.txt:132-140`) porque
+en escritorio deja subir el boost. **Aquí no**: un tope de potencia por núcleo
+(~14 W) clava ambas al mismo reloj. La suspensión periódica
+(`diag-margin.ps1 -Suspender`, 1 s cada 10 s) añade transitorios hasta
+5,24 GHz / 1,18 V, nada más.
+
+El único motor que lleva el núcleo a fMax (5,45 GHz, 1,15 V, 9 W) es
+**y-cruncher `04-P4P`** (SSE3, `diag-ycruncher.ps1`). `24-ZN5` (AVX-512)
+se queda en 5,29 GHz / 10,5 W. Para probar el extremo alto de la curva V/F
+en este chip, el motor ligero es `04-P4P`, no Prime95.
+
 ### Telemetría por núcleo — de dónde sale cada número
 
 | Magnitud | Fuente | Nota |
@@ -121,7 +139,7 @@ repetir la localización.
 Una muestra aislada de reloj efectivo no vale (la ventana APERF/MPERF es la
 que haya entre dos lecturas): `watch` descarta la primera y usa medianas.
 
-## y-cruncher — SÍ se puede clavar a un núcleo (corrección)
+## y-cruncher — SÍ se puede clavar a un núcleo (corrección; hecho en `diag-ycruncher.ps1`)
 
 Versión probada: **v0.8.7.9547b**.
 

@@ -66,6 +66,14 @@ Si se va a consultar más de dos veces, clonar a `~/Proyectos/`.
 | Perfil de carga ligera: SSE, FFT Huge, `suspendPeriodically=1` | `configs/low-load-scenario.Prime95.config.ini` |
 | Modo automático de ejemplo: y-cruncher SFTv4/FFTv4/N63, 1 hilo, +1 por error | `configs/Ryzen.AutomaticTestMode.Start.ini` |
 | Valores por defecto: 6 min/núcleo, 15 s entre núcleos, `numberOfThreads=1` | `default.config.ini:79, 136, 197` |
+| Receta SSE de Prime95: `CpuSupportsAVX=0`, `AVX2=0`, `FMA3=0`, `AVX512=0` (SSE/SSE2 = 1) | `script-corecycler.ps1:7105-7110` |
+| «Huge» = 8960K a MAX (32768K en SSE); `TortureMem=0`, `TortureTime=1` también | `default.config.ini:256`; `script-corecycler.ps1:285, 469, 7616-7617` |
+| Por qué SSE y no AVX: la carga ligera deja subir el boost y encuentra fallos que AVX «simply cannot» | `readme.txt:132-140` |
+| Suspensión: `SuspendThread`/`ResumeThread` en todos los hilos, 1000 ms cada `tickInterval` = 10 s | `script-corecycler.ps1:1813-1818, 3473-3475, 3628`; `default.config.ini:838, 884, 896` |
+| y-cruncher: binarios en `test_programs/y-cruncher/Binaries/<modo>.exe`; `04-P4P` ligero, `19-ZN2`/`24-ZN5` pesado | `default.config.ini:274-326` |
+| Plantilla de `stressTest.cfg` (`Action StressTest`, `LogicalCores`, `TotalMemory`, `SecondsPerTest`, `StopOnError`, `Tests`) | `script-corecycler.ps1:8568-8603` |
+| Línea de comandos de y-cruncher: `priority:-1 config <cfg>`; `pause:-2 colors:0` para que no espere tecla | `script-corecycler.ps1:1237, 8421` |
+| Valores de referencia 7945HX por núcleo (−24 … −49) | github.com/seerge/g-helper/discussions/736 |
 
 ### Legion Toolkit
 

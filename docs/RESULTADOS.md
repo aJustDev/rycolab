@@ -88,6 +88,58 @@ en reloj. Telemetría cruda en `runs/fase0/watch-m{-5,-25}-p{1,2,3}.jsonl`
 Efectivo ≈ mitad del reloj porque LHM promedia los dos lógicos y Prime95 usa
 uno. En reposo el núcleo 11 lee 0,64 V / 2,0 GHz / 0,1 W / 39 C.
 
+### 27/08/2026 — Fase 0b' (receta ligera: SSE, FFT Huge 8960K-32768K, suspensión 1 s/10 s, 360 s por pasada)
+
+Línea base del régimen ligero, núcleo 11, −5:
+
+| Hora | Pasada | Líneas | Primera | Susp. | GHz p50 / p99 / max | V p50 / max | W núcleo p50 | T |
+|---|---|---|---|---|---|---|---|---|
+| 11:25 | 1 | 56 | 10 s | 36 | 5,016 / 5,238 / 5,242 | 1,088 / 1,180 | 13,64 | 73,3 |
+| 11:32 | 2 | 56 | 10 s | 36 | 5,016 / — / — | 1,088 / 1,181 | 13,69 | 72,9 |
+
+Umbral de colapso ligero: primera línea > 30 s o < 19 líneas en 360 s.
+
+**El régimen ligero no sube el reloj en esta máquina**: mismo ~14 W y
+~5,02 GHz que small FFT; solo los transitorios tras cada reanudación llegan
+a 5,24 GHz / 1,18 V. fMax (5,45) no se alcanza en ninguna tortura sostenida.
+Manda un tope de potencia por núcleo, no el tipo de instrucción.
+
+Escalera ligera, núcleo 11, 3 × 360 s por margen (medianas por pasada):
+
+| Hora | Margen | Líneas | Primera | Error | GHz | V | V max | W núcleo | Veredicto |
+|---|---|---|---|---|---|---|---|---|---|
+| 11:38-11:57 | −25 | 57, 58, 58 | 10 s | ninguno | 5,174 / 5,178 / 5,181 | 1,070 / 1,072 / 1,073 | 1,139 | 13,6 | limpia 3/3 |
+| 11:57-12:15 | −28 | 57, 58, 58 | 10 s | ninguno | 5,197 / 5,200 / 5,199 | 1,069 / 1,070 / 1,070 | 1,137 | 13,6 | limpia 3/3 |
+| 12:15-12:34 | −30 | 58, 58, 58 | 10 s | ninguno | 5,203 / 5,210 / 5,212 | 1,066 / 1,068 / 1,068 | 1,123 | 13,6 | limpia 3/3 |
+
+WHEA 0 tras cada margen; −5 verificado tras cada uno. **Sin positivo hasta el
+tope de seguridad (−30) tampoco en régimen ligero.** De −28 a −30 la curva
+apenas responde (+10 MHz, −2 mV): tope de potencia.
+
+### 27/08/2026 — y-cruncher clavado al núcleo 11, −30, 360 s, suspensión 1 s/10 s, 1 hilo, 1 GiB
+
+Binarios del clon de CoreCycler; `stressTest.cfg` generado (`diag-ycruncher.ps1`).
+
+| Hora | Binario | Tests | Iteraciones | Resultado | GHz p50 | V p50 / max | W núcleo | T |
+|---|---|---|---|---|---|---|---|---|
+| 12:34 | `04-P4P` (SSE3) | SFTv4, FFTv4, N63 | 2 | todos `Passed`, vivo | **5,450** | 1,153 / 1,165 | 9,1 | 64,3 |
+| 12:43 | `24-ZN5 ~ Komari` (AVX-512) | SFTv4, FFTv4, N63 | 2 | todos `Passed`, vivo | 5,289 | 1,113 / 1,178 | 10,5 | 70,8 |
+
+WHEA 0. −5 verificado después de cada uno.
+
+**`04-P4P` es el único motor que lleva el núcleo a fMax (5,45 GHz, 1,15 V,
+9 W)**: es el régimen ligero real, el extremo alto de la curva V/F. El núcleo
+11 lo aguanta a −30, tope de seguridad del arnés.
+
+### Resumen del núcleo 11 (27/08/2026)
+
+| Régimen | GHz | V | W | Margen máx. probado | Positivo |
+|---|---|---|---|---|---|
+| Prime95 small FFT (AVX-512), 180 s | 5,00-5,21 | 1,07-1,08 | 14 | −25 | no |
+| Prime95 SSE Huge + suspensión, 360 s | 5,02-5,21 | 1,07-1,09 | 13,6 | −30 | no |
+| y-cruncher 24-ZN5 + suspensión, 360 s | 5,29 | 1,11 | 10,5 | −30 | no |
+| y-cruncher 04-P4P + suspensión, 360 s | 5,45 | 1,15 | 9,1 | −30 | no |
+
 ## WHEA
 
 `Microsoft-Windows-WHEA-Logger`: **0 eventos** en todo el histórico del
