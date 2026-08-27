@@ -35,20 +35,38 @@ function Say([string]$m) {
 
 Say "Fase 1: nucleos $($Nucleos -join ',')  desde $Inicio hasta $Tope de $Paso en $Paso  motores $($Modos -join ' | ')  $Seconds s"
 $t0 = Get-Date
+
+# Cuelgue de maquina: si al arrancar hay una prueba "en curso", el equipo se
+# reinicio en medio (la BIOS devuelve -5 sola). Cuenta como positivo de ese
+# nucleo a ese margen y se sigue un paso mas arriba.
+$enCurso = Join-Path $runs 'en-curso.json'
+$colgado = if (Test-Path $enCurso) { Get-Content $enCurso -Raw | ConvertFrom-Json } else { $null }
+if ($colgado) {
+    Say "PRUEBA EN CURSO AL ARRANCAR: nucleo $($colgado.core) margen $($colgado.margin) $($colgado.modo) desde $($colgado.ts) -> CUELGUE, positivo"
+    Remove-Item $enCurso
+}
+
 foreach ($c in $Nucleos) {
     $json = Join-Path $runs "core$c.json"
     if (Test-Path $json) { Say "nucleo ${c}: ya tiene resultado, se salta"; continue }
     $historial = @()
     $limite = $null
-    for ($m = $Inicio; $m -le $Tope; $m += $Paso) {
+    $desde = $Inicio
+    if ($colgado -and $colgado.core -eq $c) {
+        $historial += [pscustomobject]@{ margen = $colgado.margin; modo = $colgado.modo; codigo = 99; ghz = $null; volt = $null; watts = $null; temp = $null; ts = $colgado.ts; nota = 'cuelgue de maquina (reinicio)' }
+        $desde = $colgado.margin + $Paso
+    }
+    for ($m = $desde; $m -le $Tope; $m += $Paso) {
         $limpio = $true
         foreach ($modo in $Modos) {
             Say "nucleo $c  margen $m  $modo"
+            [pscustomobject]@{ core = $c; margin = $m; modo = $modo; ts = (Get-Date).ToString('s') } | ConvertTo-Json | Set-Content -Path $enCurso -Encoding ascii
             # Proceso aparte: el exit y las excepciones del hijo no pueden tumbar el barrido
             $args = @('-NoProfile','-File',"$PSScriptRoot\diag-ycruncher.ps1",'-Core',$c,'-Margin',$m,'-Veces','1','-Seconds',$Seconds,'-Modo',"`"$modo`"")
             if ($Suspender) { $args += '-Suspender' }
             $hijo = Start-Process -FilePath 'pwsh' -ArgumentList $args -PassThru -Wait -WindowStyle Minimized
             $code = $hijo.ExitCode
+            Remove-Item $enCurso -ErrorAction SilentlyContinue
             $tag = '-ycr-' + ($modo -replace '[^0-9A-Za-z]', '') + '-susp' + $(if ($c -ne 11) { "-c$c" })
             $ws = "$repo\runs\fase0\watch-m$m$tag-p1.json"
             $tele = if (Test-Path $ws) { Get-Content $ws -Raw | ConvertFrom-Json } else { $null }
