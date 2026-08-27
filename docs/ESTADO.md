@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **27/08/2026, 17:35**. Plan completo en revisión 3
+Última sesión: **27/08/2026, 20:25**. Plan completo en revisión 3
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 17:25 (tras reinicio en frio a las 16:46).
+CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 20:20 (tras la segunda tanda de la Fase 1).
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -94,7 +94,7 @@ de 5 en 5) que pasa 6 min limpio con `04-P4P` y con `24-ZN5`**. Para el
 núcleo 11 es −50. La validación de verdad es la Fase 3 (reposo, uso real,
 WHEA), que es donde la literatura sitúa los fallos de CO.
 
-## FASE 1 en marcha (14:45-16:46; parada por el usuario tras un reinicio)
+## FASE 1: CCD0 completo (14:45-16:46 y 19:29-20:19)
 
 **Hay positivos.** Con `24-ZN5` (AVX-512) los núcleos del CCD0 fallan a −50
 en 9-39 s y a −45 en 79-99 s (`Bottom word mismatch`); con `04-P4P` el
@@ -102,34 +102,39 @@ núcleo 0 se estrelló una vez a −50 (1/2). El núcleo 4 a −50 con `24-ZN5`
 **reinició la máquina en frío** (16:46, Kernel-Power 41). WHEA 0.
 
 ```
-nucleo   0     1     2     3     4          5-15
-limite  -40   -40   -40   -45   pendiente  pendiente
+nucleo   0     1     2     3     4     5     6     7     8-15
+limite  -40   -40   -40   -45   -45   -45   -45   -45   pendiente
 ```
 
 Detalle en `RESULTADOS.md` («Fase 1»). `fase1.ps1` corregido dos veces
 durante el barrido: (1) un crash del hijo ya no tumba el guion (hijo en
 `pwsh` aparte); (2) `en-curso.json`: si al arrancar hay una prueba en curso,
-fue un cuelgue → positivo y sigue un margen arriba. El cuelgue del núcleo 4
-está sembrado en `runs\fase1\en-curso.json`.
+fue un cuelgue → positivo y sigue un margen arriba.
 
-## Siguiente paso: reanudar la Fase 1 (núcleos 4-15)
+Segunda tanda (19:29-20:19): núcleos 4-7 con `-Inicio -45`; los cuatro
+limpios a la primera con ambos motores. En 5-7 **no se probó −50** (límite
+por definición, sin positivo propio). Un arranque en falso antes: con
+`-File`, `-Nucleos 4,5,6,7` entra como el entero 4567 (falla sin tocar el
+SMU); hay que lanzar con `-Command`.
+
+## Siguiente paso: Fase 1 en el CCD1 (núcleos 8-15)
 
 ```
-Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-File','C:\Users\ajustino\Proyectos\legion-co-lab\scripts\fase1.ps1'
+Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-Command',"& 'C:\Users\ajustino\Proyectos\legion-co-lab\scripts\fase1.ps1' -Nucleos 8,9,10,12,13,14,15"
 ```
 
-Salta los núcleos con JSON, lee `en-curso.json` (núcleo 4 → empieza en −45).
-Escribe en el SMU: confirmación antes. Antes: `colab probe` = −5 × 16, LLT
-cerrado, WHEA = 0. ~28 min por núcleo del CCD0 (dos fallos); CCD1 puede ir
-más rápido si aguanta −50 como el 11. Puede volver a reiniciarse: la BIOS
-devuelve −5 y el guion se reanuda solo al relanzarlo.
+Desde −50 (el 11 lo aguantó todo; sin JSON propio, se puede incluir para
+homogeneizar). Salta los núcleos con JSON. Escribe en el SMU: confirmación
+antes. Antes: `colab probe` = −5 × 16, LLT cerrado, WHEA = 0. ~13 min por
+núcleo si pasa −50; puede reiniciarse: la BIOS devuelve −5 y el guion se
+reanuda solo al relanzarlo (`en-curso.json`).
 
-Opción para ahorrar tiempo y reinicios: `-Inicio -45` (4/4 fallaron a −50).
+Pendiente opcional: −50 en 5, 6 y 7 para que la tabla del CCD0 sea homogénea.
 
 Al acabar: completar la tabla de límites en `RESULTADOS.md`, `ESTADO.md`,
 commit. Después: Fase 1b (soak 30 min en reposo con el perfil candidato,
 WHEA) y Fase 3 (uso real). El candidato por núcleo = límite + 5 de margen
-de seguridad (p. ej. −35 para 0-2, −40 para 3), a decidir con la tabla.
+de seguridad (p. ej. −35 para 0-2, −40 para 3-7), a decidir con la tabla.
 
 ## Después
 

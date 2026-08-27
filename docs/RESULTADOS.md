@@ -230,10 +230,17 @@ telemetría, `.dmp`). WHEA: 0 en todo el día, incluido el reinicio.
 | 1 | **−40** | limpio / falla 39 s | limpio / falla 89 s | limpio / limpio | 1,035 |
 | 2 | **−40** | limpio / falla 9 s | limpio / falla 99 s | limpio / limpio | 1,034 |
 | 3 | **−45** | limpio / falla 29 s | limpio / limpio | — | 1,027 |
-| 4 | pendiente | limpio / **reinicio** | — | — | — |
-| 5-15 | pendiente | | | | |
+| 4 | **−45** | limpio / **reinicio** | limpio / limpio | — | 1,024 |
+| 5 | **−45**² | no probado | limpio / limpio | — | 1,033 |
+| 6 | **−45**² | no probado | limpio / limpio | — | 1,041 |
+| 7 | **−45**² | no probado | limpio / limpio | — | 1,042 |
+| 8-15 | pendiente | | | | |
 
 ¹ crash 1/2 en la repetición.
+² Segunda tanda (19:29-20:19, `-Nucleos 4,5,6,7 -Inicio -45`): −50 no se
+probó en 5-7 (4/4 anteriores habían fallado y el 4 reinició la máquina).
+Límite según definición, pero sin positivo propio. Todos limpios a la
+primera con ambos motores; WHEA 0; −5 × 16 al terminar.
 
 Patrón: `04-P4P` (SSE3) pasa −50 en todos; el que discrimina en CCD0 es
 `24-ZN5` (AVX-512), y el tiempo hasta el error crece al subir el margen
