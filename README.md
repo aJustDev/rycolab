@@ -44,7 +44,14 @@ colab probe                  margen PSM aplicado en cada nucleo
 colab probe --sensors        anade reloj efectivo y potencia por nucleo
 colab probe --json out.json  guarda la lectura con marca de tiempo
 colab sensors                vuelca los sensores con su nombre exacto
+colab watch --core N         muestrea a 1 Hz reloj, efectivo, V, GHz, W y T del nucleo
+      [--seconds 180] [--interval 1000] [--jsonl f] [--summary f] [--raw]
 ```
+
+`watch` saca tension, frecuencia, potencia y temperatura por nucleo de la
+tabla de potencia del SMU (`PmTable.cs`); LibreHardwareMonitor no da tension
+por nucleo en este chip. `--raw` guarda la tabla completa en cada muestra para
+localizar posiciones con `scripts/pm-diff.ps1`.
 
 `probe` compara por defecto contra el perfil de Legion Toolkit y **devuelve 2 si
 no coinciden**, para poder encadenarlo en scripts.

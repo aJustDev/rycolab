@@ -70,6 +70,13 @@ try {
         $cpu0 = $p.CPU
         Say ("  pid $($p.Id)  afinidad 0x{0:X}" -f [int64]$p.ProcessorAffinity)
 
+        # Telemetria a 1 Hz del nucleo bajo carga (reloj, efectivo, W, Tctl, tabla PM cruda)
+        $wj = Join-Path $runs "watch-m$Margin-p$i.jsonl"
+        $ws = Join-Path $runs "watch-m$Margin-p$i.json"
+        $wp = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden `
+                -RedirectStandardOutput (Join-Path $runs "watch-m$Margin-p$i.txt") `
+                -ArgumentList 'watch','--core',$Core,'--seconds',$Seconds,'--interval','1000','--raw','--jsonl',$wj,'--summary',$ws
+
         $t0 = Get-Date
         $primera = $null
         $error95 = $null
@@ -95,19 +102,27 @@ try {
             if (-not $vivo) { Say "  el proceso MURIO a los ${el}s"; break }
         }
 
+        $wp.WaitForExit(20000) | Out-Null
         $n = Count-Lines $res
         Get-Process prime95 -ErrorAction SilentlyContinue | Stop-Process -Force
         Start-Sleep -Seconds 2
-        $resumen += [pscustomobject]@{ Pasada = $i; Lineas = $n; Primera = $primera; Error = $error95 }
+        $tele = if (Test-Path $ws) { Get-Content $ws -Raw | ConvertFrom-Json } else { $null }
+        $resumen += [pscustomobject]@{ Pasada = $i; Lineas = $n; Primera = $primera; Error = $error95; Tele = $tele }
         Say "  pasada ${i}: $n lineas, primera $(if($primera){"${primera}s"}else{'nunca'})"
+        if ($tele) {
+            Say ("  telemetria: {0} muestras  reloj {1:F0}  efectivo {2:F0} (p10 {3:F0})  V {4:F4} (max {5:F4})  GHz {6:F3}  W nucleo {7:F2}  W paquete {8:F1}  T {9:F1} (max {10:F1})" -f `
+                 $tele.samples, $tele.clockMedian, $tele.clockEffectiveMedian, $tele.clockEffectiveP10, $tele.voltMedian, $tele.voltMax, $tele.freqMedian, $tele.powerMedian, $tele.packagePowerMedian, $tele.tempMedian, $tele.tempMax)
+        } else { Say "  telemetria: SIN RESUMEN (watch no termino?)" }
         Start-Sleep -Seconds 8
     }
 
     Say ""
     Say "=== RESUMEN  margen $Margin  nucleo $Core ==="
     foreach ($r in $resumen) {
-        Say ("  pasada {0}: {1,2} lineas   primera {2,-7}   {3}" -f `
-             $r.Pasada, $r.Lineas, $(if($r.Primera){"$($r.Primera)s"}else{'nunca'}), $(if($r.Error){"ERROR: $($r.Error)"}else{'sin error cantado'}))
+        $t = $r.Tele
+        $tt = if ($t) { "  V {0:F4}  GHz {1:F3}  W nucleo {2:F2}  T {3:F1}" -f $t.voltMedian, $t.freqMedian, $t.powerMedian, $t.tempMedian } else { '  sin telemetria' }
+        Say ("  pasada {0}: {1,2} lineas   primera {2,-7}   {3}{4}" -f `
+             $r.Pasada, $r.Lineas, $(if($r.Primera){"$($r.Primera)s"}else{'nunca'}), $(if($r.Error){"ERROR: $($r.Error)"}else{'sin error cantado'}), $tt)
     }
     $mudas = @($resumen | Where-Object { $_.Lineas -le 0 }).Count
     $errs  = @($resumen | Where-Object { $_.Error }).Count

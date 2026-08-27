@@ -28,6 +28,7 @@ try
     {
         "probe" => ProbeCommand.Run(opts),
         "sensors" => SensorsCommand.Run(opts),
+        "watch" => WatchCommand.Run(opts),
         "apply" => ApplyCommand.Run(opts),
         "reset" => ResetCommand.Run(opts),
         _ => Unknown(command),
@@ -74,6 +75,7 @@ static void PrintHelp()
           apply      Escribe margenes (camina el paso, verifica cada parada)
           reset      Devuelve los 16 nucleos a la base
           sensors    Vuelca los sensores disponibles con su nombre exacto
+          watch      Muestrea reloj, reloj efectivo, potencia y Tctl de un nucleo
           help       Esta ayuda
 
         probe
@@ -82,6 +84,14 @@ static void PrintHelp()
           --no-compare       No comparar con ningun perfil.
           --json <ruta>      Guardar la lectura con marca de tiempo.
           --sensors          Anadir reloj efectivo y potencia por nucleo.
+
+        watch
+          --core <n>         Nucleo a vigilar.
+          --seconds <n>      Duracion. Por defecto 180.
+          --interval <ms>    Intervalo entre muestras. Por defecto 1000.
+          --jsonl <ruta>     Una linea JSON por muestra.
+          --summary <ruta>   Medianas al terminar, en JSON.
+          --raw              Anadir la tabla de potencia del SMU (floats crudos).
 
         apply
           --margin <n>       Margen objetivo. Solo valores <= 0.
