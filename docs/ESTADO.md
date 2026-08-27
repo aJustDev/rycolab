@@ -42,6 +42,7 @@ scripts\diag-margin.ps1 -Margin M [-Receta f] [-Suspender] [-Seconds S]
                                      Prime95 a un margen con watch en paralelo (escribe SMU, elevada)
 scripts\diag-ycruncher.ps1 -Margin M -Modo '04-P4P'|'"24-ZN5 ~ Komari"' [-Suspender]
                                      y-cruncher clavado al nucleo, cfg generado, watch en paralelo (elevada)
+scripts\fase1.ps1 [-Nucleos 0..15]   barrido: por nucleo 04-P4P + 24-ZN5 desde -50, +5 si canta; JSON por nucleo
 scripts\fase0c.ps1 -Margin M         colab pone el margen, CoreCycler (config.ini del clon) prueba, colab restaura
 scripts\pm-diff.ps1 -A m1 -B m2      compara tablas PM crudas de dos margenes
 scripts\fase0.ps1                    control + escalera (escribe SMU, elevada)  [sin watch, receta pesada]
@@ -117,7 +118,6 @@ seguir con el siguiente núcleo.
 ## Después
 
 ```
-0c   contraste con CoreCycler (modo manual, mismo nucleo, mismos niveles)   ~1 h
 3    Prime95Engine + YCruncherEngine en C# + panel en vivo (watch es la base)
 5    JSONL + SQLite + colab report (+ baselines por nucleo y receta)
 6    corredor: plan.json, latido, Hang, --auto-resume (tarea programada, .automode)
