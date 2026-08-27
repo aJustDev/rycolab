@@ -182,6 +182,7 @@ $testsCfg
     $pos = @($resumen | Where-Object { $_.Error -or $_.Murio }).Count
     Say ""
     Say $(if ($pos -gt 0) { "POSITIVO: $pos de $Veces pasadas con error o proceso terminado." } else { "TODAS limpias a $Margin con $Modo." })
+    $script:salida = if ($pos -gt 0) { 10 } else { 0 }     # 0 limpio, 10 positivo, 1 el guion fallo antes de terminar
 }
 finally {
     Say ""
@@ -192,3 +193,4 @@ finally {
     Say "Nucleo $Core queda en $f"
     Say "Registro: $log"
 }
+exit $(if ($null -ne $script:salida) { $script:salida } else { 1 })
