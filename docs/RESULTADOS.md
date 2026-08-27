@@ -176,6 +176,15 @@ Resultado de CoreCycler (`corecycler/logs/CoreCycler_2026-08-27_14-01-44_YCRUNCH
 
 **CoreCycler coincide con nuestro arnés**: el núcleo 11 pasa −45 en 6 min.
 
+### 27/08/2026 — duración: núcleo 11, −50, `04-P4P`, **30 min**, suspensión
+
+| Hora | Duración | Iteraciones | Tests `Passed` | Errores | Susp. | GHz p50 | V p50 / max | W núcleo | T / max |
+|---|---|---|---|---|---|---|---|---|---|
+| 14:12-14:42 | 1800 s | 8 | 24 | 0 | 180 | 5,450 | 1,079 / 1,094 | 7,9 | 63,0 / 82,6 |
+
+WHEA 0; −5 verificado después. **Tampoco por tiempo: 30 min al mínimo del
+SMU en fMax, limpio.**
+
 ### Resumen del núcleo 11 (27/08/2026)
 
 | Régimen | GHz | V | W | Margen máx. probado | Positivo |

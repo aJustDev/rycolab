@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **27/08/2026, 14:15**. Plan completo en revisión 3
+Última sesión: **27/08/2026, 14:50**. Plan completo en revisión 3
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 14:09.
+CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 14:42.
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -85,23 +85,34 @@ que lo lleva a fMax, y CoreCycler dice lo mismo. Ningún positivo en 27/08.
 El arnés mide bien (margen releído, tensión lineal, velocidad constante,
 CoreCycler de acuerdo); lo que no hay es un fallo que cazar en 6 minutos.
 
-## Siguiente paso: decisión sobre la definición de «límite» (pendiente)
+Decisión del usuario (14:10): tiempo hoy, barrido mañana. Hecho el tiempo:
+**30 min a −50 con `04-P4P`, limpio** (8 iteraciones, 24 `Passed`, WHEA 0).
 
-Con 6 min por nivel este chip no da positivo ni al mínimo del SMU. Opciones:
+Definición de «límite» que queda: **el primer margen (de −50 hacia arriba,
+de 5 en 5) que pasa 6 min limpio con `04-P4P` y con `24-ZN5`**. Para el
+núcleo 11 es −50. La validación de verdad es la Fase 3 (reposo, uso real,
+WHEA), que es donde la literatura sitúa los fallos de CO.
 
-a) **Tiempo**: 30-60 min a −50 con `04-P4P` (y después `24-ZN5`) en el
-   núcleo 11. Si canta, el gate pasa a ser «X min sin error», con X medido.
-   Si no canta, el núcleo no falla en el rango en el tiempo que estamos
-   dispuestos a esperar por nivel.
-b) **Aceptar y barrer**: Fase 1 con tope −50, `04-P4P` + `24-ZN5`, 6 min
-   por núcleo y motor (16 × 12 min ≈ 3,5 h), telemetría por núcleo. El
-   «límite» será el primer fallo o −50. Después, validación larga en reposo y
-   uso real (Fase 3), que es donde la literatura sitúa los fallos de CO.
-c) Ambas: a) sobre el núcleo 11 esta tarde, b) mañana.
+## Siguiente paso: FASE 1 — barrido de los 16 núcleos (mañana)
 
-Nota de método: con estos datos, un fallo de CO en esta máquina, si existe,
-es un evento raro (horas) o de reposo/transición, no de tortura. La Fase 3
-(soak + uso real + WHEA) pesa más que la Fase 1 para el veredicto final.
+Guion listo: `scripts\fase1.ps1` (parseado, **no ejecutado aún**). Por
+núcleo: `04-P4P` y `24-ZN5` a −50, 6 min cada uno con suspensión; si canta,
++5 y repite. Resultado por núcleo en `runs\fase1\coreN.json`; se salta los
+que ya tienen JSON (reanudable). Cada prueba restaura −5 al terminar.
+
+```
+Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-File','C:\Users\ajustino\Proyectos\legion-co-lab\scripts\fase1.ps1'
+```
+
+Coste si nada canta: 16 × 2 × ~6,5 min ≈ **3,5 h**. Escribe en el SMU:
+confirmación antes de lanzar. Antes: `colab probe`, LLT cerrado, WHEA = 0.
+Al acabar: tabla en `RESULTADOS.md` (núcleo, límite, GHz, V, W por motor),
+`ESTADO.md`, commit.
+
+Si un núcleo canta: es el primer positivo del proyecto. Guardar su salida de
+y-cruncher y su `watch` JSONL, anotar V/GHz del nivel que falla y del
+anterior, y repetir ese nivel una vez para ver si es reproducible antes de
+seguir con el siguiente núcleo.
 
 ## Después
 
