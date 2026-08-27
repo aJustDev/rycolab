@@ -44,8 +44,11 @@ foreach ($c in $Nucleos) {
         $limpio = $true
         foreach ($modo in $Modos) {
             Say "nucleo $c  margen $m  $modo"
-            & "$PSScriptRoot\diag-ycruncher.ps1" -Core $c -Margin $m -Veces 1 -Seconds $Seconds -Modo $modo -Suspender:$Suspender | Out-Null
-            $code = $LASTEXITCODE
+            # Proceso aparte: el exit y las excepciones del hijo no pueden tumbar el barrido
+            $args = @('-NoProfile','-File',"$PSScriptRoot\diag-ycruncher.ps1",'-Core',$c,'-Margin',$m,'-Veces','1','-Seconds',$Seconds,'-Modo',"`"$modo`"")
+            if ($Suspender) { $args += '-Suspender' }
+            $hijo = Start-Process -FilePath 'pwsh' -ArgumentList $args -PassThru -Wait -WindowStyle Minimized
+            $code = $hijo.ExitCode
             $tag = '-ycr-' + ($modo -replace '[^0-9A-Za-z]', '') + '-susp' + $(if ($c -ne 11) { "-c$c" })
             $ws = "$repo\runs\fase0\watch-m$m$tag-p1.json"
             $tele = if (Test-Path $ws) { Get-Content $ws -Raw | ConvertFrom-Json } else { $null }

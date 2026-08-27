@@ -75,7 +75,7 @@ function Read-Margin([int]$c) {
 # Lineas de la salida de y-cruncher que huelen a error. Las de "0 errors"/"Passed" no cuentan.
 function Errores($path) {
     if (-not (Test-Path $path)) { return @() }
-    @(Get-Content $path | Where-Object { $_ -match '(?i)error|fail|mismatch|invalid|exception' -and $_ -notmatch '(?i)0 errors|no errors|passed|Stop on Error' })
+    @(Get-Content $path | Where-Object { $_ -match '(?i)error|fail|mismatch|invalid|exception|crash' -and $_ -notmatch '(?i)0 errors|no errors|passed|Stop on Error' })
 }
 function Lineas($path) {
     if (-not (Test-Path $path)) { return -1 }
@@ -141,8 +141,9 @@ $testsCfg
         while (((Get-Date) - $t0).TotalSeconds -lt $Seconds) {
             if ($Suspender -and -not $p.HasExited) {
                 Start-Sleep -Seconds 9
-                [Hilos]::Suspend($p.Id) | Out-Null; Start-Sleep -Milliseconds 1000; [Hilos]::Resume($p.Id) | Out-Null
-                $suspensiones++
+                # El proceso puede morir entre HasExited y SuspendThread: un crash ES el positivo, no un fallo del guion
+                try { [Hilos]::Suspend($p.Id) | Out-Null; Start-Sleep -Milliseconds 1000; [Hilos]::Resume($p.Id) | Out-Null; $suspensiones++ }
+                catch { Say "  el proceso desaparecio durante la suspension: $($_.Exception.Message)" }
             } else {
                 Start-Sleep -Seconds 10
             }
