@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **27/08/2026, 14:50**. Plan completo en revisión 3
+Última sesión: **27/08/2026, 17:35**. Plan completo en revisión 3
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 14:42.
+CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 17:25 (tras reinicio en frio a las 16:46).
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -94,26 +94,42 @@ de 5 en 5) que pasa 6 min limpio con `04-P4P` y con `24-ZN5`**. Para el
 núcleo 11 es −50. La validación de verdad es la Fase 3 (reposo, uso real,
 WHEA), que es donde la literatura sitúa los fallos de CO.
 
-## Siguiente paso: FASE 1 — barrido de los 16 núcleos (mañana)
+## FASE 1 en marcha (14:45-16:46; parada por el usuario tras un reinicio)
 
-Guion listo: `scripts\fase1.ps1` (parseado, **no ejecutado aún**). Por
-núcleo: `04-P4P` y `24-ZN5` a −50, 6 min cada uno con suspensión; si canta,
-+5 y repite. Resultado por núcleo en `runs\fase1\coreN.json`; se salta los
-que ya tienen JSON (reanudable). Cada prueba restaura −5 al terminar.
+**Hay positivos.** Con `24-ZN5` (AVX-512) los núcleos del CCD0 fallan a −50
+en 9-39 s y a −45 en 79-99 s (`Bottom word mismatch`); con `04-P4P` el
+núcleo 0 se estrelló una vez a −50 (1/2). El núcleo 4 a −50 con `24-ZN5`
+**reinició la máquina en frío** (16:46, Kernel-Power 41). WHEA 0.
+
+```
+nucleo   0     1     2     3     4          5-15
+limite  -40   -40   -40   -45   pendiente  pendiente
+```
+
+Detalle en `RESULTADOS.md` («Fase 1»). `fase1.ps1` corregido dos veces
+durante el barrido: (1) un crash del hijo ya no tumba el guion (hijo en
+`pwsh` aparte); (2) `en-curso.json`: si al arrancar hay una prueba en curso,
+fue un cuelgue → positivo y sigue un margen arriba. El cuelgue del núcleo 4
+está sembrado en `runs\fase1\en-curso.json`.
+
+## Siguiente paso: reanudar la Fase 1 (núcleos 4-15)
 
 ```
 Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-File','C:\Users\ajustino\Proyectos\legion-co-lab\scripts\fase1.ps1'
 ```
 
-Coste si nada canta: 16 × 2 × ~6,5 min ≈ **3,5 h**. Escribe en el SMU:
-confirmación antes de lanzar. Antes: `colab probe`, LLT cerrado, WHEA = 0.
-Al acabar: tabla en `RESULTADOS.md` (núcleo, límite, GHz, V, W por motor),
-`ESTADO.md`, commit.
+Salta los núcleos con JSON, lee `en-curso.json` (núcleo 4 → empieza en −45).
+Escribe en el SMU: confirmación antes. Antes: `colab probe` = −5 × 16, LLT
+cerrado, WHEA = 0. ~28 min por núcleo del CCD0 (dos fallos); CCD1 puede ir
+más rápido si aguanta −50 como el 11. Puede volver a reiniciarse: la BIOS
+devuelve −5 y el guion se reanuda solo al relanzarlo.
 
-Si un núcleo canta: es el primer positivo del proyecto. Guardar su salida de
-y-cruncher y su `watch` JSONL, anotar V/GHz del nivel que falla y del
-anterior, y repetir ese nivel una vez para ver si es reproducible antes de
-seguir con el siguiente núcleo.
+Opción para ahorrar tiempo y reinicios: `-Inicio -45` (4/4 fallaron a −50).
+
+Al acabar: completar la tabla de límites en `RESULTADOS.md`, `ESTADO.md`,
+commit. Después: Fase 1b (soak 30 min en reposo con el perfil candidato,
+WHEA) y Fase 3 (uso real). El candidato por núcleo = límite + 5 de margen
+de seguridad (p. ej. −35 para 0-2, −40 para 3), a decidir con la tabla.
 
 ## Después
 

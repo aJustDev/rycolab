@@ -198,6 +198,47 @@ SMU en fMax, limpio.**
 Tensión a fMax (04-P4P) por margen: −30 1,153 · −35 1,133 · −40 1,119 ·
 −45 1,095 · −50 1,076 V. Lineal, −3,8 mV por cuenta de media.
 
+## Fase 1 — barrido por núcleos (27/08/2026, `fase1.ps1`, desde −50 de 5 en 5)
+
+Por núcleo y margen: `04-P4P` (SSE3, fMax) y luego `24-ZN5` (AVX-512),
+360 s cada uno, suspensión 1 s/10 s, 1 hilo, 1 GiB. Límite = primer margen
+limpio en ambos. Cada prueba restaura −5. JSON por núcleo en `runs/fase1/`.
+
+### Positivos (los primeros del proyecto)
+
+| Hora | Núcleo | Margen | Motor | Señal | Cuándo | V / GHz en el nivel |
+|---|---|---|---|---|---|---|
+| 14:50:51 | 0 | −50 | `04-P4P` | **crash** `0xc0000005` (APPCRASH, mini-dump) | 294 s, justo tras una reanudación | 1,003 / 5,150 |
+| 15:01:30 | 0 | −50 | `24-ZN5` | `SFTv4 Failed`, `Bottom word mismatch` | 29 s | — |
+| 15:09:40 | 0 | −45 | `24-ZN5` | ídem | 79 s | — |
+| 15:29:44 | 1 | −50 | `24-ZN5` | ídem | 39 s | — |
+| 15:38:05 | 1 | −45 | `24-ZN5` | ídem | 89 s | — |
+| 15:57:38 | 2 | −50 | `24-ZN5` | ídem | 9 s | — |
+| 16:06:08 | 2 | −45 | `24-ZN5` | ídem | 99 s | — |
+| 16:26:06 | 3 | −50 | `24-ZN5` | ídem | 29 s | — |
+| 16:46:15 | 4 | −50 | `24-ZN5` | **reinicio en frío** (Kernel-Power 41, 16:46:32) | ~45 s | — |
+
+El crash del núcleo 0 a −50 con `04-P4P` no se reprodujo en la repetición
+(1/2). Evidencia en `runs/fase1/positivos/core0-m50-04P4P/` (salida, log,
+telemetría, `.dmp`). WHEA: 0 en todo el día, incluido el reinicio.
+
+### Límites (CCD0, V-Cache)
+
+| Núcleo | Límite | −50 `04-P4P` / `24-ZN5` | −45 `04-P4P` / `24-ZN5` | −40 `04-P4P` / `24-ZN5` | V a fMax en el límite |
+|---|---|---|---|---|---|
+| 0 | **−40** | limpio¹ / falla 29 s | limpio / falla 79 s | limpio / limpio | 1,033 |
+| 1 | **−40** | limpio / falla 39 s | limpio / falla 89 s | limpio / limpio | 1,035 |
+| 2 | **−40** | limpio / falla 9 s | limpio / falla 99 s | limpio / limpio | 1,034 |
+| 3 | **−45** | limpio / falla 29 s | limpio / limpio | — | 1,027 |
+| 4 | pendiente | limpio / **reinicio** | — | — | — |
+| 5-15 | pendiente | | | | |
+
+¹ crash 1/2 en la repetición.
+
+Patrón: `04-P4P` (SSE3) pasa −50 en todos; el que discrimina en CCD0 es
+`24-ZN5` (AVX-512), y el tiempo hasta el error crece al subir el margen
+(−50: 9-39 s; −45: 79-99 s). El núcleo 11 (CCD1) pasó −50 con ambos.
+
 ## WHEA
 
 `Microsoft-Windows-WHEA-Logger`: **0 eventos** en todo el histórico del
