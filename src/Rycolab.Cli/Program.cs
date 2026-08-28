@@ -32,6 +32,7 @@ try
         "version" => Version(),
         "install" => InstallCommand.Run(opts),
         "uninstall" => UninstallCommand.Run(opts),
+        "find" => FindCommand.Run(opts),
         "on" => OnCommand.Run(opts),
         "off" => OffCommand.Run(opts),
         "status" => StatusCommand.Run(opts),
@@ -94,15 +95,19 @@ static void PrintHelp()
           rycolab on | off              keep the profile applied (hidden guard) | back to the baseline
           rycolab status [--follow]     guard, last sample, WHEA, hardware vs profile (no elevation)
           rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
-          rycolab sweep [options]       find each core's limit with y-cruncher (see below)
+          rycolab find [--quick]        find each core's limit and propose a profile (hours)
           rycolab profile show|from-sweep <campaign>|import ...   the profile and where it came from
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
 
         FINDING A PROFILE
+          rycolab find [--quick] [--cores 0-15] [--resume] [--yes] [--accept] [--plain]
+            Checks (AC, y-cruncher, baseline), estimates the time, asks, stops the guard,
+            runs the sweep and proposes profile = limit + safety margin. --quick: three
+            tests and 180 s per run instead of eight and 360 s. Resumes an unfinished
+            campaign (also after a reboot). --yes / --accept for scripts.
           rycolab sweep [--campaign n] [--cores 0-15] [--start -50] [--top -5] [--step 5]
                         [--seconds 360] [--no-suspend] [--plain]
-            Per core, bottom up, every y-cruncher engine in the config; the limit is the
-            first margin clean on all of them. Resumable. Requires the baseline (run `off`).
+            The sweep itself, without the wizard. Requires the baseline (run `off`).
           rycolab profile from-sweep <campaign> [--margin 5]
             profile = limit + margin, with the campaign as its source.
 
