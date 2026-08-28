@@ -129,12 +129,17 @@ the fan reaches its top level. The "maximum fan speed" switch in Legion
 Toolkit (`FanFullSpeed`, WMI `LENOVO_OTHER_METHOD` id `0x04020000`) goes past
 the table (5700 / 5700 / 7200 RPM) and ramps in seconds; measured under
 Cinebench R23 at the same 145 W it gave -3 C and +107 MHz sustained. The EC
-only honours the switch in Legion Toolkit's custom power mode (smart fan mode
-255); `rycolab fan show` prints the mode. `rycolab fan auto` (elevated)
+only honours the switch in the custom power mode (smart fan mode 255), so
+`fan on` and `fan auto` select it themselves (the same WMI call Legion
+Toolkit makes), print the CPU power limits the custom slot runs with (never
+written by rycolab), and `fan off` or the end of `auto` restore the mode
+found. `rycolab fan show` prints mode, limits, switch, fans and EC temperatures. `rycolab fan auto` (elevated)
 turns the switch on after `--hold` seconds at or above `--on` C of EC CPU
-temperature, off below `--off`, and off again when it exits. Legion Toolkit
-re-applies its own preset on mode change, resume and start, so keep its
-switch off there and let `auto` drive it; the EC's fan table is untouched.
+temperature, off below `--off`, and off again when it exits. Legion Toolkit, if
+running, re-applies its own preset (mode, switch and, if
+`amd_overclocking.json` exists, its per-core Curve Optimizer) on mode
+change, AC events, resume and start; the guard restores the profile within
+one interval, `auto` reports the mode change. The EC's fan table is untouched.
 
 ## Supported hardware
 

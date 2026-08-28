@@ -91,6 +91,35 @@ public sealed class LenovoEc : IDisposable
         }
     }
 
+    /// <summary>
+    /// LENOVO_GAMEZONE_DATA.SetSmartFanMode, what Legion Toolkit calls to change
+    /// the power mode. The custom slot (255) runs with the limits last written
+    /// into it (read them with <see cref="PowerLimits"/>); rycolab never writes
+    /// limits. Returns the mode read back, or null if the EC refused.
+    /// </summary>
+    public int? SetSmartFanMode(int mode)
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher(@"root\WMI", "SELECT * FROM LENOVO_GAMEZONE_DATA");
+            using var g = s.Get().Cast<ManagementObject>().FirstOrDefault();
+            if (g is null) return null;
+            var p = g.GetMethodParameters("SetSmartFanMode");
+            p["Data"] = mode;
+            using var r = g.InvokeMethod("SetSmartFanMode", p, null);
+            Thread.Sleep(500);
+            return SmartFanMode;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>CPU power limits in effect (W) and the CPU temperature limit (C), as Legion Toolkit reads them. Null entries: not readable.</summary>
+    public (int? Pl1, int? Pl2, int? Peak, int? Cross, int? TempLimit) PowerLimits
+        => (Read(0x01020000), Read(0x01010000), Read(0x01030000), Read(0x01060000), Read(0x01040000));
+
+    public static string Describe((int? Pl1, int? Pl2, int? Peak, int? Cross, int? TempLimit) l)
+        => $"PL1 {l.Pl1?.ToString() ?? "?"} W, PL2 {l.Pl2?.ToString() ?? "?"} W, peak {l.Peak?.ToString() ?? "?"} W, cross {l.Cross?.ToString() ?? "?"} W, CPU limit {l.TempLimit?.ToString() ?? "?"} C";
+
     public const int CustomMode = 255;
 
     public static string ModeName(int? mode) => mode switch

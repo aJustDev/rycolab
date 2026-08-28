@@ -128,7 +128,7 @@ static void PrintHelp()
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
           rycolab fan show|on|off|auto  Lenovo Legion: the EC "fan full speed" switch, by hand or by CPU temperature
-                                        (auto: --on 85 --off 80 --hold 3 --interval 2; off again on exit)
+                                        (auto: --on 85 --off 80 --hold 3; selects custom mode itself, restores it on exit)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
                                         calibrate, plan, task, profile import, log   (`rycolab dev help`)
 

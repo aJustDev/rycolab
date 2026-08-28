@@ -305,3 +305,9 @@ Toolkit closed; `fan auto` with the new defaults (on >= 85 C for 3 s).
   Legion Toolkit's custom mode writes its CO values over rycolab's; the guard
   restores them within one interval (60 s) and gives up after three within an
   hour. Fix on the Legion Toolkit side: zero or disable its per-core CO.
+- 00:40: `fan on` / `fan auto` select the custom power mode themselves
+  (`LENOVO_GAMEZONE_DATA.SetSmartFanMode(255)`, Legion Toolkit's call) and
+  `off` / the end of `auto` restore the previous one. Verified from extreme:
+  limits in the custom slot identical to extreme (PL1 135, PL2 162, peak 195,
+  cross 100 W, 100 C), 5700 RPM in 6 s, back to extreme on `off`. No Legion
+  Toolkit involved.
