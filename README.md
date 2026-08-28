@@ -45,50 +45,46 @@ that re-applies the profile after resume, JSONL + SQLite records, reports. The
 user-facing layer (`install`, `find`, `on`/`off`, unelevated `status`) is being
 built on top of it.
 
-## Usage (current commands)
+## Usage
 
-Requires an **elevated** console and the .NET 9 runtime.
+Needs Windows, the .NET 9 runtime and an AMD Ryzen with per-core Curve
+Optimizer through the SMU. Commands that touch the hardware need an elevated
+console (`sudo rycolab ...` on Windows 11 with sudo enabled); `rycolab`,
+`status`, `report` and `profile show` do not.
 
 ```
-rycolab probe                  PSM margin applied on every core (compares with plan.json)
-rycolab probe --sensors        adds effective clock and power per core
-rycolab sensors                dumps the sensors with their exact names
-rycolab watch --core N         1 Hz: clock, effective, V, GHz, W, T of one core
-      [--seconds 180] [--interval 1000] [--jsonl f] [--summary f] [--raw]
-rycolab plan init|show|set-core N M|set-profile a,...,p   plan.json (profile + sweep)
-rycolab apply --plan           applies the plan.json profile to all cores
-rycolab guard [--minutes N]    applies the plan, re-applies after resume, reads the
-      [--interval 60] [--plain]   margin and counts WHEA every interval; leaves the baseline on exit
-rycolab task install|run|stop|remove|status   scheduled task: HIDDEN guard at logon; run/stop by hand
-rycolab status [--follow]      is guard alive?, last sample, events, hardware vs plan; --follow = live panel
-rycolab sweep [--campaign n] [--cores 0-15] [--start -50] [--top -5] [--step 5] [--seconds 360]
-      [--no-suspend] [--plain]   sweep: per core, bottom up, every y-cruncher engine in the plan;
-                                 limit = first margin clean on all; resumable; restores the baseline
-rycolab plan from-sweep <campaign> [--margin 5]   profile = limit + margin
-rycolab report --campaign <n> [--md] [--rebuild]  limits, positives, telemetry, events (rycolab.db)
+rycolab install               copy to %LOCALAPPDATA%\rycolab, user PATH, y-cruncher (official zip,
+                              SHA-256 checked), baseline read from the hardware, scheduled task
+rycolab                       one screen: installed?, profile, guard, last sample, and what to do next
+rycolab sweep                 find each core's limit (hours; leave the machine alone; it may reboot)
+rycolab profile from-sweep <campaign> [--margin 5]     profile = limit + margin, with its source
+rycolab on                    apply the profile and keep it: hidden guard, re-applied after sleep and at logon
+rycolab status [--follow]     guard, phase (validating / steady), last sample, WHEA, events
+rycolab off                   stop the guard, back to the BIOS baseline, task disabled
+rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md
+rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 
-Campaign from scratch: `plan init` -> `sweep` -> `plan from-sweep` -> `guard
---minutes 30` (idle soak) -> `task install` and real use with sleep -> `report
---md`. Each campaign lives in `runs/<name>/`: `runs.jsonl` and `samples.jsonl`
-(primary source, write-through), `rycolab.db` (SQLite, filled on the fly;
-`report --rebuild` regenerates it), `limits.json`, `in-progress.json` (if it
-is there at startup, the machine hung during that run: positive) and
-`positives/`.
+`on` refuses a profile without a source, from another CPU, or with any core
+below its measured limit. The guard writes `state.json` on every sample (what
+`status` reads), re-applies after resume (the BIOS restores the baseline on
+wake), retries the SMU write, and on any WHEA event restores the baseline and
+stops with code 10. A profile starts in `validating` and becomes `steady`
+after 20 h guarded or 7 days without WHEA.
+
+Data lives in `%LOCALAPPDATA%\rycolab` (`RYCOLAB_HOME` overrides): `bin\`,
+`tools\y-cruncher\`, `config.json` (baseline, engines, tests, seconds),
+`profile.json`, `state.json`, `validation.json`, `guard\` (journal, SQLite,
+positives) and `campaigns\<name>\` (`runs.jsonl`, `samples.jsonl`,
+`rycolab.db`, `limits.json`, `in-progress.json`, `positives\`).
 
 Sweep signals: y-cruncher compute error, dead process, WHEA (17-20, 46, 47) or
-Kernel-Power 41 during the run, and machine hang.
+Kernel-Power 41 during the run, and machine hang (`in-progress.json` still
+there when the sweep starts again).
 
-`plan.json` (git-ignored; `plan.example.json` as a sample) holds the per-core
-profile, the baseline and the sweep parameters. **Sleep and reboot restore the
-BIOS baseline**: without `guard` the profile does not last. `guard` writes
-`runs/guard/guard.jsonl` (samples and events) and, on a WHEA event,
-`runs/guard/positives/whea-*.json`, exiting with code 10 and leaving the
-baseline. Stop guard before rebuilding (it holds the executable).
-
-y-cruncher binaries go in `tools/y-cruncher/Binaries/` (git-ignored): copy
-them from the official y-cruncher distribution or from CoreCycler's
-`test_programs/y-cruncher/Binaries`.
+Low-level commands for diagnostics (elevated): `probe`, `apply`, `reset`,
+`guard`, `watch`, `sensors`, `plan` (config.json), `task`, `profile import`.
+`rycolab help` lists them all.
 
 ## Field notes
 
