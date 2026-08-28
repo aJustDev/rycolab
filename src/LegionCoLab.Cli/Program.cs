@@ -119,7 +119,10 @@ static void PrintHelp()
           Codigos: 0 limpio, 10 positivo (WHEA o margen perdido), 1 no pudo aplicar.
 
         task
-          install [--plan <ruta>] | remove | status
+          install [--plan <ruta>]   Tarea al iniciar sesion (elevada, minimizada)
+          run                       Lanza guard ahora por la tarea, independiente de la consola
+          stop                      Pide a guard que salga limpio (restaura la base)
+          remove | status
 
         probe
           --compare <ruta>   Comparar con un perfil JSON con campo CoreValues.

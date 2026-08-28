@@ -43,6 +43,7 @@ public sealed class Guard
         _onTick = onTick;
         _onEvent = onEvent;
         Directory.CreateDirectory(_o.RunsDir);
+        File.Delete(StopFile(_o.RunsDir));
         _journal = new Journal(Path.Combine(_o.RunsDir, "guard.jsonl"));
         _store = new Store(Path.Combine(_o.RunsDir, "colab.db"));
     }
@@ -130,7 +131,7 @@ public sealed class Guard
 
                 if (_o.Minutes is { } min && el >= min * 60) { Event("done", $"{min} min cumplidos"); break; }
             }
-            if (ct.IsCancellationRequested) Event("cancel", "interrumpido");
+            if (ct.IsCancellationRequested) Event("cancel", "interrumpido con Ctrl+C");
         }
         catch (Exception ex)
         {
@@ -171,12 +172,21 @@ public sealed class Guard
         return false;
     }
 
+    /// <summary>Fichero que 'colab task stop' deja para pedir una salida limpia (matar el proceso no restauraria la base).</summary>
+    public static string StopFile(string runsDir) => Path.Combine(runsDir, "stop");
+
     private bool Wait(CancellationToken ct)
     {
         var deadline = DateTime.Now.AddSeconds(_o.IntervalSeconds);
         while (DateTime.Now < deadline)
         {
             if (ct.IsCancellationRequested) return false;
+            if (File.Exists(StopFile(_o.RunsDir)))
+            {
+                File.Delete(StopFile(_o.RunsDir));
+                Event("stop", "parada pedida con 'colab task stop'");
+                return false;
+            }
             if (_resumeAt is not null) return true;   // no esperar el intervalo entero tras despertar
             Thread.Sleep(250);
         }

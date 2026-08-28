@@ -29,6 +29,29 @@ public static class TaskCommand
             }
             case "remove":
                 return Schtasks($"/Delete /TN {TaskName} /F");
+            case "run":
+            {
+                if (Process.GetProcessesByName("colab").Any(p => p.Id != Environment.ProcessId))
+                {
+                    Console.Error.WriteLine("Ya hay un colab en marcha (guard o sweep). Paralo antes.");
+                    return 1;
+                }
+                var code = Schtasks($"/Run /TN {TaskName}");
+                if (code == 0) Console.WriteLine("  guard lanzado por la tarea, independiente de esta consola. 'colab task stop' lo para.");
+                return code;
+            }
+            case "stop":
+            {
+                var runs = new GuardOptions().RunsDir;
+                var others = Process.GetProcessesByName("colab").Where(p => p.Id != Environment.ProcessId).ToList();
+                if (others.Count == 0) { Console.WriteLine("  No hay ningun guard en marcha."); return 0; }
+                File.WriteAllText(Guard.StopFile(runs), DateTime.Now.ToString("o"));
+                Console.WriteLine("  Parada pedida; guard la ve en su siguiente muestra (hasta 1 min) y restaura la base.");
+                foreach (var p in others) p.WaitForExit(90_000);
+                var still = Process.GetProcessesByName("colab").Any(p => p.Id != Environment.ProcessId);
+                Console.WriteLine(still ? "  Sigue vivo; revisa la ventana." : "  guard cerrado.");
+                return still ? 1 : 0;
+            }
             case "status":
                 return Schtasks($"/Query /TN {TaskName} /V /FO LIST");
             default:

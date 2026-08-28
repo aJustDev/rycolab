@@ -335,3 +335,12 @@ Nucleo 13 con los 3 tests de la Fase 1 (SFTv4, FFTv4, N63), 360 s, suspension 1 
 | 09:21 | -50 | `24-ZN5` | limpio, 362 s | 5,441 | 1,077 | - | 32 |
 
 Limite **-50**, igual que con `fase1.ps1` el 27/08 (20:26-22:39). Base restaurada al acabar; perfil candidato reaplicado despues.
+
+## Reanudacion con guard vivo (28/08/2026)
+
+| Hora | Evento | Resultado |
+|---|---|---|
+| 10:11:04 | 1a prueba: `suspend` (guard `ec39f56^`) | al despertar (10:14:38) la muestra salio antes que el `resume` de Windows (10:14:41); reaplicacion inmediata; **SMU rechazo la escritura del nucleo 12**; guard salio con codigo 1, base -5 |
+| 10:42:53 | 2a prueba: `suspend` (guard `ec39f56`) | 10:45:12 `resume` deducida del suspend; 10:45:14 `resume` de Windows; 10:45:22 **perfil reaplicado y verificado** en los 16 |
+
+La suspension devuelve -5 siempre; guard lo repone en ~10 s tras despertar.
