@@ -70,10 +70,17 @@ public static class FanCommand
         var since = DateTime.Now;
         var t0 = DateTime.Now;
         int? pending = null;   // 1 = counting towards ON, 0 = towards off
+        var lastMode = ec.SmartFanMode;
         try
         {
             while (!cts.IsCancellationRequested)
             {
+                var mode = ec.SmartFanMode;
+                if (mode != lastMode)
+                {
+                    Console.WriteLine($"  {Elapsed(t0)}  power mode changed to {LenovoEc.ModeName(mode)}{(mode == LenovoEc.CustomMode ? "" : ": the EC ignores the switch until custom mode is back (Legion Toolkit changes it on AC events, resume and start)")}");
+                    lastMode = mode;
+                }
                 var t = ec.CpuTempC;
                 if (t is { } temp)
                 {
