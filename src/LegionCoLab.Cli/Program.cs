@@ -34,6 +34,7 @@ try
         "plan" => PlanCommand.Run(opts),
         "guard" => GuardCommand.Run(opts),
         "sweep" => SweepCommand.Run(opts),
+        "report" => ReportCommand.Run(opts),
         "task" => TaskCommand.Run(opts),
         _ => Unknown(command),
     };
@@ -83,8 +84,14 @@ static void PrintHelp()
           plan       Perfil por nucleo y parametros del barrido (plan.json)
           guard      Aplica el plan, lo reaplica al reanudar, vigila margen y WHEA
           sweep      Barrido por nucleos con y-cruncher: busca el limite de cada uno
+          report     Limites, positivos, telemetria y eventos de una campana (colab.db)
           task       Tarea programada que lanza guard al iniciar sesion
           help       Esta ayuda
+
+        report
+          --campaign <n|dir>   runs/<n> (sweep) o runs/guard.
+          --md [ruta]          Escribe markdown (por defecto report.md en la campana).
+          --rebuild            Regenera colab.db desde los JSONL.
 
         sweep
           --campaign <n>     Carpeta runs/<n>. Por defecto sweep-<fecha>. Reanudable: salta

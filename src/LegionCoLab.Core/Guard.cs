@@ -43,7 +43,10 @@ public sealed class Guard
         _onEvent = onEvent;
         Directory.CreateDirectory(_o.RunsDir);
         _journal = new Journal(Path.Combine(_o.RunsDir, "guard.jsonl"));
+        _store = new Store(Path.Combine(_o.RunsDir, "colab.db"));
     }
+
+    private readonly Store _store;
 
     public int Run(CancellationToken ct)
     {
@@ -124,6 +127,7 @@ public sealed class Guard
             var after = _co.ReadAll().Select(x => x.Margin).ToArray();
             Event("restore", $"base {_plan.Base}: {restored} nucleos escritos; hardware {string.Join(",", after)}  codigo {code}");
             _journal.Dispose();
+            _store.Dispose();
         }
         return code;
     }
@@ -159,12 +163,14 @@ public sealed class Guard
     {
         var t = new GuardTick(DateTime.Now, el, ok, hw, whea, cpu, pkg, state);
         _journal.Write(new { kind = "tick", t.Ts, t.Elapsed, t.Ok, t.Hardware, t.Whea, t.CpuLoad, t.PackagePower, t.State });
+        _store.AddTick(t);
         _onTick(t);
     }
 
     private void Event(string kind, string detail)
     {
         _journal.Write(new { kind, ts = DateTime.Now, detail });
+        _store.AddEvent(DateTime.Now, kind, detail);
         _onEvent($"{DateTime.Now:HH:mm:ss}  {kind}: {detail}");
     }
 }

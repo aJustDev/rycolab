@@ -51,7 +51,22 @@ colab apply --plan           aplica el perfil de plan.json a los 16
 colab guard [--minutes N]    aplica el plan, lo reaplica al reanudar de suspension,
       [--interval 60] [--plain]   relee el margen y cuenta WHEA cada intervalo; deja la base al salir
 colab task install|remove|status   tarea programada: guard al iniciar sesion (elevada, minimizada)
+colab sweep [--campaign n] [--cores 0-15] [--start -50] [--top -5] [--step 5] [--seconds 360]
+      [--no-suspend] [--plain]   barrido: por nucleo, de abajo arriba, cada motor de y-cruncher del plan;
+                                 limite = primer margen limpio en todos; reanudable; restaura la base
+colab plan from-sweep <campana> [--margin 5]   perfil = limite + margen
+colab report --campaign <n> [--md] [--rebuild]  limites, positivos, telemetria, eventos (colab.db)
 ```
+
+Campana desde cero: `plan init` -> `sweep` -> `plan from-sweep` -> `guard
+--minutes 30` (reposo) -> `task install` y uso real con suspension -> `report
+--md`. Cada campana vive en `runs/<nombre>/`: `runs.jsonl` y `samples.jsonl`
+(fuente primaria, write-through), `colab.db` (SQLite, se rellena al vuelo y
+`report --rebuild` la regenera), `limits.json`, `en-curso.json` (si esta al
+arrancar, la maquina se colgo en esa prueba: positivo) y `positivos/`.
+
+Senales del barrido: error de calculo de y-cruncher, proceso muerto, WHEA
+(17-20, 46, 47) o Kernel-Power 41 durante la prueba, y cuelgue de maquina.
 
 `plan.json` (ignorado por git; `plan.example.json` de muestra) guarda el
 perfil por nucleo, la base y los parametros del barrido. **La suspension y el

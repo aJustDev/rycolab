@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **28/08/2026, 09:40**. Plan completo en revisión 3
+Última sesión: **28/08/2026, 09:45**. Plan completo en revisión 4
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -159,7 +159,32 @@ Fuera: re-medidas sueltas y cabos ajenos al repo.
 - Ojo: guard bloquea `colab.exe`; cerrarlo (Ctrl+C) antes de compilar.
 - `tools/y-cruncher/Binaries/` copiado del clon (153 MB, ignorado).
 
-## Siguiente paso: paso B (motor y barrido en C#) y completar la Fase 3
+### Paso B hecho
+
+- `Engines/YCruncherEngine.cs` (cfg, linea de comandos, afinidad, stdin
+  redirigido, filtro de error validado, suspension 1 s/10 s con
+  `ThreadControl`), `Sampler.cs`, `Sweep.cs` (por nucleo/margen/motor,
+  `en-curso.json`, `limits.json`, `positivos/`, reanudable), `colab sweep`
+  con panel Spectre y `--plain`, `plan from-sweep`.
+- Verificado 09:14-09:27: `sweep --cores 13` con los 3 tests de la Fase 1 da
+  **limite -50**, igual que el 27/08 (`RESULTADOS.md`). `sweep` se niega si
+  el hardware no esta en la base. Un fallo de markup (`[###]`) corregido.
+
+### Paso C hecho
+
+- `Store.cs` (SQLite: runs, samples, events, ticks; `Rebuild` desde JSONL),
+  sweep y guard escriben al vuelo; `colab report --campaign <n> [--md]
+  [--rebuild]`.
+
+### Pendiente
+
+- **Reanudacion con guard vivo** (suspender y despertar; esperar `resume` +
+  `apply reanudacion` en `runs/guard/guard.jsonl`).
+- Paso D: campana definitiva desde cero (8 tests, 16 nucleos, ~5-8 h) ->
+  `plan from-sweep` -> `guard --minutes 30` -> uso real >= 2 h -> `report --md`.
+- Los `.ps1` de `scripts/` quedan como diagnostico; no se tocan.
+
+## Siguiente paso: probar la reanudacion y lanzar el paso D
 
 Candidato propuesto = límite + 5 (las guías: "una o dos paradas por encima
 del primer fallo"); el 8 tratado como −45 por el WHEA:

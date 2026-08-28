@@ -324,3 +324,14 @@ CCD1   8:-40  9:-35 10:-45 11:-40 12:-40 13:-45 14:-45 15:-45
 Sin WHEA (0 el 28/08), sin Kernel-Power 41, sin reinicio. Registro en
 `runs/fase1b/fase3-noche1.log`. **89 min de uso real limpios**; el despertar
 con el perfil puesto no se probó (al despertar ya estaba en −5).
+
+## Verificacion del barrido en C# (28/08/2026, `colab sweep`, campana `runs/verif-b`)
+
+Nucleo 13 con los 3 tests de la Fase 1 (SFTv4, FFTv4, N63), 360 s, suspension 1 s/10 s, desde -50:
+
+| Hora | Margen | Motor | Veredicto | GHz | V | W | Suspensiones |
+|---|---|---|---|---|---|---|---|
+| 09:14 | -50 | `04-P4P` | limpio, 362 s | 5,450 | 1,085 | 7,4 | 32 |
+| 09:21 | -50 | `24-ZN5` | limpio, 362 s | 5,441 | 1,077 | - | 32 |
+
+Limite **-50**, igual que con `fase1.ps1` el 27/08 (20:26-22:39). Base restaurada al acabar; perfil candidato reaplicado despues.

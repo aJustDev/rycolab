@@ -4,6 +4,7 @@
     <PackageReference Include="ZenStates-Core" Version="1.0.1" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.7-pre689" />
     <PackageReference Include="System.Diagnostics.EventLog" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
     <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.0" />
   </ItemGroup>
 

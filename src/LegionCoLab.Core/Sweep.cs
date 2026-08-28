@@ -44,6 +44,7 @@ public sealed class Sweep
     private readonly ISweepSink _sink;
     private readonly Journal _runs;
     private readonly Journal _samples;
+    private readonly Store _store;
     private readonly string _limitsPath;
     private readonly string _enCursoPath;
 
@@ -55,6 +56,7 @@ public sealed class Sweep
         Directory.CreateDirectory(_o.CampaignDir);
         _runs = new Journal(Path.Combine(_o.CampaignDir, "runs.jsonl"));
         _samples = new Journal(Path.Combine(_o.CampaignDir, "samples.jsonl"));
+        _store = new Store(Path.Combine(_o.CampaignDir, "colab.db"));
         _limitsPath = Path.Combine(_o.CampaignDir, "limits.json");
         _enCursoPath = Path.Combine(_o.CampaignDir, "en-curso.json");
 
@@ -126,6 +128,7 @@ public sealed class Sweep
             _co.TryRestore(_plan.Base);
             _runs.Dispose();
             _samples.Dispose();
+            _store.Dispose();
         }
 
         _sink.Event(ct.IsCancellationRequested
@@ -151,6 +154,7 @@ public sealed class Sweep
         sampler.Prime();
 
         EngineStatus status;
+        var taken = new List<Sample>();
         try
         {
             engine.Start(core, work);
@@ -160,6 +164,7 @@ public sealed class Sweep
                 Thread.Sleep(1000);
                 var s = sampler.Take();
                 status = engine.Poll();
+                taken.Add(s);
                 _samples.Write(new { core, margin, engine = engineName, s.Ts, s.Elapsed, s.Clock, s.ClockEffective, s.Volt, s.Freq, s.Power, s.Temp, s.PackagePower });
                 _sink.Progress(s, status);
                 if (status.State != EngineState.Running || DateTime.Now >= deadline || ct.IsCancellationRequested) break;
@@ -187,6 +192,7 @@ public sealed class Sweep
         var result = new RunResult(core, margin, engineName, verdict, (int)(DateTime.Now - started).TotalSeconds, error, status.ExitCode,
             whea.Count, status.Lines, status.Suspensions, sampler.Summary(), started, DateTime.Now);
         Record(result);
+        _store.AddSamples(core, margin, engineName, taken);
 
         if (verdict is not ("clean" or "aborted"))
         {
@@ -201,6 +207,7 @@ public sealed class Sweep
     private void Record(RunResult r)
     {
         _runs.Write(r);
+        _store.AddRun(r);
         _sink.RunEnded(r);
     }
 

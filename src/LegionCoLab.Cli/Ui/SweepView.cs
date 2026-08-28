@@ -65,7 +65,7 @@ public sealed class SweepView : ISweepSink
             var el = _sample?.Elapsed ?? 0;
             var bar = new string('#', Math.Min(30, el * 30 / Math.Max(1, _seconds))).PadRight(30, '.');
             var s = _sample;
-            current = $"[bold]nucleo {cur.Core}  margen {cur.Margin}  {Markup.Escape(cur.Engine)}[/]   [{bar}] {el}/{_seconds} s\n" +
+            current = $"[bold]nucleo {cur.Core}  margen {cur.Margin}  {Markup.Escape(cur.Engine)}[/]   {Markup.Escape($"[{bar}]")} {el}/{_seconds} s\n" +
                       $"GHz {F(s?.Freq, 3)}   V {F(s?.Volt, 4)}   W {F(s?.Power, 2)}   T {F(s?.Temp, 1)}   reloj {F(s?.Clock, 0)}   efectivo {F(s?.ClockEffective, 0)}   paquete {F(s?.PackagePower, 1)} W\n" +
                       $"salida {_status?.Lines ?? 0} lineas   suspensiones {_status?.Suspensions ?? 0}   {Markup.Escape(Truncate(_status?.LastLine ?? "", 90))}";
         }
