@@ -21,10 +21,10 @@ public static class TaskCommand
                 var plan = Path.GetFullPath(args.Get("plan") ?? Plan.DefaultPath);
                 if (!File.Exists(plan)) { Console.Error.WriteLine($"No existe el plan {plan}"); return 1; }
                 var exe = Environment.ProcessPath!;
-                // powershell abre la ventana minimizada; schtasks no sabe hacerlo solo.
-                var tr = $"powershell -NoProfile -WindowStyle Minimized -Command \\\"& '{exe}' guard --plan '{plan}'\\\"";
+                // Sin ventana: powershell oculto y guard en modo plano. 'colab status' es la ventana.
+                var tr = $"powershell -NoProfile -WindowStyle Hidden -Command \\\"& '{exe}' guard --plain --plan '{plan}'\\\"";
                 var code = Schtasks($"/Create /TN {TaskName} /TR \"{tr}\" /SC ONLOGON /RL HIGHEST /IT /F");
-                if (code == 0) Console.WriteLine($"  Tarea {TaskName} creada: guard con {plan} al iniciar sesion.");
+                if (code == 0) Console.WriteLine($"  Tarea {TaskName} creada: guard oculto con {plan} al iniciar sesion. 'colab status' para verlo.");
                 return code;
             }
             case "remove":
@@ -37,7 +37,7 @@ public static class TaskCommand
                     return 1;
                 }
                 var code = Schtasks($"/Run /TN {TaskName}");
-                if (code == 0) Console.WriteLine("  guard lanzado por la tarea, independiente de esta consola. 'colab task stop' lo para.");
+                if (code == 0) Console.WriteLine("  guard lanzado oculto por la tarea. 'colab status' lo enseña; 'colab task stop' lo para.");
                 return code;
             }
             case "stop":

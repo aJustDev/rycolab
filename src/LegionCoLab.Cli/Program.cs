@@ -36,6 +36,7 @@ try
         "sweep" => SweepCommand.Run(opts),
         "report" => ReportCommand.Run(opts),
         "task" => TaskCommand.Run(opts),
+        "status" => StatusCommand.Run(opts),
         _ => Unknown(command),
     };
 }
@@ -85,8 +86,12 @@ static void PrintHelp()
           guard      Aplica el plan, lo reaplica al reanudar, vigila margen y WHEA
           sweep      Barrido por nucleos con y-cruncher: busca el limite de cada uno
           report     Limites, positivos, telemetria y eventos de una campana (colab.db)
-          task       Tarea programada que lanza guard al iniciar sesion
+          task       Tarea programada que lanza guard (oculto) al iniciar sesion
+          status     Guard vivo?, ultima muestra, eventos, hardware frente al plan
           help       Esta ayuda
+
+        status
+          --follow           Panel en vivo leyendo el registro del guard oculto. Ctrl+C solo cierra el panel.
 
         report
           --campaign <n|dir>   runs/<n> (sweep) o runs/guard.

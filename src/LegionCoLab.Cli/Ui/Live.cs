@@ -21,6 +21,11 @@ public sealed class GuardView
         if (_events.Count > 12) _events.RemoveAt(0);
     }
 
+    public void OnEventOnce(string line)
+    {
+        if (_events.Count == 0 || _events[^1] != line) OnEvent(line);
+    }
+
     public IRenderable Render()
     {
         var table = new Table().Border(TableBorder.Rounded).Title("[bold]colab guard[/]");
