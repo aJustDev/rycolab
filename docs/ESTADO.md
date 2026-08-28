@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **27/08/2026, 23:20**. Plan completo en revisión 3
+Última sesión: **28/08/2026, 08:45**. Plan completo en revisión 3
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 23:14 (al terminar la Fase 1b).
+CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 08:33 (28/08, tras la suspension de la noche).
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -28,7 +28,9 @@ LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
 Procesos   ninguna herramienta de estres viva
 ```
 
-Un reinicio devuelve siempre a −5 en los dieciséis. Esa es la red de seguridad.
+Un reinicio **y también una suspensión** (visto el 28/08 a las 08:32) devuelven
+−5 en los dieciséis. Esa es la red de seguridad; y significa que el perfil
+hay que reaplicarlo al reanudar (tarea del corredor, paso 6).
 
 ## Lo que funciona
 
@@ -127,7 +129,12 @@ SMU); hay que lanzar con `-Command`.
 
 ## Fase 1b hecha (22:43-23:14): perfil candidato, 30 min en reposo, WHEA 0
 
-## Siguiente paso: Fase 3 (uso real con el candidato)
+## Fase 3, primera sesión (23:41-01:10): 89 min de uso real limpios, WHEA 0
+
+La suspensión de la 01:10 dejó −5 al despertar (08:32); el vigilante lo cazó
+y cerró. Detalle en `RESULTADOS.md`.
+
+## Siguiente paso: completar la Fase 3
 
 Candidato propuesto = límite + 5 (las guías: "una o dos paradas por encima
 del primer fallo"); el 8 tratado como −45 por el WHEA:

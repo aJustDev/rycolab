@@ -310,3 +310,17 @@ CCD1   8:-40  9:-35 10:-45 11:-40 12:-40 13:-45 14:-45 15:-45
 | 23:14:41 | `reset --to -5`, `probe` | −5 × 16 |
 
 `runs/fase1b/resultado.json`, código 0.
+
+## Fase 3 — uso real con el candidato, primera sesión (27-28/08/2026, `fase1b.ps1 -Minutos 180`)
+
+| Hora | Qué | Resultado |
+|---|---|---|
+| 23:41:26 | perfil aplicado y verificado en los 16 | ok |
+| 23:41-01:10 | uso real (escritorio, vídeo), muestra cada 60 s | margen intacto 89/89; WHEA 0; CPU 1-10 % |
+| 01:10:13 | suspensión (Kernel-Power 42) | — |
+| 08:32:28 | reanudación (Power-Troubleshooter 1) | **hardware en −5 × 16**: la suspensión devuelve los márgenes a la base de la BIOS |
+| 08:33:11 | vigilante: "margen CAMBIADO", `reset`, `probe` | −5 × 16; código 1 |
+
+Sin WHEA (0 el 28/08), sin Kernel-Power 41, sin reinicio. Registro en
+`runs/fase1b/fase3-noche1.log`. **89 min de uso real limpios**; el despertar
+con el perfil puesto no se probó (al despertar ya estaba en −5).
