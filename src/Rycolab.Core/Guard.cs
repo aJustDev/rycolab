@@ -9,14 +9,16 @@ public sealed class GuardOptions
     public int IntervalSeconds { get; init; } = 60;
     public int MaxReappliesPerHour { get; init; } = 3;
     public int ResumeSettleSeconds { get; init; } = 10;
-    public string RunsDir { get; init; } = Path.Combine(Plan.RepoRoot, "runs", "guard");
+    public string RunsDir { get; init; } = AppPaths.Guard;
+    /// <summary>Write state.json / validation.json (the installed profile) or not (ad-hoc soaks).</summary>
+    public bool PublishState { get; init; } = true;
 }
 
 /// <summary>
 /// Profile guardian: applies the profile, re-applies it after resuming from
-/// sleep (the BIOS restores the baseline on wake, seen 2026-08-28), reads the
-/// hardware back and counts WHEA events every interval, and leaves the
-/// baseline in place on exit.
+/// sleep (the BIOS restores the baseline on wake), reads the hardware back
+/// and counts WHEA events every interval, and leaves the baseline in place
+/// on exit. Publishes state.json for the unelevated `status`.
 ///
 /// Exit codes: 0 ended cleanly (time up, Ctrl+C or stop file), 10 positive
 /// (WHEA, or margin lost more often than allowed), 1 could not apply.
@@ -24,7 +26,7 @@ public sealed class GuardOptions
 public sealed class Guard
 {
     private readonly CoController _co;
-    private readonly Plan _plan;
+    private readonly Profile _profile;
     private readonly GuardOptions _o;
     private readonly Journal _journal;
     private readonly Store _store;
@@ -36,10 +38,14 @@ public sealed class Guard
     private DateTime? _resumeAt;
     private volatile bool _suspendSeen;
 
-    public Guard(CoController co, Plan plan, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent)
+    private readonly State _state = new();
+    private readonly Validation? _validation;
+    private DateTime _t0;
+
+    public Guard(CoController co, Profile profile, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent)
     {
         _co = co;
-        _plan = plan;
+        _profile = profile;
         _o = options;
         _telemetry = telemetry;
         _onTick = onTick;
@@ -48,20 +54,24 @@ public sealed class Guard
         File.Delete(StopFile(_o.RunsDir));
         _journal = new Journal(Path.Combine(_o.RunsDir, "guard.jsonl"));
         _store = new Store(Path.Combine(_o.RunsDir, "rycolab.db"));
+        if (_o.PublishState) _validation = Validation.LoadFor(profile);
     }
 
-    /// <summary>File that 'task stop' drops to request a clean exit (killing the process would not restore the baseline).</summary>
+    /// <summary>File that `off` / `task stop` drop to request a clean exit (killing the process would not restore the baseline).</summary>
     public static string StopFile(string runsDir) => Path.Combine(runsDir, "stop");
 
     public int Run(CancellationToken ct)
     {
-        var t0 = DateTime.Now;
+        _t0 = DateTime.Now;
         var code = 0;
-        Event("start", $"profile {string.Join(",", _plan.Profile)}  interval {_o.IntervalSeconds}s  {(_o.Minutes is { } m ? m + " min" : "no time limit")}");
+        _state.GuardPid = Environment.ProcessId;
+        _state.Since = _t0;
+        _state.Profile = _profile.Cores;
+        Event("start", $"profile {string.Join(",", _profile.Cores)}  interval {_o.IntervalSeconds}s  {(_o.Minutes is { } m ? m + " min" : "no time limit")}");
 
         try
         {
-            if (!ApplyPlan("start")) return 1;
+            if (!ApplyProfile("start")) return 1;
 
             using var power = new PowerWatch();
             power.Suspending += () => { _suspendSeen = true; Event("suspend", "the system is going to sleep"); };
@@ -73,9 +83,8 @@ public sealed class Guard
             {
                 if (!Wait(ct)) break;
 
-                // The resume event can arrive late or not at all (2026-08-28 10:14: the sample
-                // ran 3 s before Windows logged the resume). A clock jump, or a suspend with no
-                // resume, count the same.
+                // The resume event can arrive late or not at all (the sample can run before
+                // Windows logs the resume). A clock jump, or a suspend with no resume, count the same.
                 var gap = (DateTime.Now - lastLoop).TotalSeconds;
                 lastLoop = DateTime.Now;
                 if (_resumeAt is null && (_suspendSeen || gap > 2 * _o.IntervalSeconds + 30))
@@ -90,47 +99,52 @@ public sealed class Guard
                     var settle = _o.ResumeSettleSeconds - (DateTime.Now - r).TotalSeconds;
                     if (settle > 0) Thread.Sleep(TimeSpan.FromSeconds(settle));
                     _resumeAt = null;
-                    if (!ApplyPlan("resume")) { code = 1; break; }
+                    if (_validation is not null) _validation.Resumes++;
+                    if (!ApplyProfile("resume")) { code = 1; break; }
                 }
 
                 var readings = _co.ReadAll();
                 var hw = readings.Select(x => x.Margin).ToArray();
-                var bad = _plan.Mismatches(readings);
-                var hardware = Whea.HardwareSince(t0);
-                var el = (int)(DateTime.Now - t0).TotalSeconds;
+                var bad = _profile.Mismatches(readings);
+                var hardware = Whea.HardwareSince(_t0);
+                var el = (int)(DateTime.Now - _t0).TotalSeconds;
                 var cpu = _telemetry?.CpuLoad();
                 var pkg = _telemetry?.Read().PackagePower;
 
                 if (hardware.Count > wheaSeen)
                 {
+                    var fresh = hardware.Count - wheaSeen;
                     foreach (var e in hardware.Skip(wheaSeen))
                         Event("whea", $"{e.Time:HH:mm:ss} {e.Provider.Replace("Microsoft-Windows-", "")} id {e.Id}: {e.Message}");
                     wheaSeen = hardware.Count;
                     Journal.WriteJsonFile(Path.Combine(_o.RunsDir, "positives", $"whea-{DateTime.Now:yyyyMMdd-HHmmss}.json"),
-                        new { plan = _plan, hardware = hw, events = hardware });
-                    Tick(t0, el, bad.Count == 0, hw, hardware.Count, cpu, pkg, "WHEA");
+                        new { profile = _profile, hardware = hw, events = hardware });
+                    if (_validation is not null) _validation.Whea += fresh;
+                    Tick(el, bad.Count == 0, hw, hardware.Count, cpu, pkg, "WHEA");
                     code = 10;
                     break;
                 }
 
                 if (bad.Count > 0 && _resumeAt is null)
                 {
-                    Event("changed", $"hardware {string.Join(",", hw)}  cores off plan: {string.Join(",", bad)}");
+                    Event("changed", $"hardware {string.Join(",", hw)}  cores off profile: {string.Join(",", bad)}");
                     _reapplies.RemoveAll(t => (DateTime.Now - t).TotalHours >= 1);
                     if (_reapplies.Count >= _o.MaxReappliesPerHour)
                     {
                         Event("giveup", $"{_reapplies.Count} re-applies within an hour; leaving the baseline");
-                        Tick(t0, el, false, hw, hardware.Count, cpu, pkg, "lost");
+                        Tick(el, false, hw, hardware.Count, cpu, pkg, "lost");
                         code = 10;
                         break;
                     }
                     _reapplies.Add(DateTime.Now);
-                    if (!ApplyPlan("lost")) { code = 1; break; }
-                    Tick(t0, el, true, _co.ReadAll().Select(x => x.Margin).ToArray(), hardware.Count, cpu, pkg, "reapplied");
+                    if (_validation is not null) _validation.Reapplies++;
+                    if (!ApplyProfile("lost")) { code = 1; break; }
+                    Tick(el, true, _co.ReadAll().Select(x => x.Margin).ToArray(), hardware.Count, cpu, pkg, "reapplied");
                     continue;
                 }
 
-                Tick(t0, el, bad.Count == 0, hw, hardware.Count, cpu, pkg, bad.Count == 0 ? "ok" : "waiting for resume");
+                if (bad.Count == 0 && _validation is not null) _validation.GuardedSeconds += _o.IntervalSeconds;
+                Tick(el, bad.Count == 0, hw, hardware.Count, cpu, pkg, bad.Count == 0 ? "ok" : "waiting for resume");
 
                 if (_o.Minutes is { } min && el >= min * 60) { Event("done", $"{min} min completed"); break; }
             }
@@ -139,13 +153,18 @@ public sealed class Guard
         catch (Exception ex)
         {
             Event("error", ex.Message);
+            _state.LastError = ex.Message;
             code = 1;
         }
         finally
         {
-            var restored = _co.TryRestore(_plan.Base);
+            var restored = _co.TryRestore(_profile.Base);
             var after = _co.ReadAll().Select(x => x.Margin).ToArray();
-            Event("restore", $"baseline {_plan.Base}: {restored} cores written; hardware {string.Join(",", after)}  code {code}");
+            _state.Hardware = after;
+            _state.Applied = false;
+            _state.GuardPid = null;
+            _state.Phase = code == 10 ? "positive" : "off";
+            Event("restore", $"baseline {_profile.Base}: {restored} cores written; hardware {string.Join(",", after)}  code {code}");
             _journal.Dispose();
             _store.Dispose();
         }
@@ -154,21 +173,24 @@ public sealed class Guard
 
     /// <summary>
     /// Three attempts 5 s apart: right after waking, the SMU may reject the
-    /// first write (2026-08-28 10:14, "core 12: the SMU rejected the write").
+    /// first write.
     /// </summary>
-    private bool ApplyPlan(string why, int attempts = 3)
+    private bool ApplyProfile(string why, int attempts = 3)
     {
         for (var i = 1; i <= attempts; i++)
         {
             try
             {
-                var after = Stepper.Apply(_co, _plan.Targets(_co.CoreCount));
+                var after = Stepper.Apply(_co, _profile.Targets(_co.CoreCount));
+                _state.Hardware = after.Select(x => x.Margin).ToArray();
+                _state.Applied = true;
                 Event("apply", $"{why}: profile applied and verified{(i > 1 ? $" on attempt {i}" : "")}: {string.Join(",", after.Select(x => x.Margin))}");
                 return true;
             }
             catch (Exception ex)
             {
                 Event("apply-failed", $"{why}: attempt {i}/{attempts}: {ex.Message}");
+                _state.LastError = ex.Message;
                 if (i < attempts) Thread.Sleep(5000);
             }
         }
@@ -184,7 +206,7 @@ public sealed class Guard
             if (File.Exists(StopFile(_o.RunsDir)))
             {
                 File.Delete(StopFile(_o.RunsDir));
-                Event("stop", "stop requested with 'task stop'");
+                Event("stop", "stop requested with 'rycolab off'");
                 return false;
             }
             if (_resumeAt is not null) return true;   // do not wait the whole interval after waking
@@ -193,11 +215,20 @@ public sealed class Guard
         return true;
     }
 
-    private void Tick(DateTime t0, int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)
+    private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)
     {
         var t = new GuardTick(DateTime.Now, el, ok, hw, whea, cpu, pkg, state);
         _journal.Write(new { kind = "tick", t.Ts, t.Elapsed, t.Ok, t.Hardware, t.Whea, t.CpuLoad, t.PackagePower, t.State });
         _store.AddTick(t);
+
+        _state.Hardware = hw;
+        _state.Applied = ok;
+        _state.LastTick = t.Ts;
+        _state.LastState = state;
+        _state.Whea = whea;
+        _state.CpuLoad = cpu;
+        _state.PackagePower = pkg;
+        PublishState();
         _onTick(t);
     }
 
@@ -205,6 +236,24 @@ public sealed class Guard
     {
         _journal.Write(new { kind, ts = DateTime.Now, detail });
         _store.AddEvent(DateTime.Now, kind, detail);
+        _state.LastEvents.Add($"{DateTime.Now:HH:mm:ss}  {kind}: {detail}");
+        if (_state.LastEvents.Count > 10) _state.LastEvents.RemoveAt(0);
+        PublishState();
         _onEvent($"{DateTime.Now:HH:mm:ss}  {kind}: {detail}");
+    }
+
+    private void PublishState()
+    {
+        if (!_o.PublishState) return;
+        if (_validation is not null)
+        {
+            _validation.Save();
+            _state.GuardedSeconds = _validation.GuardedSeconds;
+            _state.Resumes = _validation.Resumes;
+            _state.Reapplies = _validation.Reapplies;
+            _state.ValidationStartedAt = _validation.StartedAt;
+            if (_state.GuardPid is not null) _state.Phase = _validation.IsSteady ? "steady" : "validating";
+        }
+        try { _state.Save(); } catch { /* state is a convenience; the journal is the record */ }
     }
 }

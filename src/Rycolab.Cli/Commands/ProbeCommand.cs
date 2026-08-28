@@ -11,7 +11,7 @@ public static class ProbeCommand
 
         var readings = co.ReadAll();
 
-        // By default compare with plan.json if it exists.
+        // By default compare with the installed profile if there is one.
         int?[]? expected = null;
         var compareLabel = "";
         if (!args.Has("no-compare"))
@@ -21,12 +21,13 @@ public static class ProbeCommand
                 expected = LoadProfile(Environment.ExpandEnvironmentVariables(cmp));
                 compareLabel = cmp;
             }
-            else if (File.Exists(Plan.DefaultPath))
+            else if (Profile.Exists())
             {
-                expected = Plan.Load().Profile.Select(m => (int?)m).ToArray();
-                compareLabel = Plan.DefaultPath;
+                expected = Profile.Load().Cores.Select(m => (int?)m).ToArray();
+                compareLabel = AppPaths.Profile;
             }
         }
+        var baseline = Plan.LoadOrDefault().Base;
 
         TelemetrySnapshot? snap = null;
         IReadOnlyList<CoreSample>? cores = null;
@@ -118,12 +119,12 @@ public static class ProbeCommand
             Console.WriteLine();
             Console.WriteLine($"  MISMATCH on cores: {string.Join(", ", mismatched)}");
             Console.WriteLine("  The profile on disk is NOT what the processor has.");
-            if (readings.All(r => r.Margin == ResetCommand.DefaultBaseline))
-                Console.WriteLine($"  Everything is at the baseline {ResetCommand.DefaultBaseline}: reboot or sleep. 'rycolab apply --plan' or 'rycolab guard' put it back.");
+            if (readings.All(r => r.Margin == baseline))
+                Console.WriteLine($"  Everything is at the baseline {baseline}: no guard, or reboot/sleep. `rycolab on` puts the profile back.");
         }
         else if (matched > 0)
         {
-            Console.WriteLine($"  The processor has the plan applied: all {matched} comparable cores match.");
+            Console.WriteLine($"  The processor has the profile applied: all {matched} comparable cores match.");
         }
         Console.WriteLine();
 
@@ -159,6 +160,7 @@ public static class ProbeCommand
     private static string Fmt(double? v, string unit, int decimals)
         => v.HasValue ? v.Value.ToString($"F{decimals}") + " " + unit : "-";
 
+    /// <summary>A rycolab profile file, or a JSON with a CoreValues array (Legion Toolkit format).</summary>
     private static int?[]? LoadProfile(string path)
     {
         if (!File.Exists(path))
@@ -170,13 +172,11 @@ public static class ProbeCommand
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (!doc.RootElement.TryGetProperty("CoreValues", out var cv) || cv.ValueKind != JsonValueKind.Array)
-                return null;
-
-            var list = new List<int?>();
-            foreach (var e in cv.EnumerateArray())
-                list.Add(e.ValueKind == JsonValueKind.Number ? e.GetInt32() : null);
-            return list.ToArray();
+            if (doc.RootElement.TryGetProperty("cores", out var cores) && cores.ValueKind == JsonValueKind.Array)
+                return cores.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Number ? e.GetInt32() : (int?)null).ToArray();
+            if (doc.RootElement.TryGetProperty("CoreValues", out var cv) && cv.ValueKind == JsonValueKind.Array)
+                return cv.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Number ? e.GetInt32() : (int?)null).ToArray();
+            return null;
         }
         catch (Exception ex)
         {

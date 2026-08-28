@@ -1,10 +1,11 @@
-using System.Text.Json;
 using Rycolab.Core;
 
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// Applies Curve Optimizer margins.
+/// Applies Curve Optimizer margins by hand. `--profile [path]` applies a
+/// profile file (the installed one by default) and honours its refusal
+/// rules unless --force.
 ///
 /// Never in one jump: the move is walked in stops of at most
 /// <see cref="Safety.MaxStepBetweenLevels"/> counts, reading back at every
@@ -27,8 +28,6 @@ public static class ApplyCommand
 
         var dryRun = args.Has("dry-run");
 
-        // Limits are checked BEFORE touching the hardware, so an absurd value
-        // dies here and not in the SMU mailbox.
         foreach (var (core, margin) in targets)
             Safety.ValidateMargin(margin, $"core {core}: margin");
 
@@ -121,39 +120,21 @@ public static class ApplyCommand
 
     private static List<(int Core, int Margin)>? ResolveTargets(Args args, CoController co)
     {
-        if (args.Has("plan"))
-            return Plan.Load(args.Get("plan")).Targets(co.CoreCount).ToList();
-
-        if (args.Get("profile") is { } profilePath)
+        if (args.Has("profile"))
         {
-            var path = Environment.ExpandEnvironmentVariables(profilePath);
-            if (!File.Exists(path))
+            var path = args.Get("profile");
+            var profile = Profile.Load(path is null ? null : Environment.ExpandEnvironmentVariables(path));
+            if (profile.RefusalReason(co) is { } why)
             {
-                Console.Error.WriteLine($"Profile not found: {path}");
-                return null;
+                if (!args.Has("force")) { Console.Error.WriteLine($"Refusing: {why} (--force overrides)"); return null; }
+                Console.WriteLine($"  WARNING: {why} (forced)");
             }
-
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (!doc.RootElement.TryGetProperty("CoreValues", out var cv) || cv.ValueKind != JsonValueKind.Array)
-            {
-                Console.Error.WriteLine("The profile has no CoreValues array.");
-                return null;
-            }
-
-            var list = new List<(int, int)>();
-            var i = 0;
-            foreach (var e in cv.EnumerateArray())
-            {
-                if (i >= co.CoreCount) break;
-                if (e.ValueKind == JsonValueKind.Number) list.Add((i, e.GetInt32()));
-                i++;
-            }
-            return list;
+            return profile.Targets(co.CoreCount).ToList();
         }
 
         if (args.GetInt("margin") is not { } margin)
         {
-            Console.Error.WriteLine("Missing --margin (or --profile / --plan).");
+            Console.Error.WriteLine("Missing --margin (or --profile).");
             return null;
         }
 

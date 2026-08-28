@@ -1,0 +1,15 @@
+{
+  "cores": [-35, -35, -35, -40, -40, -40, -40, -40, -40, -35, -45, -40, -40, -45, -45, -45],
+  "base": -5,
+  "source": {
+    "campaign": "phase1-2026-08-27",
+    "date": "2026-08-27T22:39:00",
+    "limits": [-40, -40, -40, -45, -45, -45, -45, -45, -50, -40, -50, -45, -45, -50, -50, -50],
+    "safetyMargin": 5,
+    "engines": ["04-P4P", "24-ZN5 ~ Komari"],
+    "tests": ["SFTv4", "FFTv4", "N63"],
+    "seconds": 360,
+    "note": "Ryzen 9 9955HX3D reference machine; core 8 kept at -40 because of a corrected WHEA event at -50"
+  },
+  "fingerprint": { "cpuName": "AMD Ryzen 9 9955HX3D 16-Core Processor", "cores": 16, "smuType": "TYPE_CPU4" }
+}

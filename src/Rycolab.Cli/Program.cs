@@ -9,16 +9,18 @@ var argv = Environment.GetCommandLineArgs().Skip(1).ToArray();
 var command = argv.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal))?.ToLowerInvariant();
 var opts = new Args(argv.Where(a => !string.Equals(a, command, StringComparison.OrdinalIgnoreCase)));
 
-if (command is null or "help" or "-h" or "--help")
+if (command is "help" or "-h" or "--help")
 {
     PrintHelp();
     return 0;
 }
 
-if (!IsElevated())
+// Commands that only read files never need elevation.
+var unelevated = command is null or "status" or "report" or "profile" or "plan" or "version";
+if (!unelevated && !IsElevated())
 {
-    Console.Error.WriteLine("rycolab needs administrator privileges to talk to the SMU.");
-    Console.Error.WriteLine("Open an elevated console and try again.");
+    Console.Error.WriteLine($"'rycolab {command}' needs administrator privileges to talk to the SMU.");
+    Console.Error.WriteLine("Open an elevated console (or use sudo) and try again.");
     return 3;
 }
 
@@ -26,17 +28,24 @@ try
 {
     return command switch
     {
+        null => RootCommand.Run(opts),
+        "version" => Version(),
+        "install" => InstallCommand.Run(opts),
+        "uninstall" => UninstallCommand.Run(opts),
+        "on" => OnCommand.Run(opts),
+        "off" => OffCommand.Run(opts),
+        "status" => StatusCommand.Run(opts),
+        "report" => ReportCommand.Run(opts),
+        "profile" => ProfileCommand.Run(opts),
+        "sweep" => SweepCommand.Run(opts),
+        "guard" => GuardCommand.Run(opts),
         "probe" => ProbeCommand.Run(opts),
-        "sensors" => SensorsCommand.Run(opts),
-        "watch" => WatchCommand.Run(opts),
         "apply" => ApplyCommand.Run(opts),
         "reset" => ResetCommand.Run(opts),
+        "sensors" => SensorsCommand.Run(opts),
+        "watch" => WatchCommand.Run(opts),
         "plan" => PlanCommand.Run(opts),
-        "guard" => GuardCommand.Run(opts),
-        "sweep" => SweepCommand.Run(opts),
-        "report" => ReportCommand.Run(opts),
         "task" => TaskCommand.Run(opts),
-        "status" => StatusCommand.Run(opts),
         _ => Unknown(command),
     };
 }
@@ -49,6 +58,12 @@ catch (Exception ex)
 {
     Console.Error.WriteLine($"ERROR: {ex.Message}");
     return 1;
+}
+
+static int Version()
+{
+    Console.WriteLine($"rycolab {typeof(Guard).Assembly.GetName().Version?.ToString(3) ?? "?"}  data {AppPaths.Data}");
+    return 0;
 }
 
 static int Unknown(string c)
@@ -71,102 +86,46 @@ static bool IsElevated()
 static void PrintHelp()
 {
     Console.WriteLine("""
-        rycolab - Curve Optimizer test bench for Ryzen
+        rycolab - per-core Curve Optimizer for Ryzen: find the limit, keep the profile
 
         USAGE
-          rycolab <command> [options]
+          rycolab                       what is applied right now and what to do next
+          rycolab install               copy to %LOCALAPPDATA%\rycolab, PATH, y-cruncher, baseline, task
+          rycolab on | off              keep the profile applied (hidden guard) | back to the baseline
+          rycolab status [--follow]     guard, last sample, WHEA, hardware vs profile (no elevation)
+          rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
+          rycolab sweep [options]       find each core's limit with y-cruncher (see below)
+          rycolab profile show|from-sweep <campaign>|import ...   the profile and where it came from
+          rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
 
-        COMMANDS
-          probe      Read the PSM margin applied on every core
-          apply      Write margins (walks in steps, verifies every stop)
-          reset      Return all cores to the baseline
-          sensors    Dump the available sensors with their exact names
-          watch      Sample clock, effective clock, V, GHz, W and T of one core
-          plan       Per-core profile and sweep parameters (plan.json)
-          guard      Apply the plan, re-apply after resume, watch margin and WHEA
-          sweep      Per-core sweep with y-cruncher: find each core's limit
-          report     Limits, positives, telemetry and events of a campaign (rycolab.db)
-          task       Scheduled task that runs guard (hidden) at logon
-          status     Is guard alive?, last sample, events, hardware vs plan
-          help       This help
+        FINDING A PROFILE
+          rycolab sweep [--campaign n] [--cores 0-15] [--start -50] [--top -5] [--step 5]
+                        [--seconds 360] [--no-suspend] [--plain]
+            Per core, bottom up, every y-cruncher engine in the config; the limit is the
+            first margin clean on all of them. Resumable. Requires the baseline (run `off`).
+          rycolab profile from-sweep <campaign> [--margin 5]
+            profile = limit + margin, with the campaign as its source.
 
-        probe
-          --compare <path>   Compare with a JSON profile with a CoreValues field.
-                             By default compares with plan.json.
-          --no-compare       Do not compare with any profile.
-          --json <path>      Save the reading with a timestamp.
-          --sensors          Add effective clock and power per core.
-
-        watch
-          --core <n>         Core to watch.
-          --seconds <n>      Duration. Default 180.
-          --interval <ms>    Interval between samples. Default 1000.
-          --jsonl <path>     One JSON line per sample.
-          --summary <path>   Medians at the end, as JSON.
-          --raw              Add the SMU power table (raw floats).
-
-        apply
-          --margin <n>       Target margin. Only values <= 0.
-          --core <n>         A single core.        Without --core or --ccd: all cores.
-          --ccd <0|1>        A whole CCD (0 = cores 0-7).
-          --profile <path>   Per core, from a JSON with CoreValues.
-          --plan [path]      Per core, from plan.json.
-          --dry-run          Show the plan and write nothing.
-
-        reset
-          --to <n>           Baseline to return to. Default -5.
-          --dry-run          Show the plan and write nothing.
-
-        plan
-          init [--from-hardware] [--force]    Create plan.json (profile -5, or what is applied now)
-          show                                 Show the plan
-          set-core <n> <m>                     Change one core
-          set-profile a,b,...,p                All cores at once
-          from-sweep <campaign> [--margin 5]   Profile = limit + margin from runs/<campaign>/limits.json
-          --plan <path>                        Another file. Default plan.json at the repo root.
-
-        guard
-          --plan <path>      Plan to guard. Default plan.json.
-          --minutes <n>      Bounded soak; without it, unbounded (Ctrl+C to exit).
-          --interval <s>     Seconds between samples. Default 60.
-          --plain            No panel; one line per sample.
-          On exit (time, Ctrl+C, WHEA or margin lost) leaves the baseline.
-          Codes: 0 clean, 10 positive (WHEA or margin lost), 1 could not apply.
-
-        sweep
-          --campaign <n>     Folder runs/<n>. Default sweep-<date>. Resumable: skips cores
-                             with a limit and treats an in-progress.json as a machine hang.
-          --cores <spec>     0-15, 0,3,8-11 ...   Default all cores.
-          --start/--top/--step/--seconds   Override the plan.
-          --no-suspend       Without the periodic 1 s every 10 s suspension.
-          --plain            No panel.
-          Requires the hardware at the baseline (stop guard first). Restores the baseline after every run.
-
-        report
-          --campaign <n|dir>   runs/<n> (sweep) or runs/guard.
-          --md [path]          Write markdown (default report.md in the campaign).
-          --rebuild            Regenerate rycolab.db from the JSONL files.
-
-        task
-          install [--plan <path>]   Task at logon (elevated, hidden)
-          run                       Start guard now through the task, independent of the console
-          stop                      Ask guard to exit cleanly (restores the baseline)
-          remove | status
-
-        status
-          --follow           Live panel reading the hidden guard's log. Ctrl+C only closes the panel.
+        LOW LEVEL (elevated; the sweep and the guard are built on these)
+          probe [--sensors] [--json f] [--compare f] [--no-compare]
+          apply --margin M [--core N | --ccd 0|1] | --profile [path] [--force]   [--dry-run]
+          reset [--to N]
+          guard [--profile path] [--minutes N] [--interval s] [--plain]
+          watch --core N [--seconds] [--interval ms] [--jsonl f] [--summary f] [--raw]
+          sensors
+          plan show | init [--force] | set <key> <value>      config.json (baseline, engines, tests...)
+          task install|run|stop|remove|status                 the scheduled task by hand
+          profile import --cores a,...,p --campaign <name> [--limits a,...,p] [--note ...]
+          profile export <path>
 
         SAFETY
-          Allowed margin: -50 to 0. A positive value RAISES the voltage and is
-          always rejected. Every write is read back and aborted on mismatch.
-          Large moves are walked in stops of at most 3 counts, verifying at
-          every stop. If the process dies halfway, the cores go back to how they
-          were; and a reboot returns them to the BIOS values.
+          Allowed margin -50..0; positive values are rejected. Every write is read back.
+          Moves are walked in steps of 3. `on` refuses a profile without a source, from
+          another CPU, or more aggressive than its measured limits. A reboot or a sleep
+          returns the cores to the BIOS baseline; the guard re-applies the profile.
 
         EXIT CODES
-          0  ok             2  profile and hardware DO NOT match
-          1  error          3  missing privileges       4  blocked by safety
-
-        Requires an elevated console.
+          0 ok   1 error   2 mismatch / refused   3 needs elevation   4 blocked by safety
+          10 positive (WHEA or margin lost)
         """);
 }

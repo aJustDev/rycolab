@@ -1,0 +1,69 @@
+using System.Text.Json;
+
+namespace Rycolab.Core;
+
+/// <summary>Cumulative validation of the current profile, kept across guard runs.</summary>
+public sealed class Validation
+{
+    public DateTime StartedAt { get; set; }
+    public string ProfileKey { get; set; } = "";
+    public long GuardedSeconds { get; set; }
+    public int Whea { get; set; }
+    public int Resumes { get; set; }
+    public int Reapplies { get; set; }
+
+    public const int SteadyAfterHours = 20;
+    public const int SteadyAfterDays = 7;
+
+    public bool IsSteady => Whea == 0 && (GuardedSeconds >= SteadyAfterHours * 3600L || (DateTime.Now - StartedAt).TotalDays >= SteadyAfterDays);
+
+    public static string KeyOf(Profile p) => string.Join(",", p.Cores);
+
+    public static Validation LoadFor(Profile p)
+    {
+        var v = Journal.ReadJsonFile<Validation>(AppPaths.Validation);
+        if (v is null || v.ProfileKey != KeyOf(p)) v = new Validation { StartedAt = DateTime.Now, ProfileKey = KeyOf(p) };
+        return v;
+    }
+
+    public void Save() => Journal.WriteJsonFile(AppPaths.Validation, this);
+}
+
+/// <summary>
+/// state.json: what the guard is doing, written atomically on every sample
+/// and event so `status` and the bare `rycolab` command can read it without
+/// elevation.
+/// </summary>
+public sealed class State
+{
+    public string Phase { get; set; } = "off";          // off | validating | steady | positive
+    public int? GuardPid { get; set; }
+    public DateTime? Since { get; set; }
+    public int[]? Profile { get; set; }
+    public int?[]? Hardware { get; set; }
+    public bool Applied { get; set; }
+    public DateTime? LastTick { get; set; }
+    public string? LastState { get; set; }
+    public int Whea { get; set; }
+    public double? CpuLoad { get; set; }
+    public double? PackagePower { get; set; }
+    public long GuardedSeconds { get; set; }
+    public int Resumes { get; set; }
+    public int Reapplies { get; set; }
+    public DateTime? ValidationStartedAt { get; set; }
+    public List<string> LastEvents { get; set; } = [];
+    public string? LastError { get; set; }
+
+    public static State? Load()
+    {
+        try
+        {
+            if (!File.Exists(AppPaths.State)) return null;
+            using var fs = new FileStream(AppPaths.State, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return JsonSerializer.Deserialize<State>(fs);
+        }
+        catch { return null; }
+    }
+
+    public void Save() => Journal.WriteJsonFile(AppPaths.State, this);
+}

@@ -8,7 +8,6 @@ namespace Rycolab.Cli.Ui;
 /// <summary>Sweep panel: per-core limits, the run in progress with telemetry, events.</summary>
 public sealed class SweepView : ISweepSink
 {
-    private readonly Plan _plan;
     private readonly int[] _cores;
     private readonly int _seconds;
     private readonly Dictionary<int, int?> _limits = new();
@@ -20,9 +19,9 @@ public sealed class SweepView : ISweepSink
 
     public Action? Changed { get; set; }
 
-    public SweepView(Plan plan, int[] cores, int seconds, Dictionary<int, int?> known)
+    public SweepView(int[] cores, int seconds, Dictionary<int, int?> known)
     {
-        _plan = plan; _cores = cores; _seconds = seconds;
+        _cores = cores; _seconds = seconds;
         foreach (var (k, v) in known) _limits[k] = v;
     }
 

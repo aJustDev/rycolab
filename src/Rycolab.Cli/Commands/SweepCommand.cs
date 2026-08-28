@@ -1,27 +1,33 @@
 using Rycolab.Cli.Ui;
 using Rycolab.Core;
+using Profile = Rycolab.Core.Profile;
 using Spectre.Console;
 
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab sweep [--plan p] [--campaign name] [--cores 0-15|0,3,8-11] [--start M]
-/// [--top M] [--step N] [--seconds S] [--no-suspend] [--plain]
+/// rycolab sweep [--campaign name] [--cores 0-15|0,3,8-11] [--start M] [--top M]
+/// [--step N] [--seconds S] [--no-suspend] [--plain]
 /// </summary>
 public static class SweepCommand
 {
     public static int Run(Args args)
     {
-        var plan = Plan.Load(args.Get("plan"));
+        var config = Plan.LoadOrDefault();
         var campaign = args.Get("campaign") ?? $"sweep-{DateTime.Now:yyyyMMdd-HHmm}";
-        var dir = Path.IsPathRooted(campaign) ? campaign : Path.Combine(Plan.RepoRoot, "runs", campaign);
+        var dir = AppPaths.Campaign(campaign);
         var cores = ParseCores(args.Get("cores") ?? "0-15");
         if (cores is null) { Console.Error.WriteLine("--cores: use 0-15, 0,3,8-11 ..."); return 2; }
 
-        if (!Directory.Exists(plan.YCruncherDir))
+        if (!Installer.HasYCruncher(config.YCruncherDir))
         {
-            Console.Error.WriteLine($"{plan.YCruncherDir} not found. Copy the y-cruncher binaries there (README).");
+            Console.Error.WriteLine($"y-cruncher binaries not found in {config.YCruncherDir}. Run `rycolab install`.");
             return 1;
+        }
+        if (Service.GuardProcess() is not null)
+        {
+            Console.Error.WriteLine("A guard is running. Run `rycolab off` first: the sweep needs the baseline.");
+            return 2;
         }
 
         var options = new SweepOptions
@@ -38,12 +44,16 @@ public static class SweepCommand
         using var co = new CoController();
         if (!co.IsPsmSupported) { Console.Error.WriteLine("This SMU does not support SetDldoPsmMargin."); return 1; }
         var before = co.ReadAll();
-        var offBase = before.Where(r => r.Margin != plan.Base).Select(r => r.Index).ToList();
+        var offBase = before.Where(r => r.Margin != config.Base).Select(r => r.Index).ToList();
         if (offBase.Count > 0)
         {
-            Console.Error.WriteLine($"The hardware is not at the baseline {plan.Base} (cores {string.Join(",", offBase)}). Run 'rycolab reset --to {plan.Base}' or stop guard before sweeping.");
+            Console.Error.WriteLine($"The hardware is not at the baseline {config.Base} (cores {string.Join(",", offBase)}). Run `rycolab off` or `rycolab reset --to {config.Base}` first.");
             return 2;
         }
+        if (!Safety.IsOnAcPower()) { Console.Error.WriteLine("Not on AC power."); return 2; }
+
+        AppPaths.EnsureData();
+        File.WriteAllText(AppPaths.CurrentCampaign, dir);
 
         using var telemetry = new Telemetry();
         var pm = new PmTable(co.Cpu);
@@ -54,20 +64,21 @@ public static class SweepCommand
 
         if (args.Has("plain"))
         {
-            var sweep = new Sweep(co, plan, options, telemetry, pm, new PlainSweepSink());
+            var sweep = new Sweep(co, config, options, telemetry, pm, new PlainSweepSink());
             return sweep.Run(cts.Token);
         }
 
         var known = Journal.ReadJsonFile<Dictionary<string, int?>>(Path.Combine(dir, "limits.json"))?
                         .ToDictionary(k => int.Parse(k.Key), k => k.Value) ?? [];
-        var view = new SweepView(plan, cores, options.Seconds ?? plan.Seconds, known);
+        var view = new SweepView(cores, options.Seconds ?? config.Seconds, known);
         var code = 0;
         AnsiConsole.Live(view.Render()).AutoClear(false).Start(ctx =>
         {
             view.Changed = () => { ctx.UpdateTarget(view.Render()); ctx.Refresh(); };
-            var sweep = new Sweep(co, plan, options, telemetry, pm, view);
+            var sweep = new Sweep(co, config, options, telemetry, pm, view);
             code = sweep.Run(cts.Token);
         });
+        if (code == 0) Console.WriteLine($"  Done. Next: rycolab profile from-sweep {Path.GetFileName(dir.TrimEnd('\\', '/'))}");
         return code;
     }
 

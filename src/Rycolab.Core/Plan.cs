@@ -3,13 +3,11 @@ using System.Text.Json;
 namespace Rycolab.Core;
 
 /// <summary>
-/// plan.json: the per-core profile to run with and the parameters of the
-/// sweep that produces it. One file for guard, sweep and report, validated
-/// against Safety before use.
+/// config.json: the baseline the BIOS restores and the parameters of a sweep.
+/// The per-core margins to run with live in <see cref="Profile"/>.
 /// </summary>
 public sealed class Plan
 {
-    public int[] Profile { get; set; } = Enumerable.Repeat(-5, Topology.MaxCores).ToArray();
     public int Base { get; set; } = -5;
     public string[] Engines { get; set; } = ["04-P4P", "24-ZN5 ~ Komari"];
     public string[] Tests { get; set; } = ["BKT", "BBP", "SFTv4", "SNT", "SVT", "FFTv4", "N63", "VT3"];
@@ -18,34 +16,26 @@ public sealed class Plan
     public int Start { get; set; } = -50;
     public int Top { get; set; } = -5;
     public int SafetyMargin { get; set; } = 5;
-    public string YCruncher { get; set; } = "tools/y-cruncher/Binaries";
+    public string? YCruncher { get; set; }
 
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    /// <summary>Repository root: the first directory upwards that has src/ and docs/.</summary>
-    public static string RepoRoot
-    {
-        get
-        {
-            var d = new DirectoryInfo(AppContext.BaseDirectory);
-            while (d is not null)
-            {
-                if (Directory.Exists(Path.Combine(d.FullName, "src")) && Directory.Exists(Path.Combine(d.FullName, "docs")))
-                    return d.FullName;
-                d = d.Parent;
-            }
-            return Directory.GetCurrentDirectory();
-        }
-    }
+    public static string DefaultPath => AppPaths.Config;
 
-    public static string DefaultPath => Path.Combine(RepoRoot, "plan.json");
+    /// <summary>The installed config, or the defaults if there is none.</summary>
+    public static Plan LoadOrDefault(string? path = null)
+    {
+        path ??= DefaultPath;
+        if (!File.Exists(path)) return new Plan();
+        return Load(path);
+    }
 
     public static Plan Load(string? path = null)
     {
         path ??= DefaultPath;
-        if (!File.Exists(path)) throw new FileNotFoundException($"plan not found: {path}");
+        if (!File.Exists(path)) throw new FileNotFoundException($"config not found: {path}");
         var plan = JsonSerializer.Deserialize<Plan>(File.ReadAllText(path), Json)
-                   ?? throw new InvalidDataException($"empty plan: {path}");
+                   ?? throw new InvalidDataException($"empty config: {path}");
         plan.Validate();
         return plan;
     }
@@ -62,24 +52,15 @@ public sealed class Plan
 
     public void Validate()
     {
-        if (Profile.Length != Topology.MaxCores)
-            throw new SafetyViolationException($"the profile has {Profile.Length} values; {Topology.MaxCores} are required.");
-        Safety.ValidateMargins(Profile);
-        Safety.ValidateMargin(Base, "base");
+        Safety.ValidateMargin(Base, "baseline");
         Safety.ValidateMargin(Start, "start");
         Safety.ValidateMargin(Top, "top");
         if (Step <= 0) throw new SafetyViolationException("step must be positive.");
         if (Start > Top) throw new SafetyViolationException($"start {Start} is above top {Top}.");
         if (Seconds <= 0) throw new SafetyViolationException("seconds must be positive.");
         if (SafetyMargin < 0) throw new SafetyViolationException("safetyMargin cannot be negative.");
+        if (Engines.Length == 0 || Tests.Length == 0) throw new SafetyViolationException("at least one engine and one test are required.");
     }
 
-    public string YCruncherDir => Path.IsPathRooted(YCruncher) ? YCruncher : Path.Combine(RepoRoot, YCruncher);
-
-    /// <summary>Cores whose reading does not match the profile.</summary>
-    public List<int> Mismatches(IReadOnlyList<CoreReading> readings)
-        => readings.Where(r => r.Index < Profile.Length && r.Margin != Profile[r.Index]).Select(r => r.Index).ToList();
-
-    public IReadOnlyList<(int Core, int Margin)> Targets(int coreCount)
-        => Enumerable.Range(0, Math.Min(coreCount, Profile.Length)).Select(c => (c, Profile[c])).ToList();
+    public string YCruncherDir => YCruncher is { } y ? Environment.ExpandEnvironmentVariables(y) : AppPaths.YCruncher;
 }

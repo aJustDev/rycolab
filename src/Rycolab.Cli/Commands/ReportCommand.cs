@@ -4,23 +4,32 @@ using Rycolab.Core;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab report --campaign <name|dir> [--md [path]] [--rebuild]
+/// rycolab report [<campaign>|guard] [--md [path]] [--rebuild]
 /// Per-core limits with V/GHz/W at the limit, positives with time to error,
-/// WHEA and events. Reads rycolab.db; if missing (or --rebuild) regenerates
-/// it from the JSONL files.
+/// WHEA and events. Default: the current campaign. No elevation.
 /// </summary>
 public static class ReportCommand
 {
     public static int Run(Args args)
     {
-        var campaign = args.Get("campaign");
-        if (campaign is null) { Console.Error.WriteLine("Missing --campaign."); return 2; }
-        var dir = Path.IsPathRooted(campaign) ? campaign : Path.Combine(Plan.RepoRoot, "runs", campaign);
+        var name = args.Positional.FirstOrDefault() ?? args.Get("campaign");
+        string dir;
+        if (name is null)
+        {
+            if (!File.Exists(AppPaths.CurrentCampaign)) { Console.Error.WriteLine("No campaign yet. Usage: rycolab report <campaign>|guard"); return 2; }
+            dir = File.ReadAllText(AppPaths.CurrentCampaign).Trim();
+        }
+        else dir = name == "guard" ? AppPaths.Guard : AppPaths.Campaign(name);
         if (!Directory.Exists(dir)) { Console.Error.WriteLine($"Not found: {dir}"); return 1; }
 
         var dbPath = Path.Combine(dir, "rycolab.db");
         var rebuild = args.Has("rebuild") || !File.Exists(dbPath);
-        using var store = new Store(dbPath);
+        // A running guard holds its database; read from a copy of the journal instead.
+        if (dir == AppPaths.Guard && Service.GuardProcess() is not null) rebuild = true;
+        var work = dbPath;
+        if (rebuild && dir == AppPaths.Guard && Service.GuardProcess() is not null)
+            work = Path.Combine(Path.GetTempPath(), "rycolab-report.db");
+        using var store = new Store(work);
         if (rebuild) store.Rebuild(dir);
 
         var runs = store.Runs();

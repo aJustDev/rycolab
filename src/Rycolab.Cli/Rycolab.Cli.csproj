@@ -11,22 +11,10 @@
     <PackageReference Include="Spectre.Console" Version="0.49.1" />
   </ItemGroup>
 
-  <!--
-    inpoutx64.dll is the port-access layer ZenStates.Core needs (InpOut32 project).
-    Until the installer ships it, it is copied from a local path: by default the
-    Legion Toolkit install, or whatever -p:InpOutSource=PATH points at.
-  -->
-  <PropertyGroup>
-    <InpOutSource Condition="'$(InpOutSource)' == ''">$(ProgramW6432)\LenovoLegionToolkit\inpoutx64.dll</InpOutSource>
-  </PropertyGroup>
-
-  <Target Name="CopyInpOut" AfterTargets="Build">
-    <Copy SourceFiles="$(InpOutSource)"
-          DestinationFolder="$(OutDir)"
-          SkipUnchangedFiles="true"
-          Condition="Exists('$(InpOutSource)')" />
-    <Warning Text="inpoutx64.dll not found at '$(InpOutSource)'. rycolab will not be able to open the CPU. Pass -p:InpOutSource=PATH."
-             Condition="!Exists('$(InpOutSource)')" />
-  </Target>
+  <!-- inpoutx64.dll: the port-access layer ZenStates.Core needs (InpOut32, MIT; see third_party/inpout). -->
+  <ItemGroup>
+    <None Include="..\..\third_party\inpout\inpoutx64.dll" Link="inpoutx64.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\third_party\inpout\InpOut.LICENSE.txt" Link="InpOut.LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>
