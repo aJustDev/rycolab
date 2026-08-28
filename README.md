@@ -154,8 +154,17 @@ and newer SDKs build it.
 dotnet build -c Release src/Rycolab.Cli
 ```
 
-`rycolab` is not on the PATH until `install` puts it there, so the first
-install runs from the build output, in an elevated console:
+`rycolab` is not on the PATH until `install` puts it there, and the
+installed copy does not update itself when you rebuild. `install.ps1` does
+both steps: builds Release and runs `install` from the build output,
+elevating if the console is not:
+
+```
+.\install.ps1
+```
+
+(`-NoBuild` skips the build; `-Args "--ycruncher C:\folder"` passes options
+to `install`.) By hand it is the same thing, from an elevated console:
 
 ```
 .\src\Rycolab.Cli\bin\Release\net9.0-windows\win-x64\rycolab.exe install

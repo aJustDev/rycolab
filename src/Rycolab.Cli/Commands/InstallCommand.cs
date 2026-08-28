@@ -51,6 +51,8 @@ public static class InstallCommand
                 Console.Error.WriteLine("  This CPU's SMU does not expose SetDldoPsmMargin: per-core Curve Optimizer is not available here.");
                 return 1;
             }
+            if (co.LikelyLocked)
+                Log("!! this looks like a mobile APU below Ryzen 9: AMD lets those read the margins but refuses every write (RyzenAdj issue #233). `rycolab dev probe --write-test` confirms it before you spend hours on `find`.");
             var baseline = args.GetInt("base") ?? (File.Exists(AppPaths.Config) ? config.Base : Installer.ReadBaseline(co, Log));
             config.Base = baseline;
             config.Save();

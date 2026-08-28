@@ -53,6 +53,31 @@ public sealed class CoController : IDisposable
     /// <summary>Where per-core writes go: "RSMU 0x.." (ZenStates default) or an MP1 override.</summary>
     public string WriteMailbox { get; private set; } = "";
 
+    /// <summary>
+    /// Mobile APUs below Ryzen 9 read their margins but refuse every write
+    /// (Ryzen 7 5800H verified 2026-08-28; RyzenAdj issue #233). A guess from
+    /// the name; <see cref="WriteTest"/> settles it.
+    /// </summary>
+    public bool LikelyLocked => Topology.IsApu(_cpu) && !CpuName.Contains("Ryzen 9", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Writes a core's current margin back to itself and reports what the SMU
+    /// answered. Nothing changes if it works; nothing changes if it does not.
+    /// </summary>
+    public string WriteTest(int coreIndex)
+    {
+        var now = ReadCore(coreIndex);
+        if (now is null) return $"core {coreIndex} is not readable";
+        var status = SendSet(Topology.WriteMask(_cpu, coreIndex), now.Value, _marginBits, out var where, out var arg);
+        if (status == SMU.Status.FAILED && Topology.IsApu(_cpu) && _marginBits == 16)
+        {
+            var status20 = SendSet(Topology.WriteMask(_cpu, coreIndex), now.Value, 20, out _, out var arg20);
+            if (status20 == SMU.Status.OK) { _marginBits = 20; return $"OK ({where}, 20-bit margin, arg 0x{arg20:X8})"; }
+            return $"{status} ({where}, arg 0x{arg:X8}; 20-bit arg 0x{arg20:X8}: {status20}) - writes are LOCKED on this CPU";
+        }
+        return status == SMU.Status.OK ? $"OK ({where}, arg 0x{arg:X8})" : $"{status} ({where}, arg 0x{arg:X8}) - writes are LOCKED on this CPU";
+    }
+
     public Cpu Cpu => _cpu;
 
     public string CpuName => _cpu.info.cpuName?.Trim() ?? "unknown";

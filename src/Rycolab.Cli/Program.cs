@@ -150,7 +150,7 @@ static void PrintDevHelp()
     Console.WriteLine("""
         rycolab dev <command>   (elevated unless noted)
 
-          probe [--sensors] [--json f] [--compare f] [--no-compare]      margins read from the SMU
+          probe [--sensors] [--write-test] [--json f] [--compare f]     margins read from the SMU; --write-test writes core 0's own value back
           apply --margin M [--core N | --ccd 0|1] | --profile [path] [--force]   [--dry-run]
           reset [--to N]                                                  all cores to the baseline
           guard [--profile path] [--minutes N] [--interval s] [--plain]   the guard, in this console

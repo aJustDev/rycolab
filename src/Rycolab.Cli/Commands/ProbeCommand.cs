@@ -48,6 +48,13 @@ public static class ProbeCommand
         Console.WriteLine($"  Physical cores     {co.PhysicalCores}");
         Console.WriteLine($"  SMU type           {co.SmuType}");
         Console.WriteLine($"  SetDldoPsmMargin   {(co.IsPsmSupported ? $"supported (writes via {co.WriteMailbox})" : "NOT SUPPORTED - Curve Optimizer cannot be applied")}");
+        if (co.IsPsmSupported && co.LikelyLocked)
+            Console.WriteLine("  !! Curve Optimizer writes are probably LOCKED on this CPU: mobile APUs below Ryzen 9 read their margins but refuse every write (RyzenAdj issue #233). `rycolab dev probe --write-test` confirms it.");
+        if (co.IsPsmSupported && args.Has("write-test"))
+        {
+            Console.WriteLine($"  Write test         {co.WriteTest(0)}");
+            Console.WriteLine("                     (core 0's current margin written back to itself; nothing changes either way)");
+        }
         if (co.TryGetFMax() is { } fmax) Console.WriteLine($"  FMax               {fmax}");
         Console.WriteLine($"  Time               {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         if (expected is not null) Console.WriteLine($"  Comparing with     {compareLabel}");
