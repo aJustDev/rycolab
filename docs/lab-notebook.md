@@ -200,3 +200,8 @@ the report. See the plan in the repository history.
   UXTU author states that on 5000-series and newer mobile APUs Curve
   Optimizer only works on Ryzen 9 parts. **Conclusion: the 5800H is locked
   by AMD; reads work, writes never will.** Hardware left at 0 x 8.
+- 18:00: full cycle on the 5800H with the final tool: `install.ps1` (build +
+  install, LOCKED warning at install), `dev probe` (warning), `dev probe
+  --write-test` (`FAILED` on MP1 0x54 with 16- and 20-bit margins: "writes
+  are LOCKED on this CPU"), `uninstall.ps1` (task, PATH and bin removed,
+  data kept). Hardware at 0 x 8 throughout.
