@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
     <TargetFramework>net9.0-windows</TargetFramework>
+    <!-- Run on a newer runtime (.NET 10+) when 9 is not installed. -->
+    <RollForward>Major</RollForward>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Platforms>x64</Platforms>
     <Nullable>enable</Nullable>

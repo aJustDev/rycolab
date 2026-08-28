@@ -47,10 +47,11 @@ other than the reference one.
 
 ## Usage
 
-Needs Windows, the .NET 9 runtime and an AMD Ryzen with per-core Curve
-Optimizer through the SMU. Commands that touch the hardware need an elevated
-console (`sudo rycolab ...` on Windows 11 with sudo enabled); `rycolab`,
-`status`, `report` and `profile show` do not.
+Needs Windows, the .NET runtime (9 or newer; the exe rolls forward) and an
+AMD Ryzen with per-core Curve Optimizer through the SMU. Commands that touch
+the hardware need an elevated console (PowerShell or Terminal opened with
+"Run as administrator"; `sudo rycolab ...` also works if Windows sudo is
+enabled); `rycolab`, `status`, `report` and `profile show` do not.
 
 ```
 rycolab install               copy to %LOCALAPPDATA%\rycolab, user PATH, y-cruncher (official zip,
@@ -122,17 +123,18 @@ Measured on the reference machine, not assumed:
 
 ## Build
 
-Needs the **.NET 9 SDK** (x64).
+Needs a **.NET SDK 9 or newer** (x64); the project targets `net9.0-windows`
+and newer SDKs build it.
 
 ```
 dotnet build -c Release src/Rycolab.Cli
 ```
 
 `rycolab` is not on the PATH until `install` puts it there, so the first
-install runs from the build output, elevated:
+install runs from the build output, in an elevated console:
 
 ```
-sudo .\src\Rycolab.Cli\bin\Release\net9.0-windows\win-x64\rycolab.exe install
+.\src\Rycolab.Cli\bin\Release\net9.0-windows\win-x64\rycolab.exe install
 ```
 
 Then open a new console (the PATH change does not reach the current one)
