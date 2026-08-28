@@ -84,7 +84,7 @@ tabla de potencia del SMU (`PmTable.cs`); LibreHardwareMonitor no da tension
 por nucleo en este chip. `--raw` guarda la tabla completa en cada muestra para
 localizar posiciones con `scripts/pm-diff.ps1`.
 
-`probe` compara por defecto contra el perfil de Legion Toolkit y **devuelve 2 si
+`probe` compara por defecto contra `plan.json` (o el perfil de Legion Toolkit si no hay plan) y **devuelve 2 si
 no coinciden**, para poder encadenarlo en scripts.
 
 ## Notas de campo
