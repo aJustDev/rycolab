@@ -7,8 +7,16 @@ Field notes measured on the reference machine (Ryzen 9 9955HX3D, Legion Pro 7
 ## Writing a margin
 
 Per-core Curve Optimizer margins are PSM margins written through the SMU
-mailbox (`SetDldoPsmMargin`) via ZenStates.Core. The core mask is
-`((ccd << 8) | core) << 20` on CPUs and the flat core index on APUs.
+mailbox (`SetDldoPsmMargin`) via ZenStates.Core. On CPUs with CCDs the core
+mask is `((ccd << 8) | core) << 20` for reads and writes (Legion Toolkit).
+On APUs reads take the flat core index, but writes need `core << 20`:
+ZenStates packs the argument as `(mask & 0xFFF00000) | (margin & 0xFFFF)`,
+so a flat index would be masked away and every write would hit core 0. APUs
+also take the write on the MP1 mailbox (Cezanne 0x54, Rembrandt / Phoenix /
+Hawk Point / Strix 0x4B, as ryzenadj and UXTU do), which `CoController`
+fills into ZenStates' MP1 table; ZenStates alone only knows the RSMU
+message, which the Ryzen 7 5800H rejected. `rycolab dev probe` shows which
+mailbox writes use.
 
 House rules (`Safety.cs`, `CoController.cs`, `Stepper.cs`, `SafetySession.cs`):
 

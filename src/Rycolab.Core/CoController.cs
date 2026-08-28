@@ -22,7 +22,36 @@ public sealed class CoController : IDisposable
     public CoController()
     {
         _cpu = new Cpu();
+        ApplyMailboxOverrides();
+        if (WriteMailbox == "") WriteMailbox = $"RSMU 0x{_cpu.smu.Rsmu.SMU_MSG_SetDldoPsmMargin:X}";
     }
+
+    /// <summary>
+    /// APUs take the per-core Curve Optimizer write on the MP1 mailbox, not on
+    /// RSMU as ZenStates.Core assumes: ryzenadj (lib/api.c set_coper/set_coall)
+    /// and UXTU (RyzenSmu.cs socket tables) send MP1 0x54/0x55 on Cezanne and
+    /// MP1 0x4B/0x4C on Rembrandt/Phoenix/Hawk Point/Strix. ZenStates sends
+    /// MP1 when the MP1 message id is set, so we fill it in. Reads stay on RSMU.
+    /// Verified: Ryzen 7 5800H rejected RSMU 0x52 on 2026-08-28.
+    /// </summary>
+    private void ApplyMailboxOverrides()
+    {
+        if (!Topology.IsApu(_cpu) || _cpu.smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin != 0) return;
+        var (set, setAll) = _cpu.info.codeName switch
+        {
+            Cpu.CodeName.Cezanne => (0x54u, 0x55u),
+            Cpu.CodeName.Rembrandt or Cpu.CodeName.Phoenix or Cpu.CodeName.Phoenix2
+                or Cpu.CodeName.HawkPoint or Cpu.CodeName.StrixPoint => (0x4Bu, 0x4Cu),   // from ryzenadj/UXTU, untested here
+            _ => (0u, 0u),
+        };
+        if (set == 0) return;
+        _cpu.smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin = set;
+        _cpu.smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = setAll;
+        WriteMailbox = $"MP1 0x{set:X}";
+    }
+
+    /// <summary>Where per-core writes go: "RSMU 0x.." (ZenStates default) or an MP1 override.</summary>
+    public string WriteMailbox { get; private set; } = "";
 
     public Cpu Cpu => _cpu;
 
@@ -45,7 +74,7 @@ public sealed class CoController : IDisposable
 
     public int? ReadCore(int coreIndex)
     {
-        var raw = _cpu.GetPsmMarginSingleCore(Topology.CoreMask(_cpu, coreIndex));
+        var raw = _cpu.GetPsmMarginSingleCore(Topology.ReadMask(_cpu, coreIndex));
         return raw.HasValue ? (int)raw.Value : null;   // same cast Legion Toolkit does
     }
 
@@ -54,7 +83,7 @@ public sealed class CoController : IDisposable
         var list = new List<CoreReading>(CoreCount);
         for (var i = 0; i < CoreCount; i++)
         {
-            var mask = Topology.CoreMask(_cpu, i);
+            var mask = Topology.ReadMask(_cpu, i);
             int? margin;
             try { margin = ReadCore(i); }
             catch { margin = null; }
@@ -85,7 +114,7 @@ public sealed class CoController : IDisposable
         if (!IsPsmSupported)
             throw new CoWriteFailedException("this SMU does not support SetDldoPsmMargin.");
 
-        var mask = Topology.CoreMask(_cpu, coreIndex);
+        var mask = Topology.WriteMask(_cpu, coreIndex);
 
         if (!_cpu.SetPsmMarginSingleCore(mask, margin))
             throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write.");
@@ -105,7 +134,7 @@ public sealed class CoController : IDisposable
     public void WriteCoreUnchecked(int coreIndex, int margin)
     {
         Safety.ValidateMargin(margin, $"core {coreIndex}: margin");
-        _cpu.SetPsmMarginSingleCore(Topology.CoreMask(_cpu, coreIndex), margin);
+        _cpu.SetPsmMarginSingleCore(Topology.WriteMask(_cpu, coreIndex), margin);
     }
 
     /// <summary>Writes every core and returns the verification read.</summary>
@@ -138,7 +167,7 @@ public sealed class CoController : IDisposable
             try
             {
                 if (!IsCoreActive(i)) continue;
-                if (_cpu.SetPsmMarginSingleCore(Topology.CoreMask(_cpu, i), baselineMargin))
+                if (_cpu.SetPsmMarginSingleCore(Topology.WriteMask(_cpu, i), baselineMargin))
                     ok++;
             }
             catch { /* in panic mode, keep going with the next core */ }

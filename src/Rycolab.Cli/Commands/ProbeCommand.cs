@@ -47,7 +47,7 @@ public static class ProbeCommand
         Console.WriteLine($"  CPU                {co.CpuName}");
         Console.WriteLine($"  Physical cores     {co.PhysicalCores}");
         Console.WriteLine($"  SMU type           {co.SmuType}");
-        Console.WriteLine($"  SetDldoPsmMargin   {(co.IsPsmSupported ? "supported" : "NOT SUPPORTED - Curve Optimizer cannot be applied")}");
+        Console.WriteLine($"  SetDldoPsmMargin   {(co.IsPsmSupported ? $"supported (writes via {co.WriteMailbox})" : "NOT SUPPORTED - Curve Optimizer cannot be applied")}");
         if (co.TryGetFMax() is { } fmax) Console.WriteLine($"  FMax               {fmax}");
         Console.WriteLine($"  Time               {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         if (expected is not null) Console.WriteLine($"  Comparing with     {compareLabel}");

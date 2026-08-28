@@ -176,3 +176,19 @@ three tests, 31 min idle soak, ~2 h of real use, one sleep/resume with
 re-apply. Pending: the definitive campaign from scratch with the tool (16
 cores, eight y-cruncher tests, 360 s), then days of real use with sleep, and
 the report. See the plan in the repository history.
+
+## 2026-08-28 - Second machine: Ryzen 7 5800H (ASUS, Cezanne, 8 cores, 1 CCD)
+
+- `install`: 8 cores, `TYPE_APU1`, `SetDldoPsmMargin` supported, engines
+  `04-P4P | 19-ZN2 ~ Kagari` (no AVX-512). Baseline read from hardware: 0 on
+  every core (the ASUS BIOS applies no Curve Optimizer).
+- `dev probe`: 8 of 8 readable with the plain core index as mask
+  (`0x0..0x7`), FMax 4450.
+- `dev apply --core 0 --margin -3`: **the SMU rejected the write** (RSMU
+  0x52, ZenStates.Core's command for Cezanne); rollback left 8 of 8 at 0.
+  ryzenadj (`set_coper`) and UXTU send the per-core write to MP1 0x54 on
+  Cezanne, packed as `(core << 20) | (margin & 0xFFFF)`; ZenStates packs the
+  same way but masks the core with `0xFFF00000`, so the plain-index mask that
+  Legion Toolkit uses on APUs would send every write to core 0. Fixed in the
+  tool: reads keep the plain index, writes use `core << 20` and MP1 0x54 on
+  Cezanne (0x4B on Rembrandt/Phoenix/Hawk Point/Strix, untested).

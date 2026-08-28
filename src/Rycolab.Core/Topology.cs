@@ -38,11 +38,29 @@ public static class Topology
 
     public static int FirstCoreOfCcd(int ccdIndex) => ccdIndex * CoresPerCcd;
 
-    public static uint CoreMask(Cpu cpu, int coreIndex)
-    {
-        if (cpu.smu.SMU_TYPE is >= SMU.SmuType.TYPE_APU0 and <= SMU.SmuType.TYPE_APU2)
-            return (uint)coreIndex;
+    public static bool IsApu(Cpu cpu) => cpu.smu.SMU_TYPE is >= SMU.SmuType.TYPE_APU0 and <= SMU.SmuType.TYPE_APU2;
 
+    /// <summary>
+    /// Mask for GetDldoPsmMargin. On APUs it is the plain core index (Legion
+    /// Toolkit, SMUDebugTool and ZenStates.Core's own APU overload agree; read
+    /// 8 of 8 on a Ryzen 7 5800H on 2026-08-28).
+    /// </summary>
+    public static uint ReadMask(Cpu cpu, int coreIndex)
+        => IsApu(cpu) ? (uint)coreIndex : CcdMask(coreIndex);
+
+    /// <summary>
+    /// Mask for SetDldoPsmMargin. ZenStates.Core packs the argument as
+    /// (mask &amp; 0xFFF00000) | (margin &amp; 0xFFFF), so on APUs the core index
+    /// must sit at bit 20: core &lt;&lt; 20, as ZenStates' MakeCoreMask and UXTU's
+    /// ryzenadj argument do. The plain index Legion Toolkit uses would be
+    /// masked out and every write would land on core 0.
+    /// </summary>
+    public static uint WriteMask(Cpu cpu, int coreIndex)
+        => IsApu(cpu) ? (uint)coreIndex << 20 : CcdMask(coreIndex);
+
+    /// <summary>Legion Toolkit's EncodeCoreMarginBitmask for CPUs with CCDs.</summary>
+    private static uint CcdMask(int coreIndex)
+    {
         var ccd = coreIndex / CoresPerCcd;
         var local = coreIndex % CoresPerCcd;
         return (uint)(((ccd << 8) | local) << 20);
