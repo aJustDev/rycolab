@@ -116,7 +116,14 @@ public sealed class CoController : IDisposable
 
         var mask = Topology.WriteMask(_cpu, coreIndex);
 
-        var status = SendSet(mask, margin, out var where, out var arg);
+        var status = SendSet(mask, margin, _marginBits, out var where, out var arg);
+        if (status == SMU.Status.FAILED && _marginBits == 16 && Topology.IsApu(_cpu))
+        {
+            // UXTU encodes negative margins in 20 bits (0x100000 - |m|) on APUs; ZenStates uses 16.
+            var status20 = SendSet(mask, margin, 20, out var where20, out var arg20);
+            if (status20 == SMU.Status.OK) { _marginBits = 20; status = status20; }
+            else throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write ({where}, arg 0x{arg:X8}): {status}; with a 20-bit margin ({where20}, arg 0x{arg20:X8}): {status20}.");
+        }
         if (status != SMU.Status.OK)
             throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write ({where}, arg 0x{arg:X8}): {status}.");
 
@@ -133,9 +140,15 @@ public sealed class CoController : IDisposable
     /// SMU status instead of a bool so a rejection can be told apart from a
     /// missing command or a prerequisite.
     /// </summary>
-    private SMU.Status SendSet(uint mask, int margin, out string where, out uint arg)
+    private int _marginBits = 16;
+
+    /// <summary>Margin field width the SMU accepted: 16 (ZenStates) or 20 (UXTU on APUs).</summary>
+    public int MarginBits => _marginBits;
+
+    private SMU.Status SendSet(uint mask, int margin, int bits, out string where, out uint arg)
     {
-        arg = (mask & 0xFFF00000u) | Utils.MakePsmMarginArg(margin);
+        var m = bits == 20 ? (uint)(margin & 0xFFFFF) : Utils.MakePsmMarginArg(margin);
+        arg = (mask & 0xFFF00000u) | m;
         var args = Utils.MakeCmdArgs(arg, 6);
         var mp1 = _cpu.smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin;
         if (mp1 != 0)
