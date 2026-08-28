@@ -286,3 +286,22 @@ Cinebench R23, custom mode, Legion Toolkit running with `--trace`.
   throughout (as it has been for 9 h including three 10-min Cinebench runs
   today without incident). The validation phase now has one unexplained
   reset that `status` does not show: the guard only counts WHEA.
+
+## 2026-08-29 00:15 - `fan auto` without Legion Toolkit, and Legion Toolkit's own CO
+
+`C4h-fan-auto-sin-llt.csv`: custom mode set in Legion Toolkit, then Legion
+Toolkit closed; `fan auto` with the new defaults (on >= 85 C for 3 s).
+
+- Full load at 17 s; EC CPU 85 C at 23 s; **switch ON at 29 s** (12 s after
+  the load, vs 23 s with the old thresholds and 57 s for the table).
+- 120-180 s: 145.0 W, Tctl 94.9 C, 4780 MHz, fans 5700 / 5700 / 7400. Same
+  power as the table run C4e (97.3 C, 4570 MHz).
+- Ctrl+C released the switch; fans ramped down. No reset, no WHEA. The custom
+  mode survives closing Legion Toolkit.
+- Competing writer, caught by the guard: at 00:13:53 Legion Toolkit was
+  opened and set to custom mode; at 00:14:07 the guard read `-3 x 8 / -7 x 8`
+  on all cores (Legion Toolkit's per-core Curve Optimizer profile) and
+  re-applied ours one second later, before Cinebench started (00:14:57).
+  Legion Toolkit's custom mode writes its CO values over rycolab's; the guard
+  restores them within one interval (60 s) and gives up after three within an
+  hour. Fix on the Legion Toolkit side: zero or disable its per-core CO.
