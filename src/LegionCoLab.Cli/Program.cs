@@ -33,6 +33,7 @@ try
         "reset" => ResetCommand.Run(opts),
         "plan" => PlanCommand.Run(opts),
         "guard" => GuardCommand.Run(opts),
+        "sweep" => SweepCommand.Run(opts),
         "task" => TaskCommand.Run(opts),
         _ => Unknown(command),
     };
@@ -81,14 +82,25 @@ static void PrintHelp()
           watch      Muestrea reloj, reloj efectivo, potencia y Tctl de un nucleo
           plan       Perfil por nucleo y parametros del barrido (plan.json)
           guard      Aplica el plan, lo reaplica al reanudar, vigila margen y WHEA
+          sweep      Barrido por nucleos con y-cruncher: busca el limite de cada uno
           task       Tarea programada que lanza guard al iniciar sesion
           help       Esta ayuda
+
+        sweep
+          --campaign <n>     Carpeta runs/<n>. Por defecto sweep-<fecha>. Reanudable: salta
+                             los nucleos con limite y trata un en-curso.json como cuelgue.
+          --cores <spec>     0-15, 0,3,8-11 ...   Por defecto los 16.
+          --start/--top/--step/--seconds   Sobrescriben el plan.
+          --no-suspend       Sin la suspension periodica de 1 s cada 10 s.
+          --plain            Sin panel.
+          Exige el hardware en la base (cierra guard antes). Restaura la base tras cada prueba.
 
         plan
           init [--from-hardware] [--force]    Crea plan.json (perfil -5 o el que hay puesto)
           show                                 Enseña el plan
           set-core <n> <m>                     Cambia un nucleo
           set-profile a,b,...,p                Los 16 de golpe
+          from-sweep <campana> [--margin 5]    Perfil = limite + margen desde runs/<campana>/limits.json
           --plan <ruta>                        Otro fichero. Por defecto plan.json en la raiz.
 
         guard

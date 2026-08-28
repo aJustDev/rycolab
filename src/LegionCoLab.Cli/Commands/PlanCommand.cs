@@ -59,6 +59,32 @@ public static class PlanCommand
                 plan.Save(path);
                 return Show(plan);
             }
+            case "from-sweep":
+            {
+                if (args.Positional.Count < 2)
+                {
+                    Console.Error.WriteLine("Uso: colab plan from-sweep <campana> [--margin 5]");
+                    return 1;
+                }
+                var campaign = args.Positional[1];
+                var dir = Path.IsPathRooted(campaign) ? campaign : Path.Combine(Plan.RepoRoot, "runs", campaign);
+                var limits = Journal.ReadJsonFile<Dictionary<string, int?>>(Path.Combine(dir, "limits.json"));
+                if (limits is null) { Console.Error.WriteLine($"No hay limits.json en {dir}"); return 1; }
+
+                var plan = File.Exists(path) ? Plan.Load(path) : new Plan();
+                var margin = args.GetInt("margin") ?? plan.SafetyMargin;
+                var missing = new List<int>();
+                for (var c = 0; c < plan.Profile.Length; c++)
+                {
+                    if (limits.TryGetValue(c.ToString(), out var lim) && lim is { } l)
+                        plan.Profile[c] = Math.Min(plan.Top, l + margin);
+                    else { plan.Profile[c] = plan.Base; missing.Add(c); }
+                }
+                plan.Save(path);
+                Console.WriteLine($"  Perfil = limite + {margin} desde {dir}");
+                if (missing.Count > 0) Console.WriteLine($"  Sin limite (quedan en la base {plan.Base}): {string.Join(",", missing)}");
+                return Show(plan);
+            }
             default:
                 Console.Error.WriteLine($"Suborden desconocida: {sub}");
                 return 2;
