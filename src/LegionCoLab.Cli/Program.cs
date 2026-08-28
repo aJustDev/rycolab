@@ -123,7 +123,7 @@ static void PrintHelp()
 
         probe
           --compare <ruta>   Comparar con un perfil JSON con campo CoreValues.
-                             Por defecto usa el de Legion Toolkit.
+                             Por defecto compara con plan.json; si no existe, con el de Legion Toolkit.
           --no-compare       No comparar con ningun perfil.
           --json <ruta>      Guardar la lectura con marca de tiempo.
           --sensors          Anadir reloj efectivo y potencia por nucleo.

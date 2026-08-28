@@ -12,9 +12,27 @@ public static class ProbeCommand
         using var co = new CoController();
 
         var readings = co.ReadAll();
-        var expected = args.Has("no-compare")
-            ? null
-            : LoadProfile(Environment.ExpandEnvironmentVariables(args.Get("compare", LltProfile)));
+        // Por defecto se compara con plan.json si existe; si no, con el perfil de Legion Toolkit.
+        int?[]? expected = null;
+        var compareLabel = "";
+        if (!args.Has("no-compare"))
+        {
+            if (args.Get("compare") is { } cmp)
+            {
+                expected = LoadProfile(Environment.ExpandEnvironmentVariables(cmp));
+                compareLabel = cmp;
+            }
+            else if (File.Exists(Plan.DefaultPath))
+            {
+                expected = Plan.Load().Profile.Select(m => (int?)m).ToArray();
+                compareLabel = Plan.DefaultPath;
+            }
+            else
+            {
+                expected = LoadProfile(Environment.ExpandEnvironmentVariables(LltProfile));
+                compareLabel = LltProfile;
+            }
+        }
 
         TelemetrySnapshot? snap = null;
         IReadOnlyList<CoreSample>? cores = null;
@@ -37,6 +55,7 @@ public static class ProbeCommand
         Console.WriteLine($"  SetDldoPsmMargin   {(co.IsPsmSupported ? "soportado" : "NO SOPORTADO — el Curve Optimizer no puede aplicarse")}");
         if (co.TryGetFMax() is { } fmax) Console.WriteLine($"  FMax               {fmax}");
         Console.WriteLine($"  Momento            {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        if (expected is not null) Console.WriteLine($"  Comparando con     {compareLabel}");
 
         // ---- tabla ----
         Console.WriteLine();
@@ -105,10 +124,12 @@ public static class ProbeCommand
             Console.WriteLine();
             Console.WriteLine($"  NO COINCIDEN los nucleos: {string.Join(", ", mismatched)}");
             Console.WriteLine("  El perfil en disco NO es lo que tiene el procesador.");
+            if (readings.All(r => r.Margin == ResetCommand.DefaultBaseline))
+                Console.WriteLine($"  Todo esta en la base {ResetCommand.DefaultBaseline}: reinicio o suspension. 'colab apply --plan' o 'colab guard' lo reponen.");
         }
         else if (matched > 0)
         {
-            Console.WriteLine($"  Perfil y hardware coinciden en los {matched} nucleos comparables.");
+            Console.WriteLine($"  El procesador lleva puesto el plan: coinciden los {matched} nucleos comparables.");
         }
         Console.WriteLine();
 
