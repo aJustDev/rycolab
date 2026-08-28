@@ -46,7 +46,22 @@ colab probe --json out.json  guarda la lectura con marca de tiempo
 colab sensors                vuelca los sensores con su nombre exacto
 colab watch --core N         muestrea a 1 Hz reloj, efectivo, V, GHz, W y T del nucleo
       [--seconds 180] [--interval 1000] [--jsonl f] [--summary f] [--raw]
+colab plan init|show|set-core N M|set-profile a,...,p   plan.json (perfil + barrido)
+colab apply --plan           aplica el perfil de plan.json a los 16
+colab guard [--minutes N]    aplica el plan, lo reaplica al reanudar de suspension,
+      [--interval 60] [--plain]   relee el margen y cuenta WHEA cada intervalo; deja la base al salir
+colab task install|remove|status   tarea programada: guard al iniciar sesion (elevada, minimizada)
 ```
+
+`plan.json` (ignorado por git; `plan.example.json` de muestra) guarda el
+perfil por nucleo, la base y los parametros del barrido. **La suspension y el
+reinicio devuelven la base de la BIOS**: sin `guard` el perfil no dura.
+`guard` escribe `runs/guard/guard.jsonl` (muestras y eventos) y, si aparece
+un WHEA, `runs/guard/positivos/whea-*.json` y sale con codigo 10 dejando la
+base. Para recompilar hay que cerrar guard antes (Ctrl+C; restaura la base).
+
+Los binarios de y-cruncher van en `tools/y-cruncher/Binaries/` (ignorado):
+copiar los de `test_programs/y-cruncher/Binaries` del clon de CoreCycler.
 
 `watch` saca tension, frecuencia, potencia y temperatura por nucleo de la
 tabla de potencia del SMU (`PmTable.cs`); LibreHardwareMonitor no da tension

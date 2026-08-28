@@ -31,6 +31,9 @@ try
         "watch" => WatchCommand.Run(opts),
         "apply" => ApplyCommand.Run(opts),
         "reset" => ResetCommand.Run(opts),
+        "plan" => PlanCommand.Run(opts),
+        "guard" => GuardCommand.Run(opts),
+        "task" => TaskCommand.Run(opts),
         _ => Unknown(command),
     };
 }
@@ -76,7 +79,28 @@ static void PrintHelp()
           reset      Devuelve los 16 nucleos a la base
           sensors    Vuelca los sensores disponibles con su nombre exacto
           watch      Muestrea reloj, reloj efectivo, potencia y Tctl de un nucleo
+          plan       Perfil por nucleo y parametros del barrido (plan.json)
+          guard      Aplica el plan, lo reaplica al reanudar, vigila margen y WHEA
+          task       Tarea programada que lanza guard al iniciar sesion
           help       Esta ayuda
+
+        plan
+          init [--from-hardware] [--force]    Crea plan.json (perfil -5 o el que hay puesto)
+          show                                 Enseña el plan
+          set-core <n> <m>                     Cambia un nucleo
+          set-profile a,b,...,p                Los 16 de golpe
+          --plan <ruta>                        Otro fichero. Por defecto plan.json en la raiz.
+
+        guard
+          --plan <ruta>      Plan a vigilar. Por defecto plan.json.
+          --minutes <n>      Soak acotado; sin el, indefinido (Ctrl+C para salir).
+          --interval <s>     Segundos entre muestras. Por defecto 60.
+          --plain            Sin panel; una linea por muestra.
+          Al salir (tiempo, Ctrl+C, WHEA o margen perdido) deja la base.
+          Codigos: 0 limpio, 10 positivo (WHEA o margen perdido), 1 no pudo aplicar.
+
+        task
+          install [--plan <ruta>] | remove | status
 
         probe
           --compare <ruta>   Comparar con un perfil JSON con campo CoreValues.
@@ -98,6 +122,7 @@ static void PrintHelp()
           --core <n>         Un solo nucleo.       Sin --core ni --ccd: los 16.
           --ccd <0|1>        Un CCD completo (0 = nucleos 0-7).
           --profile <ruta>   Por nucleo, desde un JSON con CoreValues.
+          --plan [ruta]      Por nucleo, desde plan.json.
           --dry-run          Enseña el plan y no escribe nada.
 
         reset

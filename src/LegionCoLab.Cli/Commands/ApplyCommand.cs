@@ -53,7 +53,7 @@ public static class ApplyCommand
                 continue;
             }
 
-            var path = BuildPath(from, target);
+            var path = Stepper.BuildPath(from, target);
             if (path.Length == 0)
             {
                 Console.WriteLine($"  {core,6}  {Topology.CcdName(core),-4}  {from,5}      {target,8}   ya esta");
@@ -119,28 +119,11 @@ public static class ApplyCommand
         return 0;
     }
 
-    /// <summary>Camino desde <paramref name="from"/> hasta <paramref name="to"/> sin pasos mayores del limite.</summary>
-    private static int[] BuildPath(int from, int to)
-    {
-        if (from == to) return [];
-
-        var path = new List<int>();
-        var step = Safety.MaxStepBetweenLevels;
-        var cur = from;
-
-        while (cur != to)
-        {
-            var remaining = to - cur;
-            var move = Math.Sign(remaining) * Math.Min(Math.Abs(remaining), step);
-            cur += move;
-            path.Add(cur);
-        }
-
-        return [.. path];
-    }
-
     private static List<(int Core, int Margin)>? ResolveTargets(Args args, CoController co)
     {
+        if (args.Has("plan"))
+            return Plan.Load(args.Get("plan")).Targets(co.CoreCount).ToList();
+
         if (args.Get("profile") is { } profilePath)
         {
             var path = Environment.ExpandEnvironmentVariables(profilePath);

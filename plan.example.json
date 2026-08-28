@@ -1,0 +1,12 @@
+{
+  "profile": [-35, -35, -35, -40, -40, -40, -40, -40, -40, -35, -45, -40, -40, -45, -45, -45],
+  "base": -5,
+  "engines": ["04-P4P", "24-ZN5 ~ Komari"],
+  "tests": ["BKT", "BBP", "SFTv4", "SNT", "SVT", "FFTv4", "N63", "VT3"],
+  "seconds": 360,
+  "step": 5,
+  "start": -50,
+  "top": -5,
+  "safetyMargin": 5,
+  "yCruncher": "tools/y-cruncher/Binaries"
+}

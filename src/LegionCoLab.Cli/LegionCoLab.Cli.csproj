@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LegionCoLab.Core\LegionCoLab.Core.csproj" />
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
   </ItemGroup>
 
   <!--

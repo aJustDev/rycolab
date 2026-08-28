@@ -1,6 +1,6 @@
 # Estado y siguiente paso
 
-Última sesión: **28/08/2026, 08:45**. Plan completo en revisión 3
+Última sesión: **28/08/2026, 09:40**. Plan completo en revisión 3
 (`~/.claude/plans/serialized-sparking-bengio.md`; resumen de fases abajo).
 **Empezar cada sesión leyendo este fichero y `FUENTES.md`.**
 
@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        -5 en los 16 nucleos  (all-core de la BIOS, base elegida). Verificado 08:33 (28/08, tras la suspension de la noche).
+CPU        PERFIL CANDIDATO puesto a mano (28/08 09:20, Fase 3 2a sesion; guard cerrado). Verificado 09:38. La suspension o un reinicio lo devuelven a -5.
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -134,7 +134,32 @@ SMU); hay que lanzar con `-Command`.
 La suspensión de la 01:10 dejó −5 al despertar (08:32); el vigilante lo cazó
 y cerró. Detalle en `RESULTADOS.md`.
 
-## Siguiente paso: completar la Fase 3
+## Plan revision 4 (28/08, aprobado): todo a C#, herramienta completa
+
+`~/.claude/plans/serialized-sparking-bengio.md`. A: plan + guard + task
+(hecho 28/08 por la manana). B: `YCruncherEngine` + `sweep` + panel. C:
+SQLite + `report`. D: campana definitiva desde cero con la herramienta.
+Fuera: re-medidas sueltas y cabos ajenos al repo.
+
+### Paso A hecho
+
+- `Plan.cs` (`plan.json`, ignorado; `plan.example.json` con el candidato),
+  `Stepper.cs` (camino de 3 en 3 bajo `SafetySession`, lo usan apply/guard),
+  `Whea.cs` (System: WHEA 17-20/46/47, Kernel-Power 41/42/107,
+  Power-Troubleshooter 1, desde una marca de tiempo), `Power.cs`
+  (`SystemEvents.PowerModeChanged`), `Guard.cs`.
+- CLI: `plan init|show|set-core|set-profile`, `apply --plan`, `guard
+  [--minutes] [--interval] [--plain]` con panel Spectre.Console, `task
+  install|remove|status`.
+- Probado: guard 2 min plano y 1 min con panel (aplica, muestras ok,
+  restaura -5, codigo 0); `apply --plan`; tarea `LegionCoLab-Guard`
+  **instalada** (ONLOGON, elevada, minimizada; no arranca con bateria).
+- **Pendiente de probar: la reanudacion con guard vivo** (suspender y
+  despertar; debe salir `resume` + `apply reanudacion` en `guard.jsonl`).
+- Ojo: guard bloquea `colab.exe`; cerrarlo (Ctrl+C) antes de compilar.
+- `tools/y-cruncher/Binaries/` copiado del clon (153 MB, ignorado).
+
+## Siguiente paso: paso B (motor y barrido en C#) y completar la Fase 3
 
 Candidato propuesto = límite + 5 (las guías: "una o dos paradas por encima
 del primer fallo"); el 8 tratado como −45 por el WHEA:

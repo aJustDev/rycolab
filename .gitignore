@@ -3,3 +3,4 @@ obj/
 runs/
 tools/
 *.user
+plan.json

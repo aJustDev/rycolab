@@ -98,6 +98,14 @@ public sealed class Telemetry : IDisposable
     public double? CoreVid(int coreIndex) => Exact(SensorType.Voltage, $"{CoreLabel(coreIndex)} VID");
     public double? CorePower(int coreIndex) => Exact(SensorType.Power, $"{CoreLabel(coreIndex)} (SMU)");
 
+    /// <summary>Carga total de la CPU en %, refrescada.</summary>
+    public double? CpuLoad()
+    {
+        if (!IsAvailable) return null;
+        Refresh();
+        return Exact(SensorType.Load, "CPU Total") ?? Fuzzy(SensorType.Load, "Total");
+    }
+
     public TelemetrySnapshot Read(int? targetCore = null)
     {
         if (!IsAvailable)
