@@ -122,7 +122,8 @@ public sealed class CoController : IDisposable
             // UXTU encodes negative margins in 20 bits (0x100000 - |m|) on APUs; ZenStates uses 16.
             var status20 = SendSet(mask, margin, 20, out var where20, out var arg20);
             if (status20 == SMU.Status.OK) { _marginBits = 20; status = status20; }
-            else throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write ({where}, arg 0x{arg:X8}): {status}; with a 20-bit margin ({where20}, arg 0x{arg20:X8}): {status20}.");
+            else throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write ({where}, arg 0x{arg:X8}): {status}; with a 20-bit margin ({where20}, arg 0x{arg20:X8}): {status20}. " +
+                                                  "On mobile APUs AMD enables Curve Optimizer only on Ryzen 9 parts (RyzenAdj issue #233); a Ryzen 5/7 APU answers FAILED to every write.");
         }
         if (status != SMU.Status.OK)
             throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write ({where}, arg 0x{arg:X8}): {status}.");

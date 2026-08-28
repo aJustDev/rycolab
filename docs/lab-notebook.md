@@ -192,3 +192,11 @@ the report. See the plan in the repository history.
   Legion Toolkit uses on APUs would send every write to core 0. Fixed in the
   tool: reads keep the plain index, writes use `core << 20` and MP1 0x54 on
   Cezanne (0x4B on Rembrandt/Phoenix/Hawk Point/Strix, untested).
+- With the fix: `dev probe` reports `writes via MP1 0x54`; `dev apply --core 0
+  --margin -3` -> `FAILED` with arg `0x0000FFFD` (16-bit margin) and again
+  `FAILED` with `0x000FFFFD` (20-bit, UXTU's encoding). Not `UNKNOWN_CMD`,
+  not `CMD_REJECTED_PREREQ`: the firmware knows the message and refuses it.
+  RyzenAdj issue #233 has the same result on a 5800H and a 6850U, and the
+  UXTU author states that on 5000-series and newer mobile APUs Curve
+  Optimizer only works on Ryzen 9 parts. **Conclusion: the 5800H is locked
+  by AMD; reads work, writes never will.** Hardware left at 0 x 8.

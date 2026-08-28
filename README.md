@@ -115,6 +115,12 @@ Low-level commands for diagnostics (elevated): `probe`, `apply`, `reset`,
   Toolkit uses (plain core index on APUs); `install` prints the SMU type and
   whether per-core Curve Optimizer is available, and refuses if it is not.
 - Not supported: Zen 2 and Renoir / Lucienne / Van Gogh (no per-core command).
+- Locked by AMD: mobile APUs below Ryzen 9 (Ryzen 5/7 5000H/U, 6000, 7040...).
+  The SMU accepts the read but answers `FAILED` to every write (RSMU and MP1,
+  16- and 20-bit margin) - verified on a Ryzen 7 5800H; the same is reported
+  for the 5800H and 6850U in [RyzenAdj issue #233](https://github.com/FlyGoat/RyzenAdj/issues/233),
+  where the UXTU author states Curve Optimizer on 5000+ mobile APUs works
+  only on Ryzen 9 (HX/HS). `rycolab dev apply` says so when it happens.
 - The core count comes from the CPU; the per-core telemetry (voltage, clock,
   power, temperature from the SMU table) needs `rycolab dev calibrate` once
   on any table version other than the reference machine's.
