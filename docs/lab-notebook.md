@@ -169,6 +169,28 @@ CCD1   8:-40  9:-35 10:-45 11:-40 12:-40 13:-45 14:-45 15:-45
   logic lives in `Sweep`, `Guard` and `YCruncherEngine`. Git history before
   2026-08-28 keeps them.
 
+## 2026-08-28 - Cinebench R23 with the candidate profile (guard on, validating)
+
+Same protocol as the pre-project baseline (10 min minimum duration, HWiNFO
+log, samples with CPU package power > 100 W: 309 in both runs). Profile
+`-35,-35,-35,-40,-40,-40,-40,-40,-40,-35,-45,-40,-40,-45,-45,-45`, 0 WHEA.
+
+| | Baseline (CO 0, 2026-08-25) | Candidate (2026-08-28) | Delta |
+|---|---|---|---|
+| R23 multi, 10 min | 38677 | 41433 | **+7.1 %** |
+| Effective clock, 32 threads | 4316 MHz | 4613 MHz | **+297 MHz (+6.9 %)** |
+| Package power | 149.5 W | 146.0 W | -3.5 W |
+| Tctl | 99.8 C | 98.6 C | -1.2 C |
+| Thermal limit | 99.1 % | 97.6 % | -1.5 |
+| CCD0 / CCD1 Tdie | 93.3 / 99.2 C | 90.1 / 97.7 C | -3.2 / -1.5 C |
+| VDDCR_VDD (SVI3) | 0.989 V | 0.961 V | **-28 mV** |
+
+A uniform -5 (the BIOS default) gave +2 % clock at the same voltage. With the
+per-core profile the saving is large enough to show up as both: ~300 MHz more
+and 28 mV less, at lower power and temperature. The chip is still thermally
+capped (97.6 %), so the ceiling is the cooling, not the silicon. A single
+unlogged pass before this run scored 42488.
+
 ## Current state and next steps
 
 Candidate profile validated so far by: 6-min limits with two engines and
