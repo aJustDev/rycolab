@@ -51,6 +51,7 @@ try
             "plan" => PlanCommand.Run(opts),
             "task" => TaskCommand.Run(opts),
             "profile" => ProfileCommand.Run(opts),
+            "log" => LogCommand.Run(opts),
             _ => UnknownDev(command!),
         };
 
@@ -122,10 +123,11 @@ static void PrintHelp()
           rycolab on | off              keep the profile applied (hidden guard) | back to the baseline
           rycolab status [--follow]     guard, phase, last sample, WHEA, hardware vs profile (no elevation)
           rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
+          rycolab report --bench <csv> [--vs <csv>]   summary of a `dev log` CSV (samples > 100 W)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
-                                        calibrate, plan, task, profile import   (`rycolab dev help`)
+                                        calibrate, plan, task, profile import, log   (`rycolab dev help`)
 
         find
           --quick        three tests and 180 s per run instead of eight and 360 s
@@ -162,5 +164,6 @@ static void PrintDevHelp()
           plan show | init [--force] | set <key> <value>                  config.json (no elevation)
           task install|run|stop|remove|status                             the scheduled task by hand
           profile import --cores a,...,p --campaign <name> [--limits a,...,p] [--note ...]
+          log --out <file.csv> [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans
         """);
 }

@@ -12,6 +12,8 @@ public static class ReportCommand
 {
     public static int Run(Args args)
     {
+        if (args.Get("bench") is { } bench) return Bench(bench, args.Get("vs"), args.GetInt("min-power") ?? 100, args.Get("md"), args.Has("md"));
+
         var name = args.Positional.FirstOrDefault() ?? args.Get("campaign");
         string dir;
         if (name is null)
@@ -107,6 +109,28 @@ public static class ReportCommand
             sb.AppendLine();
         }
         return sb.ToString();
+    }
+
+    /// <summary>rycolab report --bench log.csv [--vs base.csv] [--min-power 100] [--md [path]]: aggregates of a `dev log` CSV over the loaded samples.</summary>
+    private static int Bench(string path, string? vs, int minPower, string? mdPath, bool md)
+    {
+        if (!File.Exists(path)) { Console.Error.WriteLine($"Not found: {path}"); return 1; }
+        if (vs is not null && !File.Exists(vs)) { Console.Error.WriteLine($"Not found: {vs}"); return 1; }
+        bool Loaded(Dictionary<string, double> row) => row.TryGetValue(BenchLog.PackagePower, out var p) && p > minPower;
+        var d = BenchLog.Read(path, Loaded, out var rows, out var kept);
+        Dictionary<string, List<double>>? b = null;
+        if (vs is not null) b = BenchLog.Read(vs, Loaded, out _, out _);
+        var name = Path.GetFileNameWithoutExtension(path);
+        var text = $"## Bench {name}{(vs is null ? "" : $" vs {Path.GetFileNameWithoutExtension(vs)}")}\n\n"
+                   + BenchLog.Summary(name, d, rows, kept, minPower, vs is null ? null : Path.GetFileNameWithoutExtension(vs), b);
+        if (md)
+        {
+            var target = mdPath ?? Path.ChangeExtension(path, ".md");
+            File.WriteAllText(target, text, new UTF8Encoding(false));
+            Console.WriteLine($"  Written {target}");
+        }
+        else Console.WriteLine(text);
+        return 0;
     }
 
     private static string Lim(Dictionary<string, int?> limits, int c)

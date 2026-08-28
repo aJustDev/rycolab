@@ -64,6 +64,7 @@ rycolab on                    apply the profile and keep it: hidden guard, re-ap
 rycolab status [--follow]     guard, phase (validating / steady), last sample, WHEA, events
 rycolab off                   stop the guard, back to the BIOS baseline, task disabled
 rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md
+rycolab report --bench <csv> [--vs <csv>]   summary of a `dev log` CSV: power, temps, clocks, V, fans
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 
@@ -104,7 +105,18 @@ there when the sweep starts again).
 
 Low-level commands for diagnostics (elevated): `probe`, `apply`, `reset`,
 `guard`, `sweep`, `watch`, `sensors`, `calibrate`, `plan` (config.json), `task`,
-`profile import`, all under `rycolab dev`. `rycolab dev help` lists them.
+`profile import`, `log`, all under `rycolab dev`. `rycolab dev help` lists them.
+
+To compare a benchmark before and after a change (a profile, a thermal mod):
+`rycolab dev log --out before.csv` (elevated) while Cinebench or the game
+runs, Ctrl+C or `--minutes N` to stop, the same again for `after.csv`, then
+`rycolab report --bench after.csv --vs before.csv`. The CSV has package
+power, Tctl and CCD temperatures, effective clock (average and per core),
+core voltages from the PM table, VID, and on Lenovo Legion machines the CPU /
+GPU / PCH fan speeds and EC temperatures (the same WMI call Legion Toolkit
+uses; HWiNFO does not see these fans). The summary uses the samples above
+100 W of package power (`--min-power`), so idle before and after does not
+dilute the means.
 
 ## Supported hardware
 
