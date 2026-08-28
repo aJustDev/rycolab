@@ -164,7 +164,9 @@ elevating if the console is not:
 ```
 
 (`-NoBuild` skips the build; `-Args "--ycruncher C:\folder"` passes options
-to `install`.) By hand it is the same thing, from an elevated console:
+to `install`.) `.\uninstall.ps1` is the reverse (`-Purge` also deletes the
+data); it runs `rycolab uninstall` from the build so the installed folder
+can be removed completely. By hand it is the same thing, from an elevated console:
 
 ```
 .\src\Rycolab.Cli\bin\Release\net9.0-windows\win-x64\rycolab.exe install
