@@ -104,7 +104,10 @@ public static class StatusCommand
         var ticks = new List<GuardTick>();
         var events = new List<string>();
         if (!File.Exists(path)) return (ticks, events);
-        foreach (var line in File.ReadLines(path))
+        // El guard tiene el fichero abierto para escribir: hay que abrirlo compartiendo escritura.
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var sr = new StreamReader(fs);
+        while (sr.ReadLine() is { } line)
         {
             if (Parse(line) is not { } p) continue;
             if (sinceLastStart && p.Kind == "start") { ticks.Clear(); events.Clear(); }
