@@ -11,11 +11,15 @@ public sealed class Validation
     public int Whea { get; set; }
     public int Resumes { get; set; }
     public int Reapplies { get; set; }
+    /// <summary>Unexpected reboots (Kernel-Power 41) between one guard tick and the next guard start. A reset without WHEA is still a reset.</summary>
+    public int Resets { get; set; }
+    /// <summary>Last tick written by the previous guard; the reset check on start looks from here.</summary>
+    public DateTime? LastTickAt { get; set; }
 
     public const int SteadyAfterHours = 20;
     public const int SteadyAfterDays = 7;
 
-    public bool IsSteady => Whea == 0 && (GuardedSeconds >= SteadyAfterHours * 3600L || (DateTime.Now - StartedAt).TotalDays >= SteadyAfterDays);
+    public bool IsSteady => Whea == 0 && Resets == 0 && (GuardedSeconds >= SteadyAfterHours * 3600L || (DateTime.Now - StartedAt).TotalDays >= SteadyAfterDays);
 
     public static string KeyOf(Profile p) => string.Join(",", p.Cores);
 
@@ -50,6 +54,7 @@ public sealed class State
     public long GuardedSeconds { get; set; }
     public int Resumes { get; set; }
     public int Reapplies { get; set; }
+    public int Resets { get; set; }
     public DateTime? ValidationStartedAt { get; set; }
     public List<string> LastEvents { get; set; } = [];
     public string? LastError { get; set; }

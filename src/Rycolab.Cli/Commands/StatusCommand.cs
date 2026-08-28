@@ -39,7 +39,7 @@ public static class StatusCommand
 
         if (state is not null)
         {
-            Console.WriteLine($"  phase              {state.Phase}{(state.ValidationStartedAt is { } v ? $"  (validation since {v:yyyy-MM-dd}, {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Reapplies} re-applies, {state.Whea} WHEA)" : "")}");
+            Console.WriteLine($"  phase              {state.Phase}{(state.ValidationStartedAt is { } v ? $"  (validation since {v:yyyy-MM-dd}, {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Reapplies} re-applies, {state.Whea} WHEA, {state.Resets} resets)" : "")}");
             if (state.LastTick is { } t)
                 Console.WriteLine($"  last sample        {t:yyyy-MM-dd HH:mm:ss}  {state.LastState}  CPU {state.CpuLoad?.ToString("F0") ?? "-"} %  package {state.PackagePower?.ToString("F1") ?? "-"} W");
             var count = state.Hardware?.Length is > 0 and var n ? n : profile?.Fingerprint?.Cores is > 0 and var f ? f : Topology.MaxCores;

@@ -69,6 +69,14 @@ public sealed class Guard
         _state.Profile = _profile.Cores;
         Event("start", $"profile {string.Join(",", _profile.Cores)}  interval {_o.IntervalSeconds}s  {(_o.Minutes is { } m ? m + " min" : "no time limit")}");
 
+        // A hard reset leaves no WHEA and no journal line; the only trace is Kernel-Power 41 at the next boot.
+        if (_validation?.LastTickAt is { } lastTick)
+        {
+            var resets = Whea.UnexpectedRebootsSince(lastTick);
+            foreach (var r in resets) Event("reset", $"unexpected reboot recorded at {r.Time:yyyy-MM-dd HH:mm:ss}; last guard tick {lastTick:HH:mm:ss}, no WHEA");
+            _validation.Resets += resets.Count;
+        }
+
         try
         {
             if (!ApplyProfile("start")) return 1;
@@ -228,6 +236,7 @@ public sealed class Guard
         _state.Whea = whea;
         _state.CpuLoad = cpu;
         _state.PackagePower = pkg;
+        if (_validation is not null) _validation.LastTickAt = t.Ts;
         PublishState();
         _onTick(t);
     }
@@ -251,6 +260,7 @@ public sealed class Guard
             _state.GuardedSeconds = _validation.GuardedSeconds;
             _state.Resumes = _validation.Resumes;
             _state.Reapplies = _validation.Reapplies;
+            _state.Resets = _validation.Resets;
             _state.ValidationStartedAt = _validation.StartedAt;
             if (_state.GuardPid is not null) _state.Phase = _validation.IsSteady ? "steady" : "validating";
         }

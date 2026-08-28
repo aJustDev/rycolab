@@ -28,7 +28,7 @@ public static class RootCommand
         else if (!hasYc) next = "run `rycolab install` again to fetch y-cruncher.";
         else if (profile is null) next = "no profile yet. `rycolab find` (elevated) measures each core and proposes one; it explains what it will do and asks before starting. `rycolab find --quick --cores 0` is a 10-minute first look at one core.";
         else if (guard is null) next = "the profile is not being applied: run `rycolab on` (elevated).";
-        else if (state?.Phase == "validating") next = $"profile in validation: {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Whea} WHEA. Use the machine normally; `rycolab status` for details.";
+        else if (state?.Phase == "validating") next = $"profile in validation: {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Whea} WHEA, {state.Resets} unexplained resets. Use the machine normally; `rycolab status` for details.";
         else if (state?.Phase == "steady") next = "profile validated and applied. `rycolab status` for details, `rycolab off` to return to the baseline.";
         else if (state?.Phase == "positive") next = "the guard stopped on a positive (WHEA). Check `rycolab status`; the baseline is applied.";
         else next = "`rycolab status` for details.";

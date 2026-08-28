@@ -91,7 +91,9 @@ below its measured limit. The guard writes `state.json` on every sample (what
 `status` reads), re-applies after resume (the BIOS restores the baseline on
 wake), retries the SMU write, and on any WHEA event restores the baseline and
 stops with code 10. A profile starts in `validating` and becomes `steady`
-after 20 h guarded or 7 days without WHEA.
+after 20 h guarded or 7 days without WHEA and without an unexpected reboot
+(Kernel-Power 41 since the previous guard tick is recorded as a `reset` event
+and counted; a hard reset leaves no WHEA).
 
 Data lives in `%LOCALAPPDATA%\rycolab` (`RYCOLAB_HOME` overrides): `bin\`,
 `tools\y-cruncher\`, `config.json` (baseline, engines, tests, seconds),

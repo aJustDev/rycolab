@@ -23,6 +23,10 @@ public static class Whea
     public static List<SystemEvent> HardwareSince(DateTime since)
         => Query(since, (WheaProvider, HardwareIds), (KernelPower, [41]));
 
+    /// <summary>Unexpected reboots only (Kernel-Power 41).</summary>
+    public static List<SystemEvent> UnexpectedRebootsSince(DateTime since)
+        => Query(since, (KernelPower, [41]));
+
     /// <summary>Sleep and resume.</summary>
     public static List<SystemEvent> PowerSince(DateTime since)
         => Query(since, (KernelPower, [42, 107]), (PowerTroubleshooter, [1]));
