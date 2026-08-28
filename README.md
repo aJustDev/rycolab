@@ -118,6 +118,22 @@ uses; HWiNFO does not see these fans). The summary uses the samples above
 100 W of package power (`--min-power`), so idle before and after does not
 dilute the means.
 
+### Fans on Lenovo Legion
+
+The EC drives the fans from a 10-level table (CPU fan 1700...5200 RPM on the
+reference machine) and ramps at about 60 RPM/s whatever the curve says, so
+under a sustained load the CPU sits at its thermal limit for a minute before
+the fan reaches its top level. The "maximum fan speed" switch in Legion
+Toolkit (`FanFullSpeed`, WMI `LENOVO_OTHER_METHOD` id `0x04020000`) goes past
+the table (5700 / 5700 / 7200 RPM) and ramps in seconds; measured under
+Cinebench R23 at the same 145 W it gave -3 C and +107 MHz sustained. The EC
+only honours the switch in Legion Toolkit's custom power mode (smart fan mode
+255); `rycolab fan show` prints the mode. `rycolab fan auto` (elevated)
+turns the switch on after `--hold` seconds at or above `--on` C of EC CPU
+temperature, off below `--off`, and off again when it exits. Legion Toolkit
+re-applies its own preset on mode change, resume and start, so keep its
+switch off there and let `auto` drive it; the EC's fan table is untouched.
+
 ## Supported hardware
 
 - Tested: Ryzen 9 9955HX3D (Legion Pro 7 16AFR10H), 16 cores, two CCDs.

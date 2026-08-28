@@ -227,3 +227,30 @@ the report. See the plan in the repository history.
   --write-test` (`FAILED` on MP1 0x54 with 16- and 20-bit margins: "writes
   are LOCKED on this CPU"), `uninstall.ps1` (task, PATH and bin removed,
   data kept). Hardware at 0 x 8 throughout.
+
+## 2026-08-28 - Fans: table, ramp and the full-speed switch (Legion Pro 7)
+
+Same Cinebench R23 load (145-150 W package) logged with `rycolab dev log`
+(2 s samples, fans from the Lenovo EC through WMI; HWiNFO does not see them).
+
+- Fan table (`LENOVO_FAN_TABLE_DATA`): 10 levels, CPU 1700..5200, GPU
+  1700..5400, PCH 1500..6500 RPM. What Legion Toolkit writes with
+  `Fan_Set_Table` are level indices 1-10, not RPM. The CPU sensor's
+  temperature column is `38 41 44 47 127 127 127 127 127 127`.
+- Ramp: ~60 RPM/s regardless of the curve. C4b (factory curve) and C4c
+  (100 % from ~60 C) reach 5200 at the same time, ~57 s after the load
+  starts, while Tctl hits 97 C at ~30 s.
+- Full-speed switch (`FanFullSpeed`, `0x04020000`): 5700 / 5700-5800 / 7200-7400
+  RPM, i.e. past the table's top level. Switched on with the CPU already at
+  92 C it goes from 2500 to 5700 RPM in 5 s (C4f).
+- A/B at 120-240 s, both 145.5 W: table 5200 -> Tctl 97.3 C, 4570 MHz;
+  switch 5700 -> Tctl 94.1 C, 4677 MHz. **-3.2 C, +107 MHz (+2.3 %).**
+- The EC ignores the switch outside Legion Toolkit's custom power mode
+  (smart fan mode 255): written in extreme mode (224) the flag reads back 1
+  and the fans stay at 1700. In custom mode `rycolab fan on` reaches 5700 in
+  6 s without Legion Toolkit.
+- Tool: `rycolab fan show|on|off|auto`; `auto` drives the switch from the EC
+  CPU temperature with hysteresis (default on >= 90 C, off <= 80 C, 6 s
+  hold) and turns it off on exit.
+
+Logs: `Legion-Linea-Base\hwinfo-logs\C4b..C4f*.csv`.
