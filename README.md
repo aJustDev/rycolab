@@ -128,6 +128,16 @@ Needs the **.NET 9 SDK** (x64).
 dotnet build -c Release src/Rycolab.Cli
 ```
 
+`rycolab` is not on the PATH until `install` puts it there, so the first
+install runs from the build output, elevated:
+
+```
+sudo .\src\Rycolab.Cli\bin\Release\net9.0-windows\win-x64\rycolab.exe install
+```
+
+Then open a new console (the PATH change does not reach the current one)
+and `rycolab` works from anywhere.
+
 `inpoutx64.dll`, the port-access layer ZenStates.Core needs, ships in
 `third_party/inpout` (InpOut32, MIT) and is copied next to the executable at
 build time. To update an existing install: `rycolab off`, build, run

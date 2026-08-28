@@ -24,7 +24,7 @@ public static class RootCommand
         Console.WriteLine();
 
         string next;
-        if (!installed) next = "run `rycolab install` from an elevated console.";
+        if (!installed) next = $"not on the PATH yet: run `sudo \"{Environment.ProcessPath}\" install`, then open a new console.";
         else if (!hasYc) next = "run `rycolab install` again to fetch y-cruncher.";
         else if (profile is null) next = "no profile yet: run `rycolab sweep` (leave the machine alone, it can take hours), then `rycolab profile from-sweep <campaign>` and `rycolab on`.";
         else if (guard is null) next = "the profile is not being applied: run `rycolab on` (elevated).";
