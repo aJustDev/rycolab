@@ -149,6 +149,26 @@ CCD1   8:-40  9:-35 10:-45 11:-40 12:-40 13:-45 14:-45 15:-45
 - The hidden guard (scheduled task) has been running the candidate since
   then; `status` reads its journal.
 
+## 2026-08-28 - The tool as a product (rycolab)
+
+- `install`: 30 files to `%LOCALAPPDATA%\rycolab\bin`, user PATH, official
+  y-cruncher zip (47 MB, SHA-256 verified), baseline read from the hardware
+  (-5), config, scheduled task. Profile imported with the phase-1 limits as
+  its source. `on` started the hidden guard and verified the profile within
+  a minute; `status` and the bare `rycolab` work without elevation from
+  `state.json`; `off` returned the baseline and disabled the task.
+- `find --quick --cores 13`: checks, estimate, sweep (limit -50 again, both
+  engines clean at 182 s), proposal shown and not saved (partial sweep).
+- `dev calibrate --core 3`: idle table versus loaded table, plausibility of
+  the loaded core, its idle value and the other fifteen, LHM as tie-breaker.
+  Result 301 / 317 / 333 / 349 for power / voltage / temperature /
+  frequency: the same positions found by hand on 2026-08-27. Two earlier
+  criteria failed ("one core stands out" and "only one core moves"): under
+  load the neighbours warm up and change clocks too.
+- The PowerShell prototypes (`scripts/`) were removed from the tree; their
+  logic lives in `Sweep`, `Guard` and `YCruncherEngine`. Git history before
+  2026-08-28 keeps them.
+
 ## Current state and next steps
 
 Candidate profile validated so far by: 6-min limits with two engines and
