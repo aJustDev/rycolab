@@ -250,7 +250,7 @@ Same Cinebench R23 load (145-150 W package) logged with `rycolab dev log`
   and the fans stay at 1700. In custom mode `rycolab fan on` reaches 5700 in
   6 s without Legion Toolkit.
 - Tool: `rycolab fan show|on|off|auto`; `auto` drives the switch from the EC
-  CPU temperature with hysteresis (default on >= 90 C, off <= 80 C, 6 s
+  CPU temperature with hysteresis (default on >= 85 C, off <= 80 C, 3 s
   hold) and turns it off on exit.
 
 Logs: `Legion-Linea-Base\hwinfo-logs\C4b..C4f*.csv`.

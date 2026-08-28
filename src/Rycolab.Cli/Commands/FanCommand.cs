@@ -3,7 +3,7 @@ using Rycolab.Core;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab fan show | on | off | auto [--on 90] [--off 80] [--hold 6] [--interval 2]
+/// rycolab fan show | on | off | auto [--on 85] [--off 80] [--hold 3] [--interval 2]
 /// Lenovo Legion only: the EC's "fan full speed" switch, by hand or driven
 /// by the CPU temperature with hysteresis. The EC's fan table tops out at
 /// its level 10 (5200 RPM on the reference machine) and ramps at ~60 RPM/s;
@@ -34,9 +34,9 @@ public static class FanCommand
                 return 0;
             case "auto":
                 if (!CustomMode(ec)) return 2;
-                return Auto(ec, args.GetInt("on") ?? 90, args.GetInt("off") ?? 80, args.GetInt("hold") ?? 6, args.GetInt("interval") ?? 2);
+                return Auto(ec, args.GetInt("on") ?? 85, args.GetInt("off") ?? 80, args.GetInt("hold") ?? 3, args.GetInt("interval") ?? 2);
             default:
-                Console.Error.WriteLine("Usage: rycolab fan show | on | off | auto [--on 90] [--off 80] [--hold 6] [--interval 2]");
+                Console.Error.WriteLine("Usage: rycolab fan show | on | off | auto [--on 85] [--off 80] [--hold 3] [--interval 2]");
                 return 2;
         }
     }
