@@ -116,14 +116,36 @@ public sealed class CoController : IDisposable
 
         var mask = Topology.WriteMask(_cpu, coreIndex);
 
-        if (!_cpu.SetPsmMarginSingleCore(mask, margin))
-            throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write.");
+        var status = SendSet(mask, margin, out var where, out var arg);
+        if (status != SMU.Status.OK)
+            throw new CoWriteFailedException($"core {coreIndex}: the SMU rejected the write ({where}, arg 0x{arg:X8}): {status}.");
 
         var readback = ReadCore(coreIndex);
         if (readback != margin)
             throw new CoWriteFailedException(
                 $"core {coreIndex}: wrote {margin} but the hardware reports " +
                 $"{(readback.HasValue ? readback.Value.ToString() : "nothing")}.");
+    }
+
+    /// <summary>
+    /// The same bytes ZenStates' SetPsmMarginSingleCore sends ((mask &amp; 0xFFF00000) |
+    /// 16-bit margin, MP1 if its message id is set, else RSMU), but returning the
+    /// SMU status instead of a bool so a rejection can be told apart from a
+    /// missing command or a prerequisite.
+    /// </summary>
+    private SMU.Status SendSet(uint mask, int margin, out string where, out uint arg)
+    {
+        arg = (mask & 0xFFF00000u) | Utils.MakePsmMarginArg(margin);
+        var args = Utils.MakeCmdArgs(arg, 6);
+        var mp1 = _cpu.smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin;
+        if (mp1 != 0)
+        {
+            where = $"MP1 0x{mp1:X}";
+            return _cpu.smu.SendMp1Command(mp1, ref args);
+        }
+        var rsmu = _cpu.smu.Rsmu.SMU_MSG_SetDldoPsmMargin;
+        where = $"RSMU 0x{rsmu:X}";
+        return _cpu.smu.SendRsmuCommand(rsmu, ref args);
     }
 
     /// <summary>
