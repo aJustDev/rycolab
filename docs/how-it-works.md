@@ -91,8 +91,8 @@ with a single loaded core:
 | `333+N` | core temperature (C) | equals Tctl with one loaded core |
 | `349+N` | core frequency (GHz) | equals LHM `Core #N+1` |
 
-Valid for table version `0x621202` (613 floats). Another version needs the
-same calibration before the per-core numbers can be trusted.
+Valid for table version `0x621202` (613 floats). Any other version is located by
+`rycolab dev calibrate` (pm-index.json) before the per-core numbers are used.
 
 The margin acts physically: from -5 to -25 on one core, +160 MHz and -15.7 mV
 at constant 14 W; at fMax the voltage falls linearly with the margin

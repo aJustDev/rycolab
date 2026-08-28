@@ -101,7 +101,7 @@ gh api -H "Accept: application/vnd.github.raw" repos/<owner>/<repo>/contents/<pa
 | `333+N` | core N temperature (C) | equals Tctl with one loaded core |
 | `349+N` | core N frequency (GHz) | equals LHM `Core #N+1` |
 
-Method: `watch --raw` at two margins, `scripts/pm-diff.ps1`. Repeat for any
+Method: `rycolab dev calibrate` (one loaded core stands out from the other fifteen in each 16-float block; cross-checked with LibreHardwareMonitor). Repeat for any
 other table version.
 
 ### External references (read 2026-08-27)

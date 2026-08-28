@@ -38,12 +38,12 @@ said so. Writers do not add up either: they replace each other, last one wins.
 
 ## Status
 
-Work in progress towards a publishable tool (see `docs/lab-notebook.md`). The
-core is proven on the reference machine: per-core sweep with y-cruncher, four
-positive signals (compute error, process crash, WHEA, machine hang), a guard
-that re-applies the profile after resume, JSONL + SQLite records, reports. The
-user-facing layer (`install`, `find`, `on`/`off`, unelevated `status`) is being
-built on top of it.
+Tested on one machine so far (see `docs/lab-notebook.md`): per-core sweep with
+y-cruncher, four positive signals (compute error, process crash, WHEA, machine
+hang), a guard that re-applies the profile after resume, JSONL + SQLite
+records, reports, installer. Other Ryzen models should work but have not been
+tried; the per-core telemetry needs `rycolab dev calibrate` on a table version
+other than the reference one.
 
 ## Usage
 
@@ -56,7 +56,8 @@ console (`sudo rycolab ...` on Windows 11 with sudo enabled); `rycolab`,
 rycolab install               copy to %LOCALAPPDATA%\rycolab, user PATH, y-cruncher (official zip,
                               SHA-256 checked), baseline read from the hardware, scheduled task
 rycolab                       one screen: installed?, profile, guard, last sample, and what to do next
-rycolab sweep                 find each core's limit (hours; leave the machine alone; it may reboot)
+rycolab find [--quick]        find each core's limit and propose the profile (hours; hands off; it may reboot
+                              and resume). --quick: three tests and 180 s per run instead of eight and 360 s
 rycolab profile from-sweep <campaign> [--margin 5]     profile = limit + margin, with its source
 rycolab on                    apply the profile and keep it: hidden guard, re-applied after sleep and at logon
 rycolab status [--follow]     guard, phase (validating / steady), last sample, WHEA, events
@@ -83,8 +84,8 @@ Kernel-Power 41 during the run, and machine hang (`in-progress.json` still
 there when the sweep starts again).
 
 Low-level commands for diagnostics (elevated): `probe`, `apply`, `reset`,
-`guard`, `watch`, `sensors`, `plan` (config.json), `task`, `profile import`.
-`rycolab help` lists them all.
+`guard`, `sweep`, `watch`, `sensors`, `calibrate`, `plan` (config.json), `task`,
+`profile import`, all under `rycolab dev`. `rycolab dev help` lists them.
 
 ## Field notes
 
@@ -111,13 +112,10 @@ Needs the **.NET 9 SDK** (x64).
 dotnet build -c Release src/Rycolab.Cli
 ```
 
-`inpoutx64.dll`, the port-access layer ZenStates.Core needs, is copied at
-build time from a local path (by default the Legion Toolkit install). If it is
-elsewhere:
-
-```
-dotnet build -c Release -p:InpOutSource=PATH\inpoutx64.dll src/Rycolab.Cli
-```
+`inpoutx64.dll`, the port-access layer ZenStates.Core needs, ships in
+`third_party/inpout` (InpOut32, MIT) and is copied next to the executable at
+build time. To update an existing install: `rycolab off`, build, run
+`install` from the new build, `rycolab on`.
 
 ## License
 
