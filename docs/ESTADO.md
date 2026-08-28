@@ -178,8 +178,15 @@ Fuera: re-medidas sueltas y cabos ajenos al repo.
 
 ### Pendiente
 
-- **Reanudacion con guard vivo** (suspender y despertar; esperar `resume` +
-  `apply reanudacion` en `runs/guard/guard.jsonl`).
+- **Reanudacion con guard vivo**: primera prueba 28/08 10:11-10:14 FALLO:
+  `suspend` llego, `resume` no; la muestra salio 3 s antes de que Windows
+  anotara la reanudacion, guard reaplico al instante y el SMU rechazo la
+  escritura ("nucleo 12"), guard salio con codigo 1 y base -5. Corregido:
+  reanudacion deducida del `suspend` previo o de un salto de reloj, 10 s de
+  asentamiento y 3 intentos con 5 s. **Repetir la prueba** (suspender con
+  guard vivo; esperar `resume` + `apply reanudacion` en `guard.jsonl`).
+- El usuario lanza guard con `sudo colab guard` (sudo de Windows 11); el
+  directorio del binario esta en el PATH de usuario desde el 28/08.
 - Paso D: campana definitiva desde cero (8 tests, 16 nucleos, ~5-8 h) ->
   `plan from-sweep` -> `guard --minutes 30` -> uso real >= 2 h -> `report --md`.
 - Los `.ps1` de `scripts/` quedan como diagnostico; no se tocan.

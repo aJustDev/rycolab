@@ -32,6 +32,7 @@ public sealed class Guard
 
     private readonly List<DateTime> _reapplies = [];
     private DateTime? _resumeAt;
+    private volatile bool _suspendSeen;
 
     public Guard(CoController co, Plan plan, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent)
     {
@@ -59,16 +60,31 @@ public sealed class Guard
             if (!ApplyPlan("inicio")) return 1;
 
             using var power = new PowerWatch();
-            power.Suspending += () => Event("suspend", "el sistema entra en suspension");
+            power.Suspending += () => { _suspendSeen = true; Event("suspend", "el sistema entra en suspension"); };
             power.Resumed += () => { _resumeAt = DateTime.Now; Event("resume", "el sistema se ha reanudado; se reaplica en unos segundos"); };
 
             var wheaSeen = 0;
+            var lastLoop = DateTime.Now;
             while (!ct.IsCancellationRequested)
             {
                 if (!Wait(ct)) break;
 
-                if (_resumeAt is { } r && (DateTime.Now - r).TotalSeconds >= _o.ResumeSettleSeconds)
+                // El evento de reanudacion puede llegar tarde o no llegar (28/08/2026 10:14: la
+                // muestra salio 3 s antes de que Windows anotara la reanudacion). Un salto de
+                // reloj o un suspend previo sin resume valen igual.
+                var gap = (DateTime.Now - lastLoop).TotalSeconds;
+                lastLoop = DateTime.Now;
+                if (_resumeAt is null && (_suspendSeen || gap > 2 * _o.IntervalSeconds + 30))
                 {
+                    _resumeAt = DateTime.Now;
+                    Event("resume", _suspendSeen ? "reanudacion deducida del suspend previo" : $"reanudacion deducida de un salto de {gap:F0} s");
+                }
+                _suspendSeen = false;
+
+                if (_resumeAt is { } r)
+                {
+                    var settle = _o.ResumeSettleSeconds - (DateTime.Now - r).TotalSeconds;
+                    if (settle > 0) Thread.Sleep(TimeSpan.FromSeconds(settle));
                     _resumeAt = null;
                     if (!ApplyPlan("reanudacion")) { code = 1; break; }
                 }
@@ -132,19 +148,27 @@ public sealed class Guard
         return code;
     }
 
-    private bool ApplyPlan(string why)
+    /// <summary>
+    /// Tres intentos con 5 s entre ellos: al despertar el SMU puede rechazar la
+    /// primera escritura (28/08/2026 10:14, "nucleo 12: el SMU rechazo la escritura").
+    /// </summary>
+    private bool ApplyPlan(string why, int attempts = 3)
     {
-        try
+        for (var i = 1; i <= attempts; i++)
         {
-            var after = Stepper.Apply(_co, _plan.Targets(_co.CoreCount));
-            Event("apply", $"{why}: perfil aplicado y verificado: {string.Join(",", after.Select(x => x.Margin))}");
-            return true;
+            try
+            {
+                var after = Stepper.Apply(_co, _plan.Targets(_co.CoreCount));
+                Event("apply", $"{why}: perfil aplicado y verificado{(i > 1 ? $" al intento {i}" : "")}: {string.Join(",", after.Select(x => x.Margin))}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Event("apply-failed", $"{why}: intento {i}/{attempts}: {ex.Message}");
+                if (i < attempts) Thread.Sleep(5000);
+            }
         }
-        catch (Exception ex)
-        {
-            Event("apply-failed", $"{why}: {ex.Message}");
-            return false;
-        }
+        return false;
     }
 
     private bool Wait(CancellationToken ct)
