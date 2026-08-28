@@ -28,7 +28,7 @@ public static class ProfileCommand
                 using var co = new CoController();
                 var profile = Profile.FromLimits(limits.ToDictionary(k => int.Parse(k.Key), k => k.Value), config,
                     Path.GetFileName(dir.TrimEnd('\\', '/')), CpuFingerprint.Of(co), args.GetInt("margin"));
-                var missing = Enumerable.Range(0, Topology.MaxCores).Where(c => profile.Source!.Limits[c] is null).ToList();
+                var missing = Enumerable.Range(0, co.CoreCount).Where(c => profile.Source!.Limits[c] is null).ToList();
                 profile.Save();
                 Console.WriteLine($"  Profile = limit + {profile.Source!.SafetyMargin} from {dir}, saved to {AppPaths.Profile}");
                 if (missing.Count > 0) Console.WriteLine($"  Cores without a limit stay at the baseline {config.Base}: {string.Join(",", missing)}");
@@ -43,8 +43,11 @@ public static class ProfileCommand
                 if (coresSpec is null || campaign is null) { Console.Error.WriteLine("Usage: rycolab profile import --cores a,...,p --campaign <name> [--limits a,...,p] [--note text]"); return 1; }
                 var config = Plan.LoadOrDefault();
                 using var co = new CoController();
-                var cores = coresSpec.Split(',').Select(s => int.Parse(s.Trim())).ToArray();
-                var limits = args.Get("limits")?.Split(',').Select(s => (int?)int.Parse(s.Trim())).ToArray();
+                // Fewer than 16 values (an 8-core CPU): the rest stay at the baseline / unknown.
+                var given = coresSpec.Split(',').Select(s => int.Parse(s.Trim())).ToArray();
+                var cores = Enumerable.Range(0, Topology.MaxCores).Select(c => c < given.Length ? given[c] : config.Base).ToArray();
+                var givenLimits = args.Get("limits")?.Split(',').Select(s => (int?)int.Parse(s.Trim())).ToArray();
+                var limits = givenLimits is null ? null : Enumerable.Range(0, Topology.MaxCores).Select(c => c < givenLimits.Length ? givenLimits[c] : null).ToArray();
                 var profile = new Profile
                 {
                     Cores = cores, Base = config.Base, Fingerprint = CpuFingerprint.Of(co),
@@ -76,13 +79,13 @@ public static class ProfileCommand
     private static int Show(Profile p)
     {
         Console.WriteLine();
-        Console.WriteLine($"  CCD0  {string.Join("  ", p.Cores.Take(8).Select((m, i) => $"{i}:{m}"))}");
-        Console.WriteLine($"  CCD1  {string.Join("  ", p.Cores.Skip(8).Select((m, i) => $"{i + 8}:{m}"))}");
+        var count = p.Fingerprint?.Cores is > 0 and var n ? n : Topology.MaxCores;
+        foreach (var line in Ui.CoreRows.Lines(count, c => $"{c}:{p.Cores[c]}")) Console.WriteLine($"  {line}");
         Console.WriteLine($"  baseline {p.Base}   CPU {p.Fingerprint?.CpuName ?? "?"} ({p.Fingerprint?.Cores.ToString() ?? "?"} cores)");
         if (p.Source is { } s)
         {
             Console.WriteLine($"  source   {s.Campaign}, {s.Date:yyyy-MM-dd HH:mm}, limit + {s.SafetyMargin}, engines {string.Join(" | ", s.Engines)}, tests {string.Join(",", s.Tests)}, {s.Seconds} s");
-            Console.WriteLine($"  limits   CCD0 {string.Join(" ", s.Limits.Take(8).Select(l => l?.ToString() ?? "-"))}   CCD1 {string.Join(" ", s.Limits.Skip(8).Select(l => l?.ToString() ?? "-"))}");
+            Console.WriteLine($"  limits   {string.Join("   ", Ui.CoreRows.Lines(count, c => c < s.Limits.Length ? s.Limits[c]?.ToString() ?? "-" : "-", " "))}");
             if (s.Note is not null) Console.WriteLine($"  note     {s.Note}");
         }
         else Console.WriteLine("  source   NONE (`rycolab on` will refuse it)");

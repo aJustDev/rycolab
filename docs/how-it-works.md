@@ -60,7 +60,10 @@ redirected (otherwise it waits for a key press on any invalid parameter), and
 periodic suspension of all its threads (1 s every 10 s, `SuspendThread` /
 `ResumeThread`) to force idle-to-boost transitions.
 
-Two binaries, both needed:
+Two binaries, both needed. `install` picks the second one for the CPU
+(`YCruncherBinaries.Recommended`): `24-ZN5 ~ Komari` when AVX-512 is
+available, otherwise `19-ZN2 ~ Kagari` (AVX2, Zen 2/3). `config.json`
+keeps the choice; on the reference machine:
 
 | Binary | ISA | What it does on the reference machine |
 |---|---|---|

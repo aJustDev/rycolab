@@ -42,7 +42,8 @@ public sealed class GuardView
     {
         var table = new Table().Border(TableBorder.Rounded).Title("[bold]rycolab guard[/]");
         table.AddColumn("Core").AddColumn("CCD").AddColumn("Profile").AddColumn("Hardware").AddColumn("State");
-        for (var c = 0; c < Topology.MaxCores; c++)
+        var count = _profile.Fingerprint?.Cores is > 0 and var n ? n : Topology.MaxCores;
+        for (var c = 0; c < count; c++)
         {
             var hw = _last?.Hardware is { } h && c < h.Length ? h[c] : null;
             var want = _profile.Cores[c];

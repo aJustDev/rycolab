@@ -77,8 +77,7 @@ public static class ReportCommand
             }
             sb.AppendLine();
             sb.AppendLine("```");
-            sb.AppendLine("CCD0   " + string.Join("  ", Enumerable.Range(0, 8).Select(c => $"{c}:{Lim(limits, c)}")));
-            sb.AppendLine("CCD1   " + string.Join("  ", Enumerable.Range(8, 8).Select(c => $"{c}:{Lim(limits, c)}")));
+            foreach (var line in Ui.CoreRows.Lines(Ui.CoreRows.CountFor(cores), c => $"{c}:{Lim(limits, c)}")) sb.AppendLine(line);
             sb.AppendLine("```");
             sb.AppendLine();
         }

@@ -22,12 +22,17 @@ public static class FindCommand
         var quick = args.Has("quick");
         if (quick) { config.Tests = QuickTests; config.Seconds = QuickSeconds; }
 
-        var cores = SweepCommand.ParseCores(args.Get("cores") ?? "0-15");
-        if (cores is null) { Console.Error.WriteLine("  --cores: use 0-15, 0,3,8-11 ..."); return 2; }
+        // The controller only reads here; the core universe is what this CPU has.
+        using var co = new CoController();
+        var coreCount = co.CoreCount;
+        var cores = SweepCommand.ParseCores(args.Get("cores") ?? $"0-{coreCount - 1}");
+        if (cores is null) { Console.Error.WriteLine($"  --cores: use 0-{coreCount - 1}, 0,3,5-7 ..."); return 2; }
+        if (cores.Max() >= coreCount) { Console.Error.WriteLine($"  --cores: this CPU has {coreCount} cores (0-{coreCount - 1})."); return 2; }
 
         // ---- checks ----
         var problems = new List<string>();
-        if (!Installer.HasYCruncher(config.YCruncherDir)) problems.Add($"y-cruncher binaries missing in {config.YCruncherDir}: run `rycolab install`.");
+        if (!co.IsPsmSupported) problems.Add($"this CPU's SMU ({co.SmuType}) does not expose per-core Curve Optimizer.");
+        if (!Installer.HasYCruncher(config.YCruncherDir, config.Engines)) problems.Add($"y-cruncher binaries missing in {config.YCruncherDir} ({string.Join(", ", config.Engines)}): run `rycolab install`.");
         if (!Safety.IsOnAcPower()) problems.Add("not on AC power: plug the charger in.");
         if (problems.Count > 0)
         {
@@ -83,8 +88,6 @@ public static class FindCommand
         if (!Ask("  Start? [y/N] ", args, defaultYes: false)) { Console.WriteLine("  Cancelled."); return 0; }
 
         // ---- baseline ----
-        using var co = new CoController();
-        if (!co.IsPsmSupported) { Console.Error.WriteLine("  This SMU does not support per-core Curve Optimizer."); return 1; }
         var offBase = co.ReadAll().Where(r => r.Margin != config.Base).Select(r => r.Index).ToList();
         if (offBase.Count > 0)
         {
@@ -137,14 +140,12 @@ public static class FindCommand
         var profile = Profile.FromLimits(limits, config, Path.GetFileName(dir.TrimEnd('\\', '/')), CpuFingerprint.Of(co));
         Console.WriteLine();
         Console.WriteLine("  Limits found (first clean margin per core):");
-        Console.WriteLine($"    CCD0 {string.Join("  ", Enumerable.Range(0, 8).Select(c => $"{c}:{Fmt(limits, c)}"))}");
-        Console.WriteLine($"    CCD1 {string.Join("  ", Enumerable.Range(8, 8).Select(c => $"{c}:{Fmt(limits, c)}"))}");
+        foreach (var line in CoreRows.Lines(coreCount, c => $"{c}:{Fmt(limits, c)}")) Console.WriteLine($"    {line}");
         Console.WriteLine($"  Proposed profile (limit + {config.SafetyMargin}; cores without a limit stay at {config.Base}):");
-        Console.WriteLine($"    CCD0 {string.Join("  ", profile.Cores.Take(8).Select((m, i) => $"{i}:{m}"))}");
-        Console.WriteLine($"    CCD1 {string.Join("  ", profile.Cores.Skip(8).Select((m, i) => $"{i + 8}:{m}"))}");
+        foreach (var line in CoreRows.Lines(coreCount, c => $"{c}:{profile.Cores[c]}")) Console.WriteLine($"    {line}");
         Console.WriteLine();
 
-        var partial = cores.Length < Topology.MaxCores;
+        var partial = cores.Length < coreCount;
         if (partial) Console.WriteLine("  This was a partial sweep; the profile covers only the swept cores. Not saved unless --accept.");
 
         var accept = args.Has("accept") || (!partial && Ask("  Save it as your profile? [Y/n] ", args, defaultYes: true));

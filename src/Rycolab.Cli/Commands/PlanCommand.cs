@@ -61,7 +61,7 @@ public static class PlanCommand
         Console.WriteLine($"  sweep      {plan.Start} -> {plan.Top} step {plan.Step}, {plan.Seconds} s per run, safety margin {plan.SafetyMargin}");
         Console.WriteLine($"  engines    {string.Join(" | ", plan.Engines)}");
         Console.WriteLine($"  tests      {string.Join(",", plan.Tests)}");
-        Console.WriteLine($"  y-cruncher {plan.YCruncherDir}{(Installer.HasYCruncher(plan.YCruncherDir) ? "" : "   (NOT FOUND)")}");
+        Console.WriteLine($"  y-cruncher {plan.YCruncherDir}{(Installer.HasYCruncher(plan.YCruncherDir, plan.Engines) ? "" : "   (NOT FOUND)")}");
         Console.WriteLine();
         return 0;
     }

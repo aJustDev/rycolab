@@ -87,6 +87,22 @@ Low-level commands for diagnostics (elevated): `probe`, `apply`, `reset`,
 `guard`, `sweep`, `watch`, `sensors`, `calibrate`, `plan` (config.json), `task`,
 `profile import`, all under `rycolab dev`. `rycolab dev help` lists them.
 
+## Supported hardware
+
+- Tested: Ryzen 9 9955HX3D (Legion Pro 7 16AFR10H), 16 cores, two CCDs.
+- Expected to work: any Ryzen whose SMU exposes `SetDldoPsmMargin` in
+  ZenStates.Core (Zen 3 desktop, Cezanne, Phoenix / Hawk Point, Raphael /
+  Dragon Range, Granite Ridge / Fire Range). The core mask is the one Legion
+  Toolkit uses (plain core index on APUs); `install` prints the SMU type and
+  whether per-core Curve Optimizer is available, and refuses if it is not.
+- Not supported: Zen 2 and Renoir / Lucienne / Van Gogh (no per-core command).
+- The core count comes from the CPU; the per-core telemetry (voltage, clock,
+  power, temperature from the SMU table) needs `rycolab dev calibrate` once
+  on any table version other than the reference machine's.
+- y-cruncher engines are chosen for the CPU at `install`: `04-P4P` plus
+  `24-ZN5 ~ Komari` (AVX-512) on Zen 4/5, or `19-ZN2 ~ Kagari` (AVX2) on
+  Zen 2/3. On Zen 3 which engine finds the errors has not been measured yet.
+
 ## Field notes
 
 Measured on the reference machine, not assumed:

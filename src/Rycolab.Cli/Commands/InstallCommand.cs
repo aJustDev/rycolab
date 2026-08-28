@@ -1,4 +1,5 @@
 using Rycolab.Core;
+using Rycolab.Core.Engines;
 
 namespace Rycolab.Cli.Commands;
 
@@ -25,9 +26,11 @@ public static class InstallCommand
         var copied = Installer.CopyBinaries(Log);
         Installer.AddToUserPath(Log);
 
+        var config = Plan.LoadOrDefault();
+        Log($"y-cruncher engines for this CPU: {string.Join(" | ", config.Engines)} ({YCruncherBinaries.Why()})");
         if (args.Get("ycruncher") is { } dir)
-            Installer.CopyYCruncher(Environment.ExpandEnvironmentVariables(dir), Log);
-        else if (Installer.HasYCruncher())
+            Installer.CopyYCruncher(Environment.ExpandEnvironmentVariables(dir), Log, config.Engines);
+        else if (Installer.HasYCruncher(engines: config.Engines))
             Log("y-cruncher already present");
         else
         {
@@ -40,9 +43,9 @@ public static class InstallCommand
             }
         }
 
-        var config = Plan.LoadOrDefault();
         using (var co = new CoController())
         {
+            Log($"CPU {co.CpuName}, {co.CoreCount} cores, SMU {co.SmuType}, per-core Curve Optimizer: {(co.IsPsmSupported ? "supported" : "NOT SUPPORTED")}");
             if (!co.IsPsmSupported)
             {
                 Console.Error.WriteLine("  This CPU's SMU does not expose SetDldoPsmMargin: per-core Curve Optimizer is not available here.");
@@ -52,7 +55,6 @@ public static class InstallCommand
             config.Base = baseline;
             config.Save();
             Log($"config {AppPaths.Config}: baseline {baseline}, engines {string.Join(" | ", config.Engines)}, tests {string.Join(",", config.Tests)}, {config.Seconds} s per run");
-            Log($"CPU {co.CpuName}, {co.CoreCount} cores, SMU {co.SmuType}");
         }
 
         if (!args.Has("no-task"))

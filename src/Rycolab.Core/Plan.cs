@@ -9,7 +9,8 @@ namespace Rycolab.Core;
 public sealed class Plan
 {
     public int Base { get; set; } = -5;
-    public string[] Engines { get; set; } = ["04-P4P", "24-ZN5 ~ Komari"];
+    /// <summary>Default chosen for the CPU that runs `install` (AVX-512 or AVX2 binary); a saved config keeps its own.</summary>
+    public string[] Engines { get; set; } = global::Rycolab.Core.Engines.YCruncherBinaries.Recommended();
     public string[] Tests { get; set; } = ["BKT", "BBP", "SFTv4", "SNT", "SVT", "FFTv4", "N63", "VT3"];
     public int Seconds { get; set; } = 360;
     public int Step { get; set; } = 5;

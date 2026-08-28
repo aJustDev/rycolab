@@ -16,10 +16,10 @@ public static class SweepCommand
         var config = Plan.LoadOrDefault();
         var campaign = args.Get("campaign") ?? $"sweep-{DateTime.Now:yyyyMMdd-HHmm}";
         var dir = AppPaths.Campaign(campaign);
-        var cores = ParseCores(args.Get("cores") ?? "0-15");
-        if (cores is null) { Console.Error.WriteLine("--cores: use 0-15, 0,3,8-11 ..."); return 2; }
+        var cores = args.Get("cores") is { } spec ? ParseCores(spec) : null;
+        if (args.Get("cores") is not null && cores is null) { Console.Error.WriteLine("--cores: use 0-15, 0,3,8-11 ..."); return 2; }
 
-        if (!Installer.HasYCruncher(config.YCruncherDir))
+        if (!Installer.HasYCruncher(config.YCruncherDir, config.Engines))
         {
             Console.Error.WriteLine($"y-cruncher binaries not found in {config.YCruncherDir}. Run `rycolab install`.");
             return 1;
@@ -29,6 +29,11 @@ public static class SweepCommand
             Console.Error.WriteLine("A guard is running. Run `rycolab off` first: the sweep needs the baseline.");
             return 2;
         }
+
+        using var co = new CoController();
+        if (!co.IsPsmSupported) { Console.Error.WriteLine("This SMU does not support SetDldoPsmMargin."); return 1; }
+        cores ??= Enumerable.Range(0, co.CoreCount).ToArray();
+        if (cores.Max() >= co.CoreCount) { Console.Error.WriteLine($"--cores: this CPU has {co.CoreCount} cores (0-{co.CoreCount - 1})."); return 2; }
 
         var options = new SweepOptions
         {
@@ -40,9 +45,6 @@ public static class SweepCommand
             Suspend = !args.Has("no-suspend"),
             CampaignDir = dir,
         };
-
-        using var co = new CoController();
-        if (!co.IsPsmSupported) { Console.Error.WriteLine("This SMU does not support SetDldoPsmMargin."); return 1; }
         var before = co.ReadAll();
         var offBase = before.Where(r => r.Margin != config.Base).Select(r => r.Index).ToList();
         if (offBase.Count > 0)

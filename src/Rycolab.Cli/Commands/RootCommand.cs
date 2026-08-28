@@ -9,7 +9,8 @@ public static class RootCommand
     {
         Console.WriteLine();
         var installed = File.Exists(AppPaths.Exe);
-        var hasYc = Installer.HasYCruncher();
+        var config = Plan.LoadOrDefault();
+        var hasYc = Installer.HasYCruncher(config.YCruncherDir, config.Engines);
         var profile = Profile.Exists() ? Profile.Load() : null;
         var state = State.Load();
         var guard = Service.GuardProcess();

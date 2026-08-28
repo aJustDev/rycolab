@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using Rycolab.Core.Engines;
 
 namespace Rycolab.Core;
 
@@ -56,14 +57,16 @@ public static class Installer
         Environment.SetEnvironmentVariable("Path", string.Join(";", parts), EnvironmentVariableTarget.User);
     }
 
-    public static bool HasYCruncher(string? dir = null)
-        => File.Exists(Path.Combine(dir ?? AppPaths.YCruncher, "04-P4P.exe")) && File.Exists(Path.Combine(dir ?? AppPaths.YCruncher, "24-ZN5 ~ Komari.exe"));
+    /// <summary>All the configured engines (default: the ones recommended for this CPU) are present.</summary>
+    public static bool HasYCruncher(string? dir = null, IEnumerable<string>? engines = null)
+        => YCruncherBinaries.Missing(dir ?? AppPaths.YCruncher, engines ?? YCruncherBinaries.Recommended()).Count == 0;
 
     /// <summary>Copies the binaries from a directory the user already has (e.g. CoreCycler's test_programs).</summary>
-    public static void CopyYCruncher(string fromDir, Action<string> log)
+    public static void CopyYCruncher(string fromDir, Action<string> log, IEnumerable<string>? engines = null)
     {
-        var src = File.Exists(Path.Combine(fromDir, "04-P4P.exe")) ? fromDir : Path.Combine(fromDir, "Binaries");
-        if (!HasYCruncher(src)) throw new FileNotFoundException($"no y-cruncher binaries (04-P4P.exe, 24-ZN5 ~ Komari.exe) in {fromDir}");
+        var src = File.Exists(Path.Combine(fromDir, YCruncherBinaries.Sse3 + ".exe")) ? fromDir : Path.Combine(fromDir, "Binaries");
+        var missing = YCruncherBinaries.Missing(src, engines ?? YCruncherBinaries.Recommended());
+        if (missing.Count > 0) throw new FileNotFoundException($"y-cruncher binaries missing in {fromDir}: {string.Join(", ", missing.Select(m => m + ".exe"))}");
         Directory.CreateDirectory(AppPaths.YCruncher);
         var n = 0;
         foreach (var f in Directory.GetFiles(src))

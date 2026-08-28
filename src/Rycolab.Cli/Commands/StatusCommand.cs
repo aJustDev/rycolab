@@ -42,10 +42,11 @@ public static class StatusCommand
             Console.WriteLine($"  phase              {state.Phase}{(state.ValidationStartedAt is { } v ? $"  (validation since {v:yyyy-MM-dd}, {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Reapplies} re-applies, {state.Whea} WHEA)" : "")}");
             if (state.LastTick is { } t)
                 Console.WriteLine($"  last sample        {t:yyyy-MM-dd HH:mm:ss}  {state.LastState}  CPU {state.CpuLoad?.ToString("F0") ?? "-"} %  package {state.PackagePower?.ToString("F1") ?? "-"} W");
+            var count = state.Hardware?.Length is > 0 and var n ? n : profile?.Fingerprint?.Cores is > 0 and var f ? f : Topology.MaxCores;
             if (state.Hardware is { } hw)
-                Console.WriteLine($"  hardware           CCD0 {string.Join(" ", hw.Take(8).Select(m => m?.ToString() ?? "-"))}   CCD1 {string.Join(" ", hw.Skip(8).Select(m => m?.ToString() ?? "-"))}{(guard is null ? "  (last seen by the guard)" : "")}");
+                Console.WriteLine($"  hardware           {string.Join("   ", CoreRows.Lines(count, c => c < hw.Length ? hw[c]?.ToString() ?? "-" : "-", " "))}{(guard is null ? "  (last seen by the guard)" : "")}");
             if (profile is not null)
-                Console.WriteLine($"  profile            CCD0 {string.Join(" ", profile.Cores.Take(8))}   CCD1 {string.Join(" ", profile.Cores.Skip(8))}");
+                Console.WriteLine($"  profile            {string.Join("   ", CoreRows.Lines(count, c => profile.Cores[c].ToString(), " "))}");
             if (state.LastError is not null) Console.WriteLine($"  last error         {state.LastError}");
             if (state.LastEvents.Count > 0)
             {
