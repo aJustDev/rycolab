@@ -1,132 +1,134 @@
-﻿# legion-co-lab
+# rycolab
 
-Banco de pruebas de Curve Optimizer para Ryzen móvil, nacido en un
-**Legion Pro 7 16AFR10H** (Ryzen 9 9955HX3D, 16 núcleos, dos CCD, uno con
-caché apilada).
+Curve Optimizer test bench for AMD Ryzen. Finds the most aggressive **stable**
+per-core undervolt your chip can take, measured and verified against the
+hardware, then keeps it applied through sleep and reboot.
 
-## Por qué existe
+Born on a Lenovo Legion Pro 7 16AFR10H (Ryzen 9 9955HX3D, 16 cores, two CCDs,
+one with stacked cache). Nothing in it is Legion-specific: it talks to the SMU
+mailbox through ZenStates.Core, which covers Ryzen with per-core Curve
+Optimizer support (Zen 3/4/5). What depends on the exact chip (per-core
+telemetry indices in the SMU power table) is calibrated, not assumed.
 
-Legion Toolkit deja **escribir** márgenes de Curve Optimizer por núcleo, pero no
-deja **comprobar** lo que quedó aplicado. Y no porque no pueda: en
-`AmdOverclocking.xaml.cs` la función `LoadFromHardwareAsync` lee el margen real
-de cada núcleo desde el SMU… y tres líneas después la interfaz se sobrescribe
-con el contenido del JSON en disco. La lectura se calcula y se tira.
+## Why it exists
 
-Sin esa lectura, afinar un undervolt es adivinar. Este repositorio la recupera
-y construye alrededor un banco de pruebas.
+Vendor tools let you **write** per-core Curve Optimizer margins but not
+**check** what actually got applied. Legion Toolkit even reads the real margin
+from the SMU in `LoadFromHardwareAsync` and overwrites the UI with the JSON on
+disk three lines later. Without that read-back, tuning an undervolt is
+guessing. This repository recovers it and builds a test bench around it.
 
-### Lo que la sonda destapó el primer día
-
-```
-Con Legion Toolkit abierto     CCD1 -3   CCD2 -7     (el perfil)
-Tras reiniciar, sin abrirlo    -5 en los dieciseis   (la BIOS)
-```
-
-La máquina tenía **dos configuraciones distintas** según si una aplicación
-estaba abierta, y ninguna herramienta lo decía. Los dos escritores además no se
-suman: se reemplazan, y manda el último.
-
-## Principios
-
-1. **Detectar errores de cálculo, no cuelgues.** Un cuelgue es un síntoma
-   terminal y tardío. El riesgo real de un Curve Optimizer agresivo no es que
-   el equipo se caiga, es que calcule mal en silencio.
-2. **Nunca medir sin verificar antes.** Toda configuración se relee del SMU
-   antes de tomar un solo dato. Si no coincide, se aborta.
-3. **Los topes de seguridad no tienen bandera para saltárselos.**
-
-## Uso
-
-Requiere consola **elevada**.
+First thing the probe showed on the reference machine:
 
 ```
-colab probe                  margen PSM aplicado en cada nucleo
-colab probe --sensors        anade reloj efectivo y potencia por nucleo
-colab probe --json out.json  guarda la lectura con marca de tiempo
-colab sensors                vuelca los sensores con su nombre exacto
-colab watch --core N         muestrea a 1 Hz reloj, efectivo, V, GHz, W y T del nucleo
+With Legion Toolkit open        CCD0 -3   CCD1 -7     (the profile)
+After a reboot, without it      -5 on all sixteen     (the BIOS)
+```
+
+Two different configurations depending on whether an app was open, and no tool
+said so. Writers do not add up either: they replace each other, last one wins.
+
+## Principles
+
+1. **Detect compute errors, not hangs.** A hang is a late, terminal symptom.
+   The real risk of an aggressive Curve Optimizer is silent wrong results.
+2. **Never measure without verifying first.** Every configuration is read back
+   from the SMU before a single data point is taken. On mismatch, abort.
+3. **Safety limits have no bypass flag.**
+
+## Status
+
+Work in progress towards a publishable tool (see `docs/lab-notebook.md`). The
+core is proven on the reference machine: per-core sweep with y-cruncher, four
+positive signals (compute error, process crash, WHEA, machine hang), a guard
+that re-applies the profile after resume, JSONL + SQLite records, reports. The
+user-facing layer (`install`, `find`, `on`/`off`, unelevated `status`) is being
+built on top of it.
+
+## Usage (current commands)
+
+Requires an **elevated** console and the .NET 9 runtime.
+
+```
+rycolab probe                  PSM margin applied on every core (compares with plan.json)
+rycolab probe --sensors        adds effective clock and power per core
+rycolab sensors                dumps the sensors with their exact names
+rycolab watch --core N         1 Hz: clock, effective, V, GHz, W, T of one core
       [--seconds 180] [--interval 1000] [--jsonl f] [--summary f] [--raw]
-colab plan init|show|set-core N M|set-profile a,...,p   plan.json (perfil + barrido)
-colab apply --plan           aplica el perfil de plan.json a los 16
-colab guard [--minutes N]    aplica el plan, lo reaplica al reanudar de suspension,
-      [--interval 60] [--plain]   relee el margen y cuenta WHEA cada intervalo; deja la base al salir
-colab task install|run|stop|remove|status   tarea programada: guard OCULTO al iniciar sesion; run/stop lo lanzan y paran a mano
-colab status [--follow]      guard vivo?, ultima muestra, eventos, hardware frente al plan; --follow = panel en vivo
-colab sweep [--campaign n] [--cores 0-15] [--start -50] [--top -5] [--step 5] [--seconds 360]
-      [--no-suspend] [--plain]   barrido: por nucleo, de abajo arriba, cada motor de y-cruncher del plan;
-                                 limite = primer margen limpio en todos; reanudable; restaura la base
-colab plan from-sweep <campana> [--margin 5]   perfil = limite + margen
-colab report --campaign <n> [--md] [--rebuild]  limites, positivos, telemetria, eventos (colab.db)
+rycolab plan init|show|set-core N M|set-profile a,...,p   plan.json (profile + sweep)
+rycolab apply --plan           applies the plan.json profile to all cores
+rycolab guard [--minutes N]    applies the plan, re-applies after resume, reads the
+      [--interval 60] [--plain]   margin and counts WHEA every interval; leaves the baseline on exit
+rycolab task install|run|stop|remove|status   scheduled task: HIDDEN guard at logon; run/stop by hand
+rycolab status [--follow]      is guard alive?, last sample, events, hardware vs plan; --follow = live panel
+rycolab sweep [--campaign n] [--cores 0-15] [--start -50] [--top -5] [--step 5] [--seconds 360]
+      [--no-suspend] [--plain]   sweep: per core, bottom up, every y-cruncher engine in the plan;
+                                 limit = first margin clean on all; resumable; restores the baseline
+rycolab plan from-sweep <campaign> [--margin 5]   profile = limit + margin
+rycolab report --campaign <n> [--md] [--rebuild]  limits, positives, telemetry, events (rycolab.db)
 ```
 
-Campana desde cero: `plan init` -> `sweep` -> `plan from-sweep` -> `guard
---minutes 30` (reposo) -> `task install` y uso real con suspension -> `report
---md`. Cada campana vive en `runs/<nombre>/`: `runs.jsonl` y `samples.jsonl`
-(fuente primaria, write-through), `colab.db` (SQLite, se rellena al vuelo y
-`report --rebuild` la regenera), `limits.json`, `en-curso.json` (si esta al
-arrancar, la maquina se colgo en esa prueba: positivo) y `positivos/`.
+Campaign from scratch: `plan init` -> `sweep` -> `plan from-sweep` -> `guard
+--minutes 30` (idle soak) -> `task install` and real use with sleep -> `report
+--md`. Each campaign lives in `runs/<name>/`: `runs.jsonl` and `samples.jsonl`
+(primary source, write-through), `rycolab.db` (SQLite, filled on the fly;
+`report --rebuild` regenerates it), `limits.json`, `in-progress.json` (if it
+is there at startup, the machine hung during that run: positive) and
+`positives/`.
 
-Senales del barrido: error de calculo de y-cruncher, proceso muerto, WHEA
-(17-20, 46, 47) o Kernel-Power 41 durante la prueba, y cuelgue de maquina.
+Sweep signals: y-cruncher compute error, dead process, WHEA (17-20, 46, 47) or
+Kernel-Power 41 during the run, and machine hang.
 
-`plan.json` (ignorado por git; `plan.example.json` de muestra) guarda el
-perfil por nucleo, la base y los parametros del barrido. **La suspension y el
-reinicio devuelven la base de la BIOS**: sin `guard` el perfil no dura.
-`guard` escribe `runs/guard/guard.jsonl` (muestras y eventos) y, si aparece
-un WHEA, `runs/guard/positivos/whea-*.json` y sale con codigo 10 dejando la
-base. Para recompilar hay que cerrar guard antes (Ctrl+C; restaura la base).
+`plan.json` (git-ignored; `plan.example.json` as a sample) holds the per-core
+profile, the baseline and the sweep parameters. **Sleep and reboot restore the
+BIOS baseline**: without `guard` the profile does not last. `guard` writes
+`runs/guard/guard.jsonl` (samples and events) and, on a WHEA event,
+`runs/guard/positives/whea-*.json`, exiting with code 10 and leaving the
+baseline. Stop guard before rebuilding (it holds the executable).
 
-Los binarios de y-cruncher van en `tools/y-cruncher/Binaries/` (ignorado):
-copiar los de `test_programs/y-cruncher/Binaries` del clon de CoreCycler.
+y-cruncher binaries go in `tools/y-cruncher/Binaries/` (git-ignored): copy
+them from the official y-cruncher distribution or from CoreCycler's
+`test_programs/y-cruncher/Binaries`.
 
-`watch` saca tension, frecuencia, potencia y temperatura por nucleo de la
-tabla de potencia del SMU (`PmTable.cs`); LibreHardwareMonitor no da tension
-por nucleo en este chip. `--raw` guarda la tabla completa en cada muestra para
-localizar posiciones con `scripts/pm-diff.ps1`.
+## Field notes
 
-`probe` compara por defecto contra `plan.json` (o el perfil de Legion Toolkit si no hay plan) y **devuelve 2 si
-no coinciden**, para poder encadenarlo en scripts.
+Measured on the reference machine, not assumed:
 
-## Notas de campo
+- LibreHardwareMonitor's `Core #N VID` **is not a per-core voltage** on the
+  9955HX3D: all 16 report the same value and move together. Discarded.
+  Per-core voltage comes from the SMU power table (`PmTable.cs`).
+- What does discriminate per core in LHM is `Core #N (SMU)` (power) and the
+  effective clock.
+- CCDs are numbered **from 0**, like Legion Toolkit and the SMU mask. HWiNFO
+  and LibreHardwareMonitor number from 1: our CCD0 is their `CCD1 (Tdie)`. The
+  translation lives in `Topology.CcdTempSensor` and nowhere else.
+- Each physical core owns two logical processors: core N is logical 2N.
+- On this laptop every sustained torture is capped at ~14 W per core; only
+  y-cruncher `04-P4P` (SSE3) reaches fMax (5.45 GHz). `24-ZN5` (AVX-512) is
+  the engine that finds the errors. See `docs/how-it-works.md`.
 
-Cosas medidas en esta máquina, no supuestas:
+## Build
 
-- `Core #N VID` de LibreHardwareMonitor **no es un voltaje por núcleo** en el
-  9955HX3D. Los 16 devuelven el mismo valor y se mueven en bloque: 0,269 V en
-  los dieciséis con un solo núcleo al 100 %, que es imposible. Descartado.
-- Lo que **sí** discrimina por núcleo es `Core #N (SMU)` (potencia) y el reloj
-  efectivo. Con carga clavada al núcleo 8: 14,10 W y 2.696 MHz frente a
-  0,05–0,49 W del resto.
-- Los CCD se numeran **desde 0**, igual que Legion Toolkit (`CCD {coreIndex / 8}`) y
-  que la máscara SMU. HWiNFO y LibreHardwareMonitor numeran desde 1: nuestro
-  CCD0 es su sensor `CCD1 (Tdie)`. La traducción vive en `Topology.CcdTempSensor`
-  y en ningún otro sitio.
-- Las temperaturas por CCD responden correctamente y sirven para confirmar que
-  la carga cayó donde se pretendía.
-- Cada núcleo físico ocupa dos procesadores lógicos: el núcleo N es el lógico 2N.
-
-## Construir
-
-Necesita el **SDK de .NET 9** (x64).
+Needs the **.NET 9 SDK** (x64).
 
 ```
-dotnet build -c Release src/LegionCoLab.Cli
+dotnet build -c Release src/Rycolab.Cli
 ```
 
-`inpoutx64.dll` — la capa de acceso a puertos que necesita ZenStates.Core — se
-copia en la compilación desde la instalación local de Legion Toolkit. No se
-redistribuye. Si está en otra ruta:
+`inpoutx64.dll`, the port-access layer ZenStates.Core needs, is copied at
+build time from a local path (by default the Legion Toolkit install). If it is
+elsewhere:
 
 ```
-dotnet build -c Release -p:InpOutSource=RUTA\inpoutx64.dll src/LegionCoLab.Cli
+dotnet build -c Release -p:InpOutSource=PATH\inpoutx64.dll src/Rycolab.Cli
 ```
 
-## Licencia
+## License
 
-GPL-3.0. La codificación de la máscara de núcleo y la secuencia de acceso al
-SMU derivan de Lenovo Legion Toolkit, también GPL-3.0. Ver `NOTICE`.
+GPL-3.0. The core mask encoding and the SMU access sequence derive from Lenovo
+Legion Toolkit, also GPL-3.0. See `NOTICE`.
 
-## Aviso
+## Warning
 
-Esto escribe en el buzón SMU de tu procesador. Undervoltear mal produce
-resultados incorrectos antes que fallos visibles. Úsalo sabiendo eso.
+This writes to your processor's SMU mailbox. A bad undervolt produces wrong
+results before it produces visible failures. Use it knowing that.

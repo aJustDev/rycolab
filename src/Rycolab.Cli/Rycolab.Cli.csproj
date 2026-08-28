@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>rycolab</AssemblyName>
+    <RootNamespace>Rycolab.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rycolab.Core\Rycolab.Core.csproj" />
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+  </ItemGroup>
+
+  <!--
+    inpoutx64.dll is the port-access layer ZenStates.Core needs (InpOut32 project).
+    Until the installer ships it, it is copied from a local path: by default the
+    Legion Toolkit install, or whatever -p:InpOutSource=PATH points at.
+  -->
+  <PropertyGroup>
+    <InpOutSource Condition="'$(InpOutSource)' == ''">$(ProgramW6432)\LenovoLegionToolkit\inpoutx64.dll</InpOutSource>
+  </PropertyGroup>
+
+  <Target Name="CopyInpOut" AfterTargets="Build">
+    <Copy SourceFiles="$(InpOutSource)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(InpOutSource)')" />
+    <Warning Text="inpoutx64.dll not found at '$(InpOutSource)'. rycolab will not be able to open the CPU. Pass -p:InpOutSource=PATH."
+             Condition="!Exists('$(InpOutSource)')" />
+  </Target>
+
+</Project>

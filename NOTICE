@@ -1,20 +1,27 @@
-legion-co-lab
+rycolab
 Copyright (C) 2026
 
-Este programa se distribuye bajo GPL-3.0 (ver LICENSE).
+This program is distributed under GPL-3.0 (see LICENSE).
 
-Trabajo derivado
-----------------
-La codificacion de la mascara de nucleo (Topology.CoreMask) y la secuencia de
-lectura/escritura de margenes PSM replican la logica de:
+Derived work
+------------
+The core mask encoding (Topology.CoreMask) and the PSM margin read/write
+sequence replicate the logic of:
 
-  Lenovo Legion Toolkit — GPL-3.0
+  Lenovo Legion Toolkit - GPL-3.0
   https://github.com/LenovoLegionToolkit-Team/LenovoLegionToolkit
   LenovoLegionToolkit.Lib/Overclocking/Amd/AmdOverclockingController.cs
 
-Dependencias
+The y-cruncher stress configuration, the periodic thread suspension and the
+error criteria follow CoreCycler (sp00n/corecycler, GPL-3.0).
+
+Dependencies
 ------------
   ZenStates-Core            (irusanov)
   LibreHardwareMonitorLib
-  inpoutx64.dll             se toma de la instalacion local de Legion Toolkit;
-                            NO se redistribuye en este repositorio.
+  Spectre.Console
+  Microsoft.Data.Sqlite
+  inpoutx64.dll             InpOut32 (highrez.co.uk); currently copied from a
+                            local path at build time, not redistributed here.
+  y-cruncher                (Alexander J. Yee) binaries are NOT redistributed;
+                            the user obtains them from the official distribution.
