@@ -263,22 +263,26 @@ Cinebench R23, custom mode, Legion Toolkit running with `--trace`.
 - 7 s: 150 W. 17 s: EC CPU 91 C. **23 s: switch ON, fans 5600/5400/7200 in
   the same 2 s sample**, Tctl held at 94.6-95.5 C instead of climbing.
 - 23:51:12 (37 s): Windows reported the AC adapter **disconnected**, then
-  connected again at 23:51:13. Legion Toolkit's automation reacted by
+  connected again at 23:51:13. Nobody touched the plug (user statement). Legion Toolkit's automation reacted by
   setting the power mode to Quiet and then Extreme. Out of custom mode the
   EC ignores the switch: fans back to the table's 5200 by 50 s, Tctl 97-99 C
   for the rest of the run (120-240 s: 146.8 W, Tctl 99.0, 4791 MHz). `fan
   auto` now prints the mode change when it happens.
-- The log ended at 23:53:32 (3 min, 150 W, Tctl 99.8). Right after, while
-  the user was changing the power mode in Legion Toolkit to bring the fans
-  back, the machine **reset**: Kernel-Power 41 at boot 23:54:42, EventLog
+- The log ended at 23:53:32 (3 min, 150 W, Tctl 99.8). The fans were still
+  at full speed (`fan auto` keeps the switch on until the EC CPU temperature
+  drops below 80 C; Ctrl+C or `rycolab fan off` would have cleared it). The
+  user tried to stop them by switching Legion Toolkit to quiet and back
+  several times in a few seconds, and on one of those changes the machine
+  **reset**: Kernel-Power 41 at boot 23:54:42, EventLog
   6008 "unexpected shutdown at 23:51:13" (that timestamp is the last flushed
   checkpoint, not the reset time), no BugCheck, no minidump, **no WHEA**.
   The guard's last flushed tick is 23:51:11 (later ticks lost with the
   reset, like the CSV tail). Guard back at logon 23:55:01, profile applied
   and verified 23:55:04.
-- Cause not established. Facts on the table: an AC disconnect blip under
-  150 W + fans at full speed 2.5 min before; a power-mode change in
-  progress at the moment of the reset; the candidate profile applied
+- Cause not established. Facts on the table: a spontaneous AC "disconnect"
+  under 150 W + fans at full speed 2.5 min before (the plug was not touched);
+  several power-mode changes in a few seconds at the moment of the reset,
+  each one rewriting the EC power limits and fan state; the candidate profile applied
   throughout (as it has been for 9 h including three 10-min Cinebench runs
   today without incident). The validation phase now has one unexplained
   reset that `status` does not show: the guard only counts WHEA.
