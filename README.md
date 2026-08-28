@@ -50,7 +50,8 @@ colab plan init|show|set-core N M|set-profile a,...,p   plan.json (perfil + barr
 colab apply --plan           aplica el perfil de plan.json a los 16
 colab guard [--minutes N]    aplica el plan, lo reaplica al reanudar de suspension,
       [--interval 60] [--plain]   relee el margen y cuenta WHEA cada intervalo; deja la base al salir
-colab task install|remove|status   tarea programada: guard al iniciar sesion (elevada, minimizada)
+colab task install|run|stop|remove|status   tarea programada: guard OCULTO al iniciar sesion; run/stop lo lanzan y paran a mano
+colab status [--follow]      guard vivo?, ultima muestra, eventos, hardware frente al plan; --follow = panel en vivo
 colab sweep [--campaign n] [--cores 0-15] [--start -50] [--top -5] [--step 5] [--seconds 360]
       [--no-suspend] [--plain]   barrido: por nucleo, de abajo arriba, cada motor de y-cruncher del plan;
                                  limite = primer margen limpio en todos; reanudable; restaura la base

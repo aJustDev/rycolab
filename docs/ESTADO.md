@@ -20,7 +20,7 @@ CoreCycler  C:\Users\ajustino\Proyectos\corecycler           clon de consulta (t
 ## Cómo está la máquina
 
 ```
-CPU        PERFIL CANDIDATO puesto por guard (tarea LegionCoLab-Guard, en marcha desde 28/08 10:51). Reaplica al reanudar (probado 10:45). `colab task stop` lo quita.
+CPU        PERFIL CANDIDATO puesto por guard OCULTO (tarea LegionCoLab-Guard, relanzado 28/08 11:01). `sudo colab status` lo enseña. Reaplica al reanudar (probado 10:45). `colab task stop` lo quita.
 BIOS       Legion Optimization = Enabled · CPU Overclocking = Enabled
            All Core Curve Optimizer: signo −, magnitud 5 · PBO Scalar 1X
 LLT        perfil en disco -3/-7, NO aplicado. No arranca solo.
@@ -185,8 +185,8 @@ Fuera: re-medidas sueltas y cabos ajenos al repo.
   reanudacion deducida del `suspend` previo o de un salto de reloj, 10 s de
   asentamiento y 3 intentos con 5 s. **Repetir la prueba** (suspender con
   guard vivo; esperar `resume` + `apply reanudacion` en `guard.jsonl`).
-- Uso diario: `sudo colab task run` / `sudo colab task stop` (guard en su propia
-  ventana; Ctrl+C o cerrar la consola de `colab guard` restaura -5). El
+- Uso diario: `sudo colab status` (que hay), `sudo colab task run` / `task stop` (guard oculto, sin
+  ventana; `status --follow` = panel en vivo). `colab guard` a mano queda atado a la consola. El
   directorio del binario esta en el PATH de usuario desde el 28/08.
 - Paso D: campana definitiva desde cero (8 tests, 16 nucleos, ~5-8 h) ->
   `plan from-sweep` -> `guard --minutes 30` -> uso real >= 2 h -> `report --md`.
