@@ -67,6 +67,24 @@ rycolab report [<campaign>]   limits, positives with time to error, telemetry, e
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 
+### First run on a new machine
+
+1. `rycolab install` (elevated, from the build output the first time). It
+   prints the CPU, its core count, the SMU type and whether per-core Curve
+   Optimizer is available, and reads the current margins as the baseline.
+2. `rycolab dev probe` (elevated): reads every core's margin. Nothing is
+   written. If any core is not readable, stop here.
+3. Optional but recommended on hardware nobody has tried: one harmless write
+   and back, `rycolab dev apply --core 0 --margin -3`, `rycolab dev probe`
+   (only core 0 changed), `rycolab dev reset`.
+4. `rycolab find --quick --cores 0`: about ten minutes on one core, shows the
+   whole flow (checks, estimate, confirmation, live table, proposal) without
+   committing to anything; a partial sweep is not saved unless `--accept`.
+5. `rycolab find`: the real campaign. It prints the estimate and asks before
+   starting; leave the machine plugged in and alone (a too-deep margin can
+   reboot it; `rycolab find` again resumes). Accept the proposal at the end,
+   then `rycolab on`.
+
 `on` refuses a profile without a source, from another CPU, or with any core
 below its measured limit. The guard writes `state.json` on every sample (what
 `status` reads), re-applies after resume (the BIOS restores the baseline on

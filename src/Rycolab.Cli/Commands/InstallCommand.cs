@@ -66,7 +66,7 @@ public static class InstallCommand
 
         Console.WriteLine();
         Console.WriteLine(copied
-            ? $"  Installed. Open a new console and run `rycolab`{(Profile.Exists() ? "" : "; there is no profile yet: `rycolab sweep` finds it")}."
+            ? $"  Installed. Open a new console and run `rycolab`{(Profile.Exists() ? "" : "; there is no profile yet: `rycolab find` measures the cores and proposes one")}."
             : "  Up to date.");
         Console.WriteLine();
         return 0;
