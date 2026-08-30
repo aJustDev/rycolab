@@ -70,6 +70,7 @@ try
         // The task itself runs `guard --plain`; keep it reachable at the top level.
         "guard" => GuardCommand.Run(opts),
         "fan" => FanCommand.Run(opts),
+        "power" => PowerCommand.Run(opts),
         _ => Unknown(command),
     };
 }
@@ -124,11 +125,14 @@ static void PrintHelp()
           rycolab on | off              keep the profile applied (hidden guard) | back to the baseline
           rycolab status [--follow]     guard, phase, last sample, WHEA, hardware vs profile (no elevation)
           rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
-          rycolab report --bench <csv> [--vs <csv>]   summary of a `dev log` CSV (samples > 100 W)
+          rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV (samples > 100 W, or on battery)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
           rycolab fan show|on|off|auto  Lenovo Legion: the EC "fan full speed" switch, by hand or by CPU temperature
                                         (auto: --on 85 --off 80 --hold 3; selects custom mode itself, restores it on exit)
+          rycolab power show|battery|ac|restore|auto on|off   Lenovo Legion battery profile: quiet mode, iGPU only, 60 Hz,
+                                        brightness 40 %, DC scheme values; `ac` restores; `auto` lets the guard do it on AC line changes
+                                        (battery: --gpu igpu|auto|keep --hz 60 --brightness 40 --no-windows --close-apps)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
                                         calibrate, plan, task, profile import, log   (`rycolab dev help`)
 
@@ -167,6 +171,6 @@ static void PrintDevHelp()
           plan show | init [--force] | set <key> <value>                  config.json (no elevation)
           task install|run|stop|remove|status                             the scheduled task by hand
           profile import --cores a,...,p --campaign <name> [--limits a,...,p] [--note ...]
-          log --out <file.csv> [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans
+          log --out <file.csv> [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans, battery W
         """);
 }

@@ -12,7 +12,7 @@ public static class ReportCommand
 {
     public static int Run(Args args)
     {
-        if (args.Get("bench") is { } bench) return Bench(bench, args.Get("vs"), args.GetInt("min-power") ?? 100, args.Get("md"), args.Has("md"));
+        if (args.Get("bench") is { } bench) return Bench(bench, args.Get("vs"), args.GetInt("min-power") ?? 100, args.Has("battery"), args.Get("md"), args.Has("md"));
 
         var name = args.Positional.FirstOrDefault() ?? args.Get("campaign");
         string dir;
@@ -111,18 +111,21 @@ public static class ReportCommand
         return sb.ToString();
     }
 
-    /// <summary>rycolab report --bench log.csv [--vs base.csv] [--min-power 100] [--md [path]]: aggregates of a `dev log` CSV over the loaded samples.</summary>
-    private static int Bench(string path, string? vs, int minPower, string? mdPath, bool md)
+    /// <summary>rycolab report --bench log.csv [--vs base.csv] [--min-power 100 | --battery] [--md [path]]: aggregates of a `dev log` CSV over the loaded (or on-battery) samples.</summary>
+    private static int Bench(string path, string? vs, int minPower, bool battery, string? mdPath, bool md)
     {
         if (!File.Exists(path)) { Console.Error.WriteLine($"Not found: {path}"); return 1; }
         if (vs is not null && !File.Exists(vs)) { Console.Error.WriteLine($"Not found: {vs}"); return 1; }
         bool Loaded(Dictionary<string, double> row) => row.TryGetValue(BenchLog.PackagePower, out var p) && p > minPower;
-        var d = BenchLog.Read(path, Loaded, out var rows, out var kept);
+        bool OnBattery(Dictionary<string, double> row) => row.TryGetValue(BenchLog.Ac, out var ac) && ac == 0 && row.TryGetValue(BenchLog.BatteryW, out var w) && w > 0;
+        Func<Dictionary<string, double>, bool> filter = battery ? OnBattery : Loaded;
+        var filterName = battery ? "the machine on battery" : $"{BenchLog.PackagePower} > {minPower}";
+        var d = BenchLog.Read(path, filter, out var rows, out var kept);
         Dictionary<string, List<double>>? b = null;
-        if (vs is not null) b = BenchLog.Read(vs, Loaded, out _, out _);
+        if (vs is not null) b = BenchLog.Read(vs, filter, out _, out _);
         var name = Path.GetFileNameWithoutExtension(path);
         var text = $"## Bench {name}{(vs is null ? "" : $" vs {Path.GetFileNameWithoutExtension(vs)}")}\n\n"
-                   + BenchLog.Summary(name, d, rows, kept, minPower, vs is null ? null : Path.GetFileNameWithoutExtension(vs), b);
+                   + BenchLog.Summary(name, d, rows, kept, filterName, vs is null ? null : Path.GetFileNameWithoutExtension(vs), b);
         if (md)
         {
             var target = mdPath ?? Path.ChangeExtension(path, ".md");

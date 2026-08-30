@@ -47,6 +47,7 @@ public static class StatusCommand
                 Console.WriteLine($"  hardware           {string.Join("   ", CoreRows.Lines(count, c => c < hw.Length ? hw[c]?.ToString() ?? "-" : "-", " "))}{(guard is null ? "  (last seen by the guard)" : "")}");
             if (profile is not null)
                 Console.WriteLine($"  profile            {string.Join("   ", CoreRows.Lines(count, c => profile.Cores[c].ToString(), " "))}");
+            if (state.PowerProfile is { } pp) Console.WriteLine($"  power auto         {pp} profile applied by the guard");
             if (state.LastError is not null) Console.WriteLine($"  last error         {state.LastError}");
             if (state.LastEvents.Count > 0)
             {

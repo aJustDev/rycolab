@@ -55,6 +55,8 @@ public sealed class State
     public int Resumes { get; set; }
     public int Reapplies { get; set; }
     public int Resets { get; set; }
+    /// <summary>"battery" while the guard's power auto has the battery profile applied; "ac" otherwise; null when power auto is off.</summary>
+    public string? PowerProfile { get; set; }
     public DateTime? ValidationStartedAt { get; set; }
     public List<string> LastEvents { get; set; } = [];
     public string? LastError { get; set; }

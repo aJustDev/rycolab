@@ -18,6 +18,9 @@ public sealed class Plan
     public int Top { get; set; } = -5;
     public int SafetyMargin { get; set; } = 5;
     public string? YCruncher { get; set; }
+    /// <summary>The guard applies the battery profile when the AC line drops and restores it when it is back (`rycolab power auto`).</summary>
+    public bool PowerAuto { get; set; }
+    public PowerOptions PowerAutoOptions { get; set; } = new();
 
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 

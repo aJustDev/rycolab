@@ -75,21 +75,54 @@ public sealed class LenovoEc : IDisposable
     /// 0 quiet, 1 balanced, 2 performance, 224 extreme, 255 custom (Legion
     /// Toolkit's "custom mode"). Null when the class is absent.
     /// </summary>
-    public int? SmartFanMode
+    public int? SmartFanMode => GameZone("GetSmartFanMode");
+
+    /// <summary>LENOVO_GAMEZONE_DATA call, as Legion Toolkit makes it. Null when the class is absent or the EC refused.</summary>
+    private static int? GameZone(string method, (string Name, object Value)? param = null)
     {
-        get
+        try
         {
-            try
-            {
-                using var s = new ManagementObjectSearcher(@"root\WMI", "SELECT * FROM LENOVO_GAMEZONE_DATA");
-                using var g = s.Get().Cast<ManagementObject>().FirstOrDefault();
-                if (g is null) return null;
-                using var r = g.InvokeMethod("GetSmartFanMode", null, null);
-                return Convert.ToInt32(r["Data"]);
-            }
-            catch { return null; }
+            using var s = new ManagementObjectSearcher(@"root\WMI", "SELECT * FROM LENOVO_GAMEZONE_DATA");
+            using var g = s.Get().Cast<ManagementObject>().FirstOrDefault();
+            if (g is null) return null;
+            ManagementBaseObject? p = null;
+            if (param is { } pr) { p = g.GetMethodParameters(method); p[pr.Name] = pr.Value; }
+            using var r = g.InvokeMethod(method, p, null);
+            return r?.Properties.Cast<PropertyData>().Any(x => x.Name == "Data") == true ? Convert.ToInt32(r["Data"]) : 0;
         }
+        catch { return null; }
     }
+
+    // ---- iGPU mode (Legion Toolkit's "Hybrid mode": On / On-iGPU only / On-Auto) ----
+
+    public const int IGpuDefault = 0, IGpuOnly = 1, IGpuAuto = 2;
+
+    /// <summary>GetIGPUModeStatus: 0 default (hybrid), 1 iGPU only (dGPU off), 2 auto (iGPU only on battery, hybrid on AC; the firmware switches).</summary>
+    public int? IGpuMode => GameZone("GetIGPUModeStatus");
+
+    /// <summary>SetIGPUModeStatus. No reboot on Legion (Toolkit only touches the BIOS on ThinkBook). Returns the mode read back after 1 s.</summary>
+    public int? SetIGpuMode(int mode)
+    {
+        if (GameZone("SetIGPUModeStatus", ("mode", mode)) is null) return null;
+        Thread.Sleep(1000);
+        return IGpuMode;
+    }
+
+    /// <summary>NotifyDGPUStatus: what Toolkit sends after a mode change, with whether the dGPU PnP node is still present.</summary>
+    public bool NotifyDgpuStatus(bool present) => GameZone("NotifyDGPUStatus", ("Status", present ? 1 : 0)) is not null;
+
+    /// <summary>The NVIDIA display adapter is enumerated and healthy (same question Toolkit answers with SetupDi).</summary>
+    public static bool DgpuPresent()
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher(@"root\CIMV2", @"SELECT Status, ConfigManagerErrorCode FROM Win32_VideoController WHERE PNPDeviceID LIKE 'PCI\\VEN_10DE%'");
+            return s.Get().Cast<ManagementObject>().Any(o => (o["Status"] as string) == "OK" && Convert.ToInt32(o["ConfigManagerErrorCode"]) == 0);
+        }
+        catch { return false; }
+    }
+
+    public static string IGpuModeName(int? mode) => mode switch { 0 => "hybrid", 1 => "igpu-only", 2 => "auto", null => "?", _ => mode.ToString()! };
 
     /// <summary>
     /// LENOVO_GAMEZONE_DATA.SetSmartFanMode, what Legion Toolkit calls to change
@@ -99,18 +132,9 @@ public sealed class LenovoEc : IDisposable
     /// </summary>
     public int? SetSmartFanMode(int mode)
     {
-        try
-        {
-            using var s = new ManagementObjectSearcher(@"root\WMI", "SELECT * FROM LENOVO_GAMEZONE_DATA");
-            using var g = s.Get().Cast<ManagementObject>().FirstOrDefault();
-            if (g is null) return null;
-            var p = g.GetMethodParameters("SetSmartFanMode");
-            p["Data"] = mode;
-            using var r = g.InvokeMethod("SetSmartFanMode", p, null);
-            Thread.Sleep(500);
-            return SmartFanMode;
-        }
-        catch { return null; }
+        if (GameZone("SetSmartFanMode", ("Data", mode)) is null) return null;
+        Thread.Sleep(500);
+        return SmartFanMode;
     }
 
     /// <summary>CPU power limits in effect (W) and the CPU temperature limit (C), as Legion Toolkit reads them. Null entries: not readable.</summary>

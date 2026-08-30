@@ -64,7 +64,8 @@ rycolab on                    apply the profile and keep it: hidden guard, re-ap
 rycolab status [--follow]     guard, phase (validating / steady), last sample, WHEA, events
 rycolab off                   stop the guard, back to the BIOS baseline, task disabled
 rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md
-rycolab report --bench <csv> [--vs <csv>]   summary of a `dev log` CSV: power, temps, clocks, V, fans
+rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV: power, temps, clocks, V, fans, battery
+rycolab power show|battery|ac|restore|auto on|off   Lenovo Legion battery profile (see below)
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 
@@ -116,9 +117,11 @@ runs, Ctrl+C or `--minutes N` to stop, the same again for `after.csv`, then
 power, Tctl and CCD temperatures, effective clock (average and per core),
 core voltages from the PM table, VID, and on Lenovo Legion machines the CPU /
 GPU / PCH fan speeds and EC temperatures (the same WMI call Legion Toolkit
-uses; HWiNFO does not see these fans). The summary uses the samples above
+uses; HWiNFO does not see these fans), plus the AC line and the battery's
+discharge rate, charge and remaining Wh. The summary uses the samples above
 100 W of package power (`--min-power`), so idle before and after does not
-dilute the means.
+dilute the means; with `--battery` it uses the samples on battery instead and
+adds the runtime a full charge would give at the mean discharge.
 
 ### Fans on Lenovo Legion
 
@@ -140,6 +143,35 @@ running, re-applies its own preset (mode, switch and, if
 `amd_overclocking.json` exists, its per-core Curve Optimizer) on mode
 change, AC events, resume and start; the guard restores the profile within
 one interval, `auto` reports the mode change. The EC's fan table is untouched.
+
+### Battery profile on Lenovo Legion
+
+`rycolab power battery` (elevated) changes, in this order, what makes the
+difference on battery and nothing else: the EC power mode to quiet (the CPU
+limits it runs with are printed, never written), the GPU mode to iGPU only
+(`LENOVO_GAMEZONE_DATA.SetIGPUModeStatus`, Legion Toolkit's "Hybrid mode -
+iGPU only"; no reboot; the EC is told whether the dGPU node has gone, as
+Legion Toolkit does), the internal panel to 60 Hz (a display mode change,
+frequency only) and 40 % brightness, and the DC values of the active Windows
+power scheme (boost mode off, max processor state 99 %, PCIe ASPM maximum,
+Wi-Fi maximum power saving, USB selective suspend). `--gpu igpu|auto|keep`,
+`--hz`, `--brightness`, `--no-windows` and `--close-apps` (kills Legion
+Toolkit and HWiNFO) tune it. Everything is snapshotted before the first
+change (`power-prev.json`) and `rycolab power ac` puts it back; `power
+restore` writes every snapshot value even if it looks untouched. `power
+show` prints line, discharge W, charge, GPU mode and dGPU presence, panel,
+brightness, the Windows slider per line and the DC values. The Windows
+power-mode slider is not written: Windows keeps one position per line and
+switches it itself.
+
+`rycolab power auto on` makes the guard apply the battery profile 15 s after
+the AC line drops and restore it 15 s after it is back (the debounce ignores
+the line blips of a few seconds that the reference machine's adapter
+produces). One change per knob, never a burst. The guard must already be
+running (`rycolab on`, which needs AC to start; it keeps running on
+battery). Each knob was measured on the reference machine before going in
+(see the lab notebook); a knob that does not move the discharge rate is not
+in the default profile.
 
 ## Supported hardware
 

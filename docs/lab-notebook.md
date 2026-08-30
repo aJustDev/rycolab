@@ -311,3 +311,39 @@ Toolkit closed; `fan auto` with the new defaults (on >= 85 C for 3 s).
   limits in the custom slot identical to extreme (PL1 135, PL2 162, peak 195,
   cross 100 W, 100 C), 5700 RPM in 6 s, back to extreme on `off`. No Legion
   Toolkit involved.
+
+## 2026-08-30 - Battery profile: what the machine already does, and `rycolab power`
+
+Read before writing anything (the machine was on battery, 48 %, idle on the
+desktop at 240 Hz and 100 % brightness: 22-26 W discharge, ~1.9 h left):
+
+- Windows already keeps two slider positions: AC "best performance", battery
+  "best power efficiency" (`ActiveOverlay{Ac,Dc}PowerScheme`). On DC the
+  boost mode is already 0 (disabled), PCIe ASPM 2 (maximum), USB selective
+  suspend 1; Wi-Fi power saving is 2 of 3 and max processor state 100 %.
+  Energy Saver's setting is not exposed by `powercfg` on this build. So the
+  Windows block of the profile is thin by construction: two values move.
+- Lenovo EC on battery: smart fan mode reports 2 (performance), the limits
+  printed are the AC ones (135/162/195 W); `IsACFitForOC` 0.
+- GPU: `IsSupportIGPUMode` 3, mode 0 (hybrid), dGPU present and healthy
+  (RTX 5080, `PCI\VEN_10DE&DEV_2C59`). Legion Toolkit changes it without a
+  reboot and then sends `NotifyDGPUStatus` with whether the dGPU PnP node is
+  still there (retrying 5 x 5 s). OverDrive: unsupported here. G-Sync: off.
+- Panel: 2560x1600, modes at 48 / 60 / 75 / 100 / 120 / 240 Hz.
+  `WmiMonitorBrightness` works (100 %).
+- Battery: `root\WMI BatteryStatus` gives DischargeRate in mW (22157 at the
+  first read), RemainingCapacity and FullChargedCapacity (99990 mWh).
+
+Built: `BatteryInfo` (WMI), `WindowsPower` (refresh rate by
+`ChangeDisplaySettingsEx`, brightness by WMI, DC scheme values by
+`powercfg`, slider read from the registry), `LenovoEc.IGpuMode /
+SetIGpuMode / NotifyDgpuStatus / DgpuPresent`, `PowerProfile` (battery /
+ac with a snapshot in `power-prev.json`), `rycolab power`, the guard's
+`power auto` with a 15 s debounce on the AC line, and `dev log` columns
+`ac`, `bat_w`, `bat_pct`, `bat_wh` with `report --bench --battery`.
+
+Note for the measurements: `rycolab on` refuses to start on battery, so the
+guard has to be started on AC before unplugging; it keeps running after.
+Measurement protocol (video loop, 12 min per run, `power ac` between runs):
+C5a baseline, C5b iGPU only, C5c quiet, C5d 60 Hz, C5e brightness 40, C5f DC
+scheme, C5g apps closed, C5h all together, C5a repeated once for the noise.

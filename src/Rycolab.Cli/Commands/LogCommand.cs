@@ -41,7 +41,7 @@ public static class LogCommand
         telemetry.Read();   // the first LHM read has no APERF/MPERF window
         Thread.Sleep(1000);
         Console.WriteLine($"  Logging to {outPath} every {interval} s{(minutes is > 0 ? $" for {minutes} min" : "")} (Ctrl+C to stop)");
-        Console.WriteLine("      t    W pkg   Tctl   eff MHz   V avg   fan CPU/GPU/PCH");
+        Console.WriteLine("      t    W pkg   Tctl   eff MHz   V avg   fan CPU/GPU/PCH   line");
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
@@ -51,6 +51,7 @@ public static class LogCommand
             var snap = telemetry.Read();
             var lhm = telemetry.IsAvailable ? telemetry.AllCores(cores) : [];
             var pmOk = pm.Refresh();
+            var bat = BatteryInfo.Read();
             var pmc = Enumerable.Range(0, cores).Select(c => pmOk ? pm.Core(c) : default).ToList();
 
             var effs = lhm.Select(s => s.ClockEffective).OfType<double>().ToList();
@@ -67,13 +68,14 @@ public static class LogCommand
                 BenchLog.Cell(vids.Count > 0 ? vids.Average() : null, 4), BenchLog.Cell(temps.Count > 0 ? temps.Max() : null, 1),
                 BenchLog.Cell(ec.CpuFanRpm), BenchLog.Cell(ec.GpuFanRpm), BenchLog.Cell(ec.PchFanRpm),
                 BenchLog.Cell(ec.CpuTempC), BenchLog.Cell(ec.GpuTempC), BenchLog.Cell(ec.PchTempC),
+                BenchLog.Cell(bat.OnAc is { } ac ? (ac ? 1 : 0) : null), BenchLog.Cell(bat.DischargeW, 2), BenchLog.Cell(bat.Percent, 1), BenchLog.Cell(bat.RemainingWh, 2),
             };
             cells.AddRange(Enumerable.Range(0, cores).Select(c => BenchLog.Cell(c < lhm.Count ? lhm[c].ClockEffective : null, 0)));
             cells.AddRange(pmc.Select(s => BenchLog.Cell(s.Volt, 4)));
             w.WriteLine(string.Join(",", cells));
 
-            Console.WriteLine("  {0,5}s  {1,6}  {2,5}  {3,8}  {4,6}   {5}/{6}/{7}",
-                cells[1], cells[2], cells[3], cells[6], cells[7], Or(cells[11]), Or(cells[12]), Or(cells[13]));
+            Console.WriteLine("  {0,5}s  {1,6}  {2,5}  {3,8}  {4,6}   {5}/{6}/{7}   {8}",
+                cells[1], cells[2], cells[3], cells[6], cells[7], Or(cells[11]), Or(cells[12]), Or(cells[13]), cells[17] == "0" ? cells[18] + " W bat" : "AC");
             cts.Token.WaitHandle.WaitOne(interval * 1000);
         }
         Console.WriteLine();

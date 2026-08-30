@@ -28,13 +28,17 @@ public static class BenchLog
     public const string EcCpu = "ec_cpu_c";
     public const string EcGpu = "ec_gpu_c";
     public const string EcPch = "ec_pch_c";
+    public const string Ac = "ac";                 // 1 on the mains, 0 on battery
+    public const string BatteryW = "bat_w";        // discharge rate, empty on AC
+    public const string BatteryPct = "bat_pct";
+    public const string BatteryWh = "bat_wh";
 
     public static string Eff(int core) => $"eff_c{core}_mhz";
     public static string Volt(int core) => $"vcore_c{core}_v";
 
     public static List<string> Columns(int coreCount)
     {
-        var cols = new List<string> { Time, Elapsed, PackagePower, Tctl, Ccd0, Ccd1, EffAvg, VoltAvg, VoltMax, VidAvg, CoreTempMax, CpuFan, GpuFan, PchFan, EcCpu, EcGpu, EcPch };
+        var cols = new List<string> { Time, Elapsed, PackagePower, Tctl, Ccd0, Ccd1, EffAvg, VoltAvg, VoltMax, VidAvg, CoreTempMax, CpuFan, GpuFan, PchFan, EcCpu, EcGpu, EcPch, Ac, BatteryW, BatteryPct, BatteryWh };
         cols.AddRange(Enumerable.Range(0, coreCount).Select(Eff));
         cols.AddRange(Enumerable.Range(0, coreCount).Select(Volt));
         return cols;
@@ -80,15 +84,23 @@ public static class BenchLog
         (VoltAvg, "Core voltage avg (PM table) [V]", 4), (VoltMax, "Core voltage max (PM table) [V]", 4), (VidAvg, "VID avg (LHM) [V]", 4),
         (CpuFan, "CPU fan [RPM]", 0), (GpuFan, "GPU fan [RPM]", 0), (PchFan, "PCH fan [RPM]", 0),
         (EcCpu, "EC CPU temp [C]", 0), (EcGpu, "EC GPU temp [C]", 0), (EcPch, "EC PCH temp [C]", 0),
+        (BatteryW, "Battery discharge [W]", 2), (BatteryPct, "Battery charge [%]", 1),
     ];
 
-    /// <summary>Markdown table of the aggregates; with a baseline, a delta column.</summary>
-    public static string Summary(string name, Dictionary<string, List<double>> d, int rows, int kept, double minPower,
+    /// <summary>Markdown table of the aggregates; with a baseline, a delta column. <paramref name="filter"/> names the row filter applied.</summary>
+    public static string Summary(string name, Dictionary<string, List<double>> d, int rows, int kept, string filter,
         string? baseName = null, Dictionary<string, List<double>>? b = null)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Samples with {PackagePower} > {minPower}: {kept} of {rows}{(b is not null ? $" ({baseName}: {Of(b, PackagePower)?.N ?? 0})" : "")}.");
+        sb.AppendLine($"Samples with {filter}: {kept} of {rows}{(b is not null ? $" ({baseName}: {Of(b, Elapsed)?.N ?? 0})" : "")}.");
         sb.AppendLine();
+        if (Of(d, BatteryW) is { Mean: > 0 } w && FullWh(d) is > 0 and var full)
+        {
+            var bw = b is not null ? Of(b, BatteryW) : null;
+            sb.AppendLine($"Runtime at the mean discharge from a full battery ({full:F0} Wh): {full / w.Mean:F1} h" +
+                          (bw is { Mean: > 0 } ? $" ({baseName}: {full / bw.Mean:F1} h; power {(w.Mean - bw.Mean) / bw.Mean * 100:+0.0;-0.0} %)" : "") + ".");
+            sb.AppendLine();
+        }
         sb.AppendLine(b is null ? "| Sensor | mean | max | min |" : $"| Sensor | {baseName} mean | {name} mean | delta | {name} max |");
         sb.AppendLine(b is null ? "|---|---|---|---|" : "|---|---|---|---|---|");
         foreach (var (col, label, dec) in Rows)
@@ -105,6 +117,14 @@ public static class BenchLog
             }
         }
         return sb.ToString();
+    }
+
+    /// <summary>Full-charge capacity implied by the samples: Wh / (pct/100), median to dodge rounding.</summary>
+    private static double FullWh(Dictionary<string, List<double>> d)
+    {
+        if (!d.TryGetValue(BatteryWh, out var wh) || !d.TryGetValue(BatteryPct, out var pct) || wh.Count == 0 || pct.Count == 0) return 0;
+        var xs = wh.Zip(pct).Where(p => p.Second > 0).Select(p => p.First * 100.0 / p.Second).OrderBy(x => x).ToList();
+        return xs.Count == 0 ? 0 : xs[xs.Count / 2];
     }
 
     private static string F(double v, int dec, bool sign = false)

@@ -38,6 +38,14 @@ public sealed class Guard
     private DateTime? _resumeAt;
     private volatile bool _suspendSeen;
 
+    // Power auto: the AC line state waiting to be acted on, and since when. Spontaneous
+    // line blips of a few seconds were logged on this machine; the debounce ignores them.
+    private readonly object _acLock = new();
+    private bool? _acPending;
+    private DateTime _acSince;
+    private bool? _acApplied;
+    public const int AcDebounceSeconds = 15;
+
     private readonly State _state = new();
     private readonly Validation? _validation;
     private DateTime _t0;
@@ -84,6 +92,9 @@ public sealed class Guard
             using var power = new PowerWatch();
             power.Suspending += () => { _suspendSeen = true; Event("suspend", "the system is going to sleep"); };
             power.Resumed += () => { _resumeAt = DateTime.Now; Event("resume", "the system resumed; re-applying in a few seconds"); };
+            power.AcLineChanged += ac => { lock (_acLock) { _acPending = ac; _acSince = DateTime.Now; } };
+            if (_o.PublishState && Plan.LoadOrDefault().PowerAuto && BatteryInfo.OnAcLine() is { } line)
+                lock (_acLock) { _acPending = line; _acSince = DateTime.Now; }
 
             var wheaSeen = 0;
             var lastLoop = DateTime.Now;
@@ -218,9 +229,35 @@ public sealed class Guard
                 return false;
             }
             if (_resumeAt is not null) return true;   // do not wait the whole interval after waking
+            PowerAutoTick();
             Thread.Sleep(250);
         }
         return true;
+    }
+
+    /// <summary>Applies the battery/AC profile once the line has been stable for the debounce, if `power auto` is on.</summary>
+    private void PowerAutoTick()
+    {
+        bool target;
+        lock (_acLock)
+        {
+            if (_acPending is not { } p || (DateTime.Now - _acSince).TotalSeconds < AcDebounceSeconds) return;
+            _acPending = null;
+            target = p;
+        }
+        if (!_o.PublishState) return;
+        var plan = Plan.LoadOrDefault();
+        if (!plan.PowerAuto) { _state.PowerProfile = null; return; }
+        if (target == _acApplied) return;
+        if (BatteryInfo.OnAcLine() is { } now && now != target) return;   // changed again meanwhile; a new event is pending
+
+        using var ec = new LenovoEc();
+        if (!ec.IsAvailable) { Event("power", "power auto is on but there is no Lenovo EC here"); return; }
+        var lines = new List<string>();
+        var failed = target ? PowerProfile.Ac(ec, lines.Add) : PowerProfile.Battery(ec, plan.PowerAutoOptions, lines.Add);
+        _acApplied = target;
+        _state.PowerProfile = target ? "ac" : "battery";
+        Event("power", $"AC line {(target ? "back" : "off")} -> {(target ? "restored the snapshot" : $"battery profile ({plan.PowerAutoOptions})")}{(failed > 0 ? $", {failed} knob(s) FAILED" : "")}: {string.Join(" | ", lines)}");
     }
 
     private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)
