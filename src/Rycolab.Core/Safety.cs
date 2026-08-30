@@ -65,7 +65,7 @@ public static class Safety
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetSystemPowerStatus(out SystemPowerStatus status);
 
-    /// <summary>1 = plugged in. Applying Curve Optimizer on battery is not supported.</summary>
+    /// <summary>1 = plugged in. The stress campaigns and `dev apply` insist on it; the guard keeps a validated profile on battery too.</summary>
     public static bool IsOnAcPower()
         => GetSystemPowerStatus(out var s) && s.ACLineStatus == 1;
 

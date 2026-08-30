@@ -8,13 +8,15 @@ public sealed class PowerOptions
 {
     /// <summary>igpu | auto | keep</summary>
     public string Gpu { get; set; } = "igpu";
+    /// <summary>quiet | keep (the EC power mode)</summary>
+    public string Mode { get; set; } = "quiet";
     public int? Hz { get; set; } = 60;
     public int? Brightness { get; set; } = 40;
     public bool Windows { get; set; } = true;
     public bool CloseApps { get; set; }
 
     public override string ToString()
-        => $"quiet, gpu {Gpu}, {(Hz is { } h ? h + " Hz" : "Hz kept")}, {(Brightness is { } b ? "brightness " + b + " %" : "brightness kept")}, {(Windows ? "DC scheme" : "no DC scheme")}{(CloseApps ? ", close apps" : "")}";
+        => $"mode {Mode}, gpu {Gpu},{(Hz is { } h ? h + " Hz" : "Hz kept")}, {(Brightness is { } b ? "brightness " + b + " %" : "brightness kept")}, {(Windows ? "DC scheme" : "no DC scheme")}{(CloseApps ? ", close apps" : "")}";
 }
 
 /// <summary>Everything the battery profile touched, taken before the first change; `ac` restores from it.</summary>
@@ -59,7 +61,8 @@ public static class PowerProfile
         else log($"snapshot from {snap.TakenAt:HH:mm:ss} kept (battery profile already applied once; `power ac` restores it)");
 
         // EC power mode: quiet. The limits it runs with are printed, never written.
-        if (ec.SmartFanMode is { } m && m != 0)
+        if (o.Mode != "quiet") log($"power mode kept ({LenovoEc.ModeName(ec.SmartFanMode)})");
+        else if (ec.SmartFanMode is { } m && m != 0)
         {
             var after = ec.SetSmartFanMode(0);
             var ok = after == 0;

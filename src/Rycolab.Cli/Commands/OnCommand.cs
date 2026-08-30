@@ -26,11 +26,8 @@ public static class OnCommand
                 return 2;
             }
         }
-        if (!Safety.IsOnAcPower())
-        {
-            Console.Error.WriteLine("  Not on AC power. Plug the charger in and try again.");
-            return 2;
-        }
+        // No AC check here: the guard keeps a validated profile and already runs on battery after the line drops.
+        // The stress campaigns (find, sweep) are the ones that insist on the charger.
 
         if (Service.GuardProcess() is { } g)
         {
@@ -63,7 +60,8 @@ public static class OnCommand
                 Console.WriteLine();
                 return 0;
             }
-            if (s is { GuardPid: null, LastError: not null } && s.LastEvents.Any(e => e.Contains("apply-failed")))
+            // Only a state written by the guard we just launched counts; the previous one may hold an old error.
+            if (s is { GuardPid: null, LastError: not null } && s.Since > stamp && s.LastEvents.Any(e => e.Contains("apply-failed")))
             {
                 Console.Error.WriteLine($"  The guard could not apply the profile: {s.LastError}");
                 return 1;

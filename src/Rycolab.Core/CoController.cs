@@ -134,8 +134,6 @@ public sealed class CoController : IDisposable
     public void WriteCore(int coreIndex, int margin)
     {
         Safety.ValidateMargin(margin, $"core {coreIndex}: margin");
-        Safety.RequireAcPower();
-
         if (!IsPsmSupported)
             throw new CoWriteFailedException("this SMU does not support SetDldoPsmMargin.");
 
@@ -202,8 +200,6 @@ public sealed class CoController : IDisposable
     public IReadOnlyList<CoreReading> WriteAll(IReadOnlyList<int> margins)
     {
         Safety.ValidateMargins(margins);
-        Safety.RequireAcPower();
-
         for (var i = 0; i < CoreCount && i < margins.Count; i++)
         {
             if (!IsCoreActive(i)) continue;

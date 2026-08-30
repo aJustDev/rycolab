@@ -31,8 +31,6 @@ public static class Stepper
     {
         foreach (var (core, margin) in targets)
             Safety.ValidateMargin(margin, $"core {core}: margin");
-        Safety.RequireAcPower();
-
         var current = co.ReadAll().Where(r => r.Margin.HasValue).ToDictionary(r => r.Index, r => r.Margin!.Value);
         var plans = targets.Where(t => current.ContainsKey(t.Core))
                            .Select(t => (t.Core, Path: BuildPath(current[t.Core], t.Margin)))

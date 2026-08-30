@@ -4,7 +4,7 @@ using Rycolab.Core;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab power show | battery [--gpu igpu|auto|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows]
+/// rycolab power show | battery [--gpu igpu|auto|keep] [--mode quiet|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows]
 ///               | ac | restore | auto on|off
 /// Lenovo Legion battery profile: EC quiet mode, iGPU only, 60 Hz, dimmer
 /// panel, DC power-scheme values; `ac` puts everything back from the
@@ -29,12 +29,14 @@ public static class PowerCommand
                 var o = new PowerOptions
                 {
                     Gpu = args.Get("gpu")?.ToLowerInvariant() ?? "igpu",
+                    Mode = args.Get("mode")?.ToLowerInvariant() ?? "quiet",
                     Hz = args.Has("hz") ? args.GetInt("hz") : 60,
                     Brightness = args.Has("brightness") ? args.GetInt("brightness") : 40,
                     Windows = !args.Has("no-windows"),
                     CloseApps = args.Has("close-apps"),
                 };
                 if (o.Gpu is not ("igpu" or "auto" or "keep")) { Console.Error.WriteLine("  --gpu must be igpu, auto or keep."); return 2; }
+                if (o.Mode is not ("quiet" or "keep")) { Console.Error.WriteLine("  --mode must be quiet or keep."); return 2; }
                 Console.WriteLine();
                 Console.WriteLine($"  battery profile: {o}");
                 var failed = PowerProfile.Battery(ec, o, Line);
@@ -60,6 +62,7 @@ public static class PowerCommand
                     plan.PowerAutoOptions = new PowerOptions
                     {
                         Gpu = args.Get("gpu")?.ToLowerInvariant() ?? "igpu",
+                        Mode = args.Get("mode")?.ToLowerInvariant() ?? "quiet",
                         Hz = args.Has("hz") ? args.GetInt("hz") : 60,
                         Brightness = args.Has("brightness") ? args.GetInt("brightness") : 40,
                         Windows = !args.Has("no-windows"),
@@ -71,7 +74,7 @@ public static class PowerCommand
                 return 0;
             }
             default:
-                Console.Error.WriteLine("Usage: rycolab power show | battery [--gpu igpu|auto|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows] | ac | restore | auto on|off");
+                Console.Error.WriteLine("Usage: rycolab power show | battery [--gpu igpu|auto|keep] [--mode quiet|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows] | ac | restore | auto on|off");
                 return 2;
         }
     }

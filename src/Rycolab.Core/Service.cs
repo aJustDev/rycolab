@@ -19,8 +19,20 @@ public static class Service
         // No window: hidden powershell and guard in plain mode. `rycolab status` is the window.
         var tr = $"powershell -NoProfile -WindowStyle Hidden -Command \\\"& '{exe}' guard --plain\\\"";
         var code = Run($"/Create /TN {TaskName} /TR \"{tr}\" /SC ONLOGON /RL HIGHEST /IT /F", quiet: true);
+        // schtasks.exe leaves Windows' defaults "start only on AC" and "stop when going on battery" on;
+        // the guard must start and keep running on battery (schtasks cannot change these; PowerShell can).
+        if (code == 0) code = RunPs($"Set-ScheduledTask -TaskName {TaskName} -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)) | Out-Null");
         if (code == 0) code = Disable();
         return code;
+    }
+
+    private static int RunPs(string command)
+    {
+        var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -NonInteractive -Command \"{command}\"") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        var p = Process.Start(psi)!;
+        p.StandardOutput.ReadToEnd(); p.StandardError.ReadToEnd();
+        p.WaitForExit();
+        return p.ExitCode;
     }
 
     public static int Remove() => Run($"/Delete /TN {TaskName} /F", quiet: true);
