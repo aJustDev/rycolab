@@ -385,3 +385,21 @@ What the session did establish:
 Next: repeat with a local video loop (constant load), interleaving each
 knob with a baseline run (A-B-A) so the drift cancels, starting from a
 full battery. Until then nothing goes into UNDERVOLT.md 7.4.
+
+## 2026-08-30 21:20 - The smart fan mode map was off by one; quiet works on battery
+
+Toolkit's `PowerModeFeature` passes offset 1 to `AbstractWmiFeature`
+(`PowerModeFeature.cs:26`, `AbstractWmiFeature.cs:52-54`): the WMI value is
+the enum plus one. Real map: **1 quiet, 2 balanced, 3 performance, 224
+extreme, 255 custom**. Our 0/1/2 map was wrong, so:
+
+- C5c sent `SetSmartFanMode(0)`, an invalid value the EC silently ignores -
+  that was the "EC refuses quiet on battery". It refuses nothing; verified
+  on AC: `SetSmartFanMode(1)` -> readback 1, restore clean.
+- Every mode we logged was shifted: the "performance" read on battery was
+  balanced (2); Toolkit itself blocks performance/extreme/custom on battery
+  in software (`PowerModeFeature.cs:61-64`), the EC does not.
+- 224 and 255 were beyond the shift, so `fan on/auto` (custom, 255) always
+  did the right thing.
+
+`LenovoEc` fixed (QuietMode = 1, ModeName remapped), `PowerProfile` uses it.

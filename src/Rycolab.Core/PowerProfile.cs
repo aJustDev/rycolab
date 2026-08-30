@@ -62,10 +62,10 @@ public static class PowerProfile
 
         // EC power mode: quiet. The limits it runs with are printed, never written.
         if (o.Mode != "quiet") log($"power mode kept ({LenovoEc.ModeName(ec.SmartFanMode)})");
-        else if (ec.SmartFanMode is { } m && m != 0)
+        else if (ec.SmartFanMode is { } m && m != LenovoEc.QuietMode)
         {
-            var after = ec.SetSmartFanMode(0);
-            var ok = after == 0;
+            var after = ec.SetSmartFanMode(LenovoEc.QuietMode);
+            var ok = after == LenovoEc.QuietMode;
             if (!ok) failed++;
             log($"power mode {LenovoEc.ModeName(m)} -> {LenovoEc.ModeName(after)}{(ok ? "" : " (FAILED)")}; limits in effect: {LenovoEc.Describe(ec.PowerLimits)}");
             Thread.Sleep(2000);

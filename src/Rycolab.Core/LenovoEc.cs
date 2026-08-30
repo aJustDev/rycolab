@@ -72,7 +72,7 @@ public sealed class LenovoEc : IDisposable
 
     /// <summary>
     /// The EC's power mode as LENOVO_GAMEZONE_DATA.GetSmartFanMode reports it:
-    /// 0 quiet, 1 balanced, 2 performance, 224 extreme, 255 custom (Legion
+    /// 1 quiet, 2 balanced, 3 performance, 224 extreme, 255 custom (Legion
     /// Toolkit's "custom mode"). Null when the class is absent.
     /// </summary>
     public int? SmartFanMode => GameZone("GetSmartFanMode");
@@ -144,11 +144,15 @@ public sealed class LenovoEc : IDisposable
     public static string Describe((int? Pl1, int? Pl2, int? Peak, int? Cross, int? TempLimit) l)
         => $"PL1 {l.Pl1?.ToString() ?? "?"} W, PL2 {l.Pl2?.ToString() ?? "?"} W, peak {l.Peak?.ToString() ?? "?"} W, cross {l.Cross?.ToString() ?? "?"} W, CPU limit {l.TempLimit?.ToString() ?? "?"} C";
 
+    // WMI value = Legion Toolkit's PowerModeState + 1 (AbstractWmiFeature offset 1):
+    // quiet 1, balanced 2, performance 3, extreme 224, custom (god mode) 255.
+    // Verified 2026-08-30: SetSmartFanMode(0) is invalid and silently ignored by the EC.
+    public const int QuietMode = 1;
     public const int CustomMode = 255;
 
     public static string ModeName(int? mode) => mode switch
     {
-        0 => "quiet", 1 => "balanced", 2 => "performance", 224 => "extreme", 255 => "custom", null => "?", _ => mode.ToString()!
+        1 => "quiet", 2 => "balanced", 3 => "performance", 224 => "extreme", 255 => "custom", null => "?", _ => mode.ToString()!
     };
 
     public void Dispose() => _obj?.Dispose();
