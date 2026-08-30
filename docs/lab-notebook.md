@@ -403,3 +403,43 @@ extreme, 255 custom**. Our 0/1/2 map was wrong, so:
   did the right thing.
 
 `LenovoEc` fixed (QuietMode = 1, ModeName remapped), `PowerProfile` uses it.
+
+## 2026-08-30 22:05 - 2026-08-31 00:15 - C6/C7: the battery profile measured clean (A-B-A, fixed video segment)
+
+Method that finally worked: the same 6-minute 4K film segment looped in VLC
+fullscreen for every run (identical decode load), 6-minute runs, every knob
+between two baseline runs, compared against the mean of its two neighbours.
+Base spread fell from yesterday's monotone drift to +-0.8 W. Battery
+74 -> 11 Wh across both campaigns; auto-stop worked.
+
+C6 (panel / EC / GPU knobs), baselines 28.1-29.8 W (mean 28.6):
+
+| Knob | W | Delta vs neighbours | Verdict |
+|---|---|---|---|
+| iGPU only | 28.20 | -0.8 W | inside noise (dGPU already sleeps in hybrid) |
+| Quiet mode (now really applied: extreme -> 1) | 27.64 | -1.2 W (-4 %) | small, real |
+| 60 Hz | 26.02 | -2.1 W (-7.4 %) | real |
+| Brightness 40 % | 28.08 | -0.1 W | nothing (dark film + mini-LED local dimming) |
+| DC scheme block (max 99, Wi-Fi 3) | 28.01 | -0.2 W | nothing |
+| All together | 25.14 | -3.8 W (-13 %) | real; equals the sum of the parts (-4.0) |
+
+Video runtime: 3.5 h baseline -> 4.0 h with the full profile (+14 %).
+
+C7 (CPU scheme knobs on DC), baselines 27.5-28.2 W:
+
+| Knob | W | Delta | Verdict |
+|---|---|---|---|
+| EPP 50 -> 100 | 27.44 | -0.1 W | nothing |
+| Max processor state 80 % | 27.24 | -0.6 W | inside noise |
+| Both | 27.51 | -0.7 W vs one base | inside noise |
+
+Package power sits at 13.4-13.6 W in every run with mean effective clocks of
+~65 MHz: in near-idle video the cores are already parked and EPP / the
+frequency cap have nothing to bite on (boost is already off on DC). The CPU
+side of light-load battery life is uncore + platform, not core frequency
+policy. DC values verified restored (EPP 50, max state 100).
+
+Conclusion for `power battery` defaults: quiet + 60 Hz carry the profile;
+iGPU only stays (its value is stopping apps from waking the dGPU, and it is
+free); brightness stays as a flag (content-dependent: dark film showed
+nothing, a white page will not); the DC block stays (free, harmless).
