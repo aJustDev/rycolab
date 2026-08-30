@@ -347,3 +347,41 @@ guard has to be started on AC before unplugging; it keeps running after.
 Measurement protocol (video loop, 12 min per run, `power ac` between runs):
 C5a baseline, C5b iGPU only, C5c quiet, C5d 60 Hz, C5e brightness 40, C5f DC
 scheme, C5g apps closed, C5h all together, C5a repeated once for the noise.
+
+## 2026-08-30 20:13-21:08 - C5: battery A/B with YouTube as the load. Inconclusive on purpose.
+
+Guard on battery since 20:13 (AC requirement dropped from the write path;
+the scheduled task also needed AllowStartIfOnBatteries +
+DontStopIfGoingOnBatteries, which schtasks.exe cannot set - Service.Install
+now fixes it through PowerShell). Runs of 8 min, `power ac` between them,
+the user watching YouTube at 2560x1600; battery 39 -> 8 Wh, stopped by the
+low-battery cutoff before C5h (all knobs) and the repeated baseline.
+
+| Run | Mean W | vs C5a |
+|---|---|---|
+| C5a base (240 Hz, 100 %, hybrid, performance) | 26.4 | - |
+| C5b iGPU only | 27.4 | +3.6 % |
+| C5c quiet (EC refused; measured = base) | 25.5 | -3.3 % |
+| C5d 60 Hz | 28.9 | +9.6 % |
+| C5e brightness 40 % | 28.8 | +9.2 % |
+| C5f DC scheme (max state 99, Wi-Fi save 3) | 29.8 | +12.8 % |
+
+The deltas grow monotonically with time, including the ones that cannot
+increase consumption (brightness 40 % is at most neutral): the series
+measures a drift - YouTube's load and/or the pack's behaviour as it
+empties - not the knobs. No knob ranking comes out of this data.
+
+What the session did establish:
+- Mechanisms all work and are reversible: iGPU only ejects the dGPU in 4 s
+  and brings it back in 4 s on `power ac`; refresh rate and brightness
+  change and restore; the DC writes apply and restore; snapshot clean.
+- The dGPU already sleeps in hybrid mode with no load: ejecting it saved
+  nothing here (13.2 vs 13.3 W package, -2.3 C Tdie).
+- The EC refuses `SetSmartFanMode(0)` (quiet) on battery on this machine:
+  read-back stays 2 (performance). To investigate in the Toolkit source.
+- The guard held the CO profile on battery for the whole hour: 0 WHEA, no
+  events beyond the expected ones.
+
+Next: repeat with a local video loop (constant load), interleaving each
+knob with a baseline run (A-B-A) so the drift cancels, starting from a
+full battery. Until then nothing goes into UNDERVOLT.md 7.4.
