@@ -524,3 +524,25 @@ read-back on every write and the Vantage registry key kept in sync
 (BatteryChargeMode: Normal/Quick/Storage), as Toolkit does. Round-trip
 verified: conservation -> rapid -> conservation. Charge line added to the
 status panel's Lenovo EC section.
+
+## 2026-08-31 13:44 - The machine slept mid-campaign; core 3's limit is tainted
+
+Windows' AC standby timeout (1 h, 0xe10) fired two hours into the step-5
+campaign: y-cruncher load does not count as activity and the sweep does not
+hold ES_SYSTEM_REQUIRED. The sleep hit core 3's -45 run with 24-ZN5: samples
+stop at 90 s and the run closes as "CLEAN after 1096 s" - invalid, because
+sleep returns every core to the BIOS baseline (-5), so most of that run
+tested nothing. The campaign itself survived (the next run re-applies and
+verifies its margin before starting, so core 4 onwards is unaffected).
+
+Actions: AC standby timeout set to 0 for the rest of the campaign (restore
+to 3600 s after; DC untouched), and core 3 marked to redo - its "-45" in
+limits.json must be deleted before the final resume so it is measured again.
+
+Interim limits with the 8-test battery: 0 -40, 1 -40, **2 -35** (fase 1 said
+-40: the wider test battery is stricter on core 2, exactly what step 5 was
+for), 3 -45 (tainted), 13 -50.
+
+Tool fix pending: the sweep must call SetThreadExecutionState(ES_CONTINUOUS
+| ES_SYSTEM_REQUIRED) while running, and invalidate any run whose wall time
+exceeds its sample time by more than the interval (a clock gap = a sleep).
