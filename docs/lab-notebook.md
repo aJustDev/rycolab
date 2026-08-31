@@ -195,9 +195,33 @@ unlogged pass before this run scored 42488.
 
 Candidate profile validated so far by: 6-min limits with two engines and
 three tests, 31 min idle soak, ~2 h of real use, one sleep/resume with
-re-apply. Pending: the definitive campaign from scratch with the tool (16
-cores, eight y-cruncher tests, 360 s), then days of real use with sleep, and
-the report. See the plan in the repository history.
+re-apply, and (as of 31/08) ~15 h guarded with 0 WHEA and 1 unexplained
+reset pending explanation.
+
+Roadmap (order agreed 2026-08-31):
+
+1. Guard notifications: a Windows toast on WHEA / reset / giveup / margin
+   lost, so a positive is seen without opening `status`. The guard already
+   detects everything; only the emission is missing.
+2. `rycolab charge full`: one-shot rapid charge that returns to
+   conservation by itself at ~98 % (the guard has the loop to watch it).
+3. Battery health history: one daily sample of FullChargedCapacity and
+   cycle data into the guard's SQLite, `report --health` plots the pack's
+   real degradation over months.
+4. Step 5, the definitive campaign: `rycolab find` from scratch (16 cores,
+   both engines, the eight-test battery, 360 s per run), then days of
+   guarded validation to steady, and the report. The current profile comes
+   from the phase-1 script: 3 tests (SFTv4/FFTv4/N63) x 360 s per engine
+   and margin, most cores probed only at -50/-45/-40.
+5. Step 6, publish: README polish, release, repo public.
+6. Visual layer, when it is worth it: a tray icon reading state.json (no
+   elevation) with green/amber/red and quick toggles; the `status` live
+   panel stays the detail view. No web unless remote viewing is wanted.
+
+Not planned, measured out: custom fan tables (the ceiling is the heatsink,
+not the curve), per-app automation (Legion Toolkit's turf), more battery
+knobs (C6-C8 said the rest is noise). Hardware note kept apart: the thermal
+mod idea for the heatsink contact.
 
 ## 2026-08-28 - Second machine: Ryzen 7 5800H (ASUS, Cezanne, 8 cores, 1 CCD)
 
