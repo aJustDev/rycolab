@@ -566,3 +566,22 @@ in). Cleanup, in order:
   core 3 will be measured again on resume.
 - Validated phase-1 profile re-applied for the afternoon (`rycolab on`);
   the campaign resumes tonight with `find --resume` (cores 3-12, 14, 15).
+
+### Correction, 15:55: it was not (only) a killed process - the machine cold-rebooted
+
+Kernel-Power 41 at **14:00:52** (confirmed in the System log): the machine
+reset ~80 s into core 4's -50 run with `24-ZN5` - a genuine positive that
+reproduces phase 1 exactly (core 4 also cold-rebooted at -50 on 27/08,
+16:46). The session and the campaign process died with the OS, not the
+other way round. Undone/corrected:
+
+- `in-progress.json` restored verbatim: the resume must record the hang
+  positive for core 4 at -50 and continue from -45, as designed.
+- validation.json Resets set back to 1: the 14:00:52 reset happened under
+  campaign test margins (baseline/-50), not under the validated profile;
+  counting it against the profile's validation would be wrong. The 28/08
+  reset stays counted (it remains unexplained).
+- The +1-on-all-cores probe reading was the post-reboot state, which
+  deepens the mystery: after a *boot* the BIOS applies -5 (verified on
+  27/08). +1 after this reset and after `off` on 30/08 19:50 is still
+  unexplained; the reset to -5 wrote and verified fine.
