@@ -475,3 +475,13 @@ Conclusion for working on battery: no CPU knob improves work per Wh on this
 machine. Quiet mode is for noise and temperature (-4 C, fans lower), at
 +20 % energy per task; EPP and max-state do nothing. `power battery` keeps
 quiet for light use; no `--work` mode is warranted by the data.
+
+## 2026-08-31 10:49 - power auto armed; battery work closed
+
+`rycolab power auto on --brightness keep` (quiet + iGPU only + 60 Hz + DC
+block, brightness untouched) and the profile applied by hand for the current
+battery session: 27.6 W at the desk, ~2.1 h left at 59 %. From now on the
+guard applies it 15 s after the AC line drops and restores the snapshot 15 s
+after it is back. The C5-C8 campaigns close the battery chapter: the wins
+are quiet + 60 Hz (+14 % video runtime); everything else measured null or
+counterproductive under load.

@@ -155,8 +155,14 @@ Legion Toolkit does), the internal panel to 60 Hz (a display mode change,
 frequency only) and 40 % brightness, and the DC values of the active Windows
 power scheme (boost mode off, max processor state 99 %, PCIe ASPM maximum,
 Wi-Fi maximum power saving, USB selective suspend). `--gpu igpu|auto|keep`,
-`--hz`, `--brightness`, `--no-windows` and `--close-apps` (kills Legion
-Toolkit and HWiNFO) tune it. Everything is snapshotted before the first
+`--hz`, `--brightness` (a non-numeric value like `--brightness keep` leaves
+it alone), `--mode quiet|keep`, `--no-windows` and `--close-apps` (kills
+Legion Toolkit and HWiNFO) tune it. Measured on the reference machine
+(A-B-A, fixed video segment): quiet -1.2 W and 60 Hz -2.1 W carry the
+profile (-13 % all together, 3.5 -> 4.0 h of video); brightness and the DC
+block moved nothing there, and under load no CPU knob improves work per Wh
+(race-to-idle: the platform's own ~45 W DC cap already governs efficiency;
+quiet costs +20 % energy per task while being quieter and cooler). Everything is snapshotted before the first
 change (`power-prev.json`) and `rycolab power ac` puts it back; `power
 restore` writes every snapshot value even if it looks untouched. `power
 show` prints line, discharge W, charge, GPU mode and dGPU presence, panel,
