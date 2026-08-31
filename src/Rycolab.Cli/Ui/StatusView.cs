@@ -82,6 +82,9 @@ public static class StatusView
 
     private static string Count(int v, string label) => v == 0 ? $"[green]0 {label}[/]" : $"[red]{v} {label}[/]";
 
+    /// <summary>The mode list only changes with the resolution; enumerate once per process.</summary>
+    private static readonly Lazy<string> AvailableRates = new(() => string.Join(",", WindowsPower.AvailableRefreshRates()));
+
     // ---- Battery ---------------------------------------------------------
 
     public static IRenderable Battery(State? state)
@@ -103,21 +106,21 @@ public static class StatusView
             ? $"[green]on[/]  [grey]{E(plan.PowerAutoOptions.ToString())}; battery profile {Guard.AcDebounceSeconds} s after unplugging, restored on AC[/]"
             : "[grey]off[/]  (`rycolab power auto on` lets the guard handle it)");
 
-        KV(g, "panel", $"{WindowsPower.RefreshHz?.ToString() ?? "?"} Hz  [grey](available {string.Join(",", WindowsPower.AvailableRefreshRates())})[/]  brightness {WindowsPower.Brightness?.ToString() ?? "?"} %");
+        KV(g, "panel", $"{WindowsPower.RefreshHz?.ToString() ?? "?"} Hz  [grey](available {AvailableRates.Value})[/]  brightness {WindowsPower.Brightness?.ToString() ?? "?"} %");
         return Section("Battery", g);
     }
 
     // ---- Lenovo EC -------------------------------------------------------
 
-    public static IRenderable Ec(bool elevated)
+    /// <summary>Pass null instances when not elevated; the callers own their lifetime (the live view reuses them across refreshes).</summary>
+    public static IRenderable Ec(LenovoEc? ec, LenovoEnergy? energy)
     {
         var g = NewGrid();
-        if (!elevated)
+        if (ec is null)
         {
-            KV(g, "", "[grey]run elevated (`sudo rycolab status`) to read the EC: power mode and limits, GPU mode, fans[/]");
+            KV(g, "", "[grey]run elevated (`sudo rycolab status`) to read the EC: power mode and limits, GPU mode, fans, charge mode[/]");
             return Section("Lenovo EC", g);
         }
-        using var ec = new LenovoEc();
         if (!ec.IsAvailable)
         {
             KV(g, "", "[grey]no Lenovo EC on this machine[/]");
@@ -129,8 +132,7 @@ public static class StatusView
         var full = ec.FanFullSpeed;
         KV(g, "fans", $"CPU {ec.CpuFanRpm?.ToString() ?? "-"}  GPU {ec.GpuFanRpm?.ToString() ?? "-"}  PCH {ec.PchFanRpm?.ToString() ?? "-"} RPM   full speed {(full is { } f ? (f ? "[yellow]ON[/]" : "off") : "?")}");
         KV(g, "EC temps", $"CPU {ec.CpuTempC?.ToString() ?? "-"}  GPU {ec.GpuTempC?.ToString() ?? "-"}  PCH {ec.PchTempC?.ToString() ?? "-"} C");
-        using var energy = new LenovoEnergy();
-        if (energy.IsAvailable)
+        if (energy is { IsAvailable: true })
         {
             var mode = energy.ChargeMode();
             var night = energy.NightCharge();

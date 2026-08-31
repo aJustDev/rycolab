@@ -113,7 +113,8 @@ static void PrintHelp()
           rycolab install               copy to %LOCALAPPDATA%\rycolab, PATH, y-cruncher, baseline, task
           rycolab find [--quick]        find each core's limit and propose a profile (hours; hands off)
           rycolab on | off              keep the profile applied (hidden guard) | back to the baseline
-          rycolab status [--follow]     one panel: Curve Optimizer, battery profile, Lenovo EC (with sudo), Windows scheme
+          rycolab status [--once]       live panel (2 s refresh, Ctrl+C closes): Curve Optimizer, battery profile,
+                                        Lenovo EC (with sudo), Windows scheme; --once prints it and exits
           rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
           rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV (samples > 100 W, or on battery)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
