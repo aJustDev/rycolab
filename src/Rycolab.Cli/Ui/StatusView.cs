@@ -129,6 +129,13 @@ public static class StatusView
         var full = ec.FanFullSpeed;
         KV(g, "fans", $"CPU {ec.CpuFanRpm?.ToString() ?? "-"}  GPU {ec.GpuFanRpm?.ToString() ?? "-"}  PCH {ec.PchFanRpm?.ToString() ?? "-"} RPM   full speed {(full is { } f ? (f ? "[yellow]ON[/]" : "off") : "?")}");
         KV(g, "EC temps", $"CPU {ec.CpuTempC?.ToString() ?? "-"}  GPU {ec.GpuTempC?.ToString() ?? "-"}  PCH {ec.PchTempC?.ToString() ?? "-"} C");
+        using var energy = new LenovoEnergy();
+        if (energy.IsAvailable)
+        {
+            var mode = energy.ChargeMode();
+            var night = energy.NightCharge();
+            KV(g, "charge", $"{E(mode)}{(mode == LenovoEnergy.Conservation ? "  [grey](stops at ~80 %)[/]" : "")}   night charge {(night is { } n ? (n ? "on" : "off") : "n/a")}");
+        }
         return Section("Lenovo EC", g);
     }
 

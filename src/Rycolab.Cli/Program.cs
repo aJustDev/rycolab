@@ -70,6 +70,7 @@ try
         "guard" => GuardCommand.Run(opts),
         "fan" => FanCommand.Run(opts),
         "power" => PowerCommand.Run(opts),
+        "charge" => ChargeCommand.Run(opts),
         _ => Unknown(command),
     };
 }
@@ -122,6 +123,7 @@ static void PrintHelp()
           rycolab power show|battery|ac|restore|auto on|off   Lenovo Legion battery profile: quiet mode, iGPU only, 60 Hz,
                                         brightness 40 %, DC scheme values; `ac` restores; `auto` lets the guard do it on AC line changes
                                         (battery: --gpu igpu|auto|keep --hz 60 --brightness 40 --no-windows --close-apps)
+          rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery charge mode (conservation stops at ~80 %)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
                                         calibrate, plan, task, profile import, log   (`rycolab dev help`)
 

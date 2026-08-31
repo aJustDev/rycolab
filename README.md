@@ -67,6 +67,10 @@ rycolab off                   stop the guard, back to the BIOS baseline, task di
 rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md
 rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV: power, temps, clocks, V, fans, battery
 rycolab power show|battery|ac|restore|auto on|off   Lenovo Legion battery profile (see below)
+rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery charge mode through the Energy
+                              driver (\\.\EnergyDrv, what Legion Toolkit's battery section talks to): conservation
+                              stops at ~80 % (firmware threshold), rapid charges fastest; night charge is a separate
+                              slow-overnight toggle. Every write is read back; the Vantage registry key is kept in sync
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 

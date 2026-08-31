@@ -485,3 +485,18 @@ guard applies it 15 s after the AC line drops and restores the snapshot 15 s
 after it is back. The C5-C8 campaigns close the battery chapter: the wins
 are quiet + 60 Hz (+14 % video runtime); everything else measured null or
 counterproductive under load.
+
+## 2026-08-31 11:15 - rycolab charge: battery charge modes without Legion Toolkit
+
+Toolkit drives them through \.\EnergyDrv (Lenovo Energy Management driver),
+not WMI: IOCTL 0x831020F8 (query with 0xFF; bit 0x20 conservation, 0x04
+rapid) and 0x83102150 (night charge; bit 0 supported, bit 4 on; write
+0x80000012 / 0x12). Write sequences: conservation [0x08,0x03], normal
+[0x05,0x08], rapid [0x05,0x07]. There are exactly three modes plus the
+night-charge toggle; the conservation threshold (~80 %) is firmware, not
+configurable. Probed read-only first on this machine (driver opens, mode was
+conservation, night charge supported/off), then `rycolab charge` added with
+read-back on every write and the Vantage registry key kept in sync
+(BatteryChargeMode: Normal/Quick/Storage), as Toolkit does. Round-trip
+verified: conservation -> rapid -> conservation. Charge line added to the
+status panel's Lenovo EC section.
