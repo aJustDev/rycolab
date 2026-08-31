@@ -1,4 +1,3 @@
-using System.Security.Principal;
 using Rycolab.Cli;
 using Rycolab.Cli.Commands;
 using Rycolab.Core;
@@ -28,7 +27,7 @@ if (command is "help" or "-h" or "--help")
 
 // Commands that only read files never need elevation.
 var unelevated = command is null or "status" or "report" or "profile" or "version" || (dev && command == "plan");
-if (!unelevated && !IsElevated())
+if (!unelevated && !Elevation.IsElevated())
 {
     Console.Error.WriteLine($"'rycolab {(dev ? "dev " : "")}{command}' needs administrator privileges to talk to the SMU.");
     Console.Error.WriteLine("Open an elevated console (or use sudo) and try again.");
@@ -104,16 +103,6 @@ static int UnknownDev(string c)
     return 2;
 }
 
-static bool IsElevated()
-{
-    try
-    {
-        using var id = WindowsIdentity.GetCurrent();
-        return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
-    }
-    catch { return false; }
-}
-
 static void PrintHelp()
 {
     Console.WriteLine("""
@@ -123,7 +112,7 @@ static void PrintHelp()
           rycolab install               copy to %LOCALAPPDATA%\rycolab, PATH, y-cruncher, baseline, task
           rycolab find [--quick]        find each core's limit and propose a profile (hours; hands off)
           rycolab on | off              keep the profile applied (hidden guard) | back to the baseline
-          rycolab status [--follow]     guard, phase, last sample, WHEA, hardware vs profile (no elevation)
+          rycolab status [--follow]     one panel: Curve Optimizer, battery profile, Lenovo EC (with sudo), Windows scheme
           rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
           rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV (samples > 100 W, or on battery)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>

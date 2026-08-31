@@ -61,7 +61,8 @@ rycolab find [--quick]        find each core's limit and propose the profile (ho
                               and resume). --quick: three tests and 180 s per run instead of eight and 360 s
 rycolab profile from-sweep <campaign> [--margin 5]     profile = limit + margin, with its source
 rycolab on                    apply the profile and keep it: hidden guard, re-applied after sleep and at logon
-rycolab status [--follow]     guard, phase (validating / steady), last sample, WHEA, events
+rycolab status [--follow]     one panel with everything applied: Curve Optimizer (guard, phase, per-core),
+                              battery profile, Lenovo EC (needs sudo; hints otherwise), Windows scheme
 rycolab off                   stop the guard, back to the BIOS baseline, task disabled
 rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md
 rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV: power, temps, clocks, V, fans, battery

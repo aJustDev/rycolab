@@ -7,9 +7,11 @@ using Spectre.Console;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab status [--follow] [--json]: what the guard is doing, read from
-/// state.json without elevation. --follow redraws the guard panel as the
-/// state changes; Ctrl+C only closes the panel.
+/// rycolab status [--follow] [--json]: everything applied right now in one
+/// panel - Curve Optimizer (guard, phase, per-core), battery profile,
+/// Lenovo EC (elevated only; degrades to a hint) and the Windows scheme.
+/// --follow redraws the guard panel as the state changes; Ctrl+C only
+/// closes the panel.
 /// </summary>
 public static class StatusCommand
 {
@@ -31,39 +33,36 @@ public static class StatusCommand
             return Follow(profile);
         }
 
-        Console.WriteLine();
-        Console.WriteLine(guard is { } g
-            ? $"  guard              RUNNING (pid {g.Id}, since {g.StartTime:HH:mm:ss})"
-            : "  guard              not running");
-        Console.WriteLine($"  profile            {(profile is null ? "none" : Describe(profile))}");
-
-        if (state is not null)
-        {
-            Console.WriteLine($"  phase              {state.Phase}{(state.ValidationStartedAt is { } v ? $"  (validation since {v:yyyy-MM-dd}, {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Reapplies} re-applies, {state.Whea} WHEA, {state.Resets} resets)" : "")}");
-            if (state.LastTick is { } t)
-                Console.WriteLine($"  last sample        {t:yyyy-MM-dd HH:mm:ss}  {state.LastState}  CPU {state.CpuLoad?.ToString("F0") ?? "-"} %  package {state.PackagePower?.ToString("F1") ?? "-"} W");
-            var count = state.Hardware?.Length is > 0 and var n ? n : profile?.Fingerprint?.Cores is > 0 and var f ? f : Topology.MaxCores;
-            if (state.Hardware is { } hw)
-                Console.WriteLine($"  hardware           {string.Join("   ", CoreRows.Lines(count, c => c < hw.Length ? hw[c]?.ToString() ?? "-" : "-", " "))}{(guard is null ? "  (last seen by the guard)" : "")}");
-            if (profile is not null)
-                Console.WriteLine($"  profile            {string.Join("   ", CoreRows.Lines(count, c => profile.Cores[c].ToString(), " "))}");
-            if (state.PowerProfile is { } pp) Console.WriteLine($"  power auto         {pp} profile applied by the guard");
-            if (state.LastError is not null) Console.WriteLine($"  last error         {state.LastError}");
-            if (state.LastEvents.Count > 0)
-            {
-                Console.WriteLine("  events");
-                foreach (var e in state.LastEvents.TakeLast(8)) Console.WriteLine($"    {e}");
-            }
-        }
-
-        Console.WriteLine();
-        Console.WriteLine(guard is not null && state is { Applied: true }
-            ? "  The profile is applied and guarded."
-            : guard is null
-                ? $"  No guard: the cores are at the BIOS baseline{(profile is null ? "" : "; `rycolab on` applies the profile")}."
-                : "  The guard is running but the profile is not applied right now (see events).");
+        WritePanel(profile, state, guard);
+        Console.WriteLine($"  Next: {Next(profile, state, guard)}");
         Console.WriteLine();
         return 0;
+    }
+
+    /// <summary>The four sections. Shared with the bare `rycolab` command.</summary>
+    public static void WritePanel(Profile? profile, State? state, System.Diagnostics.Process? guard)
+    {
+        Console.WriteLine();
+        AnsiConsole.Write(new Rows(
+            StatusView.Co(guard, state, profile),
+            StatusView.Battery(state),
+            StatusView.Ec(Elevation.IsElevated()),
+            StatusView.Windows()));
+        Console.WriteLine();
+    }
+
+    /// <summary>One-sentence suggestion, shared with the bare `rycolab` command.</summary>
+    public static string Next(Profile? profile, State? state, System.Diagnostics.Process? guard)
+    {
+        if (profile is null) return "no profile yet. `rycolab find` (elevated) measures each core and proposes one; `rycolab find --quick --cores 0` is a 10-minute first look.";
+        if (guard is null) return "the profile is not being applied: run `rycolab on` (elevated).";
+        return state?.Phase switch
+        {
+            "validating" => $"profile in validation: {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Whea} WHEA, {state.Resets} unexplained resets. Use the machine normally.",
+            "steady" => "profile validated and applied. `rycolab off` returns to the baseline.",
+            "positive" => "the guard stopped on a positive (WHEA). The baseline is applied; check the events above.",
+            _ => "all good; `rycolab status --follow` watches the guard live.",
+        };
     }
 
     public static string Describe(Profile p)
@@ -80,22 +79,19 @@ public static class StatusCommand
 
         AnsiConsole.Live(view.Render()).AutoClear(false).Start(ctx =>
         {
-            DateTime? shown = null;
             while (!cts.IsCancellationRequested)
             {
-                var state = State.Load();
-                var alive = Service.GuardProcess() is not null;
-                if (state is not null)
+                if (State.Load() is { } s)
                 {
-                    view.Set(state);
-                    if (state.LastTick != shown) shown = state.LastTick;
+                    view.Set(s);
+                    if (s.GuardPid is null) view.OnEventOnce("guard not running (state.json is the last snapshot)");
                 }
-                if (!alive) view.OnEventOnce("(guard is not running; this panel only reads state.json)");
                 ctx.UpdateTarget(view.Render());
                 ctx.Refresh();
-                Thread.Sleep(1000);
+                cts.Token.WaitHandle.WaitOne(1000);
             }
         });
+        Console.WriteLine();
         return 0;
     }
 }

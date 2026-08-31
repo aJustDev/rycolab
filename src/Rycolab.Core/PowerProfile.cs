@@ -16,7 +16,7 @@ public sealed class PowerOptions
     public bool CloseApps { get; set; }
 
     public override string ToString()
-        => $"mode {Mode}, gpu {Gpu}, {(Hz is { } h ? h + " Hz" : "Hz kept")},{(Brightness is { } b ? "brightness " + b + " %" : "brightness kept")}, {(Windows ? "DC scheme" : "no DC scheme")}{(CloseApps ? ", close apps" : "")}";
+        => $"mode {Mode}, gpu {Gpu}, {(Hz is { } h ? h + " Hz" : "Hz kept")}, {(Brightness is { } b ? "brightness " + b + " %" : "brightness kept")}, {(Windows ? "DC scheme" : "no DC scheme")}{(CloseApps ? ", close apps" : "")}";
 }
 
 /// <summary>Everything the battery profile touched, taken before the first change; `ac` restores from it.</summary>
