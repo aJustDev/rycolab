@@ -443,3 +443,35 @@ Conclusion for `power battery` defaults: quiet + 60 Hz carry the profile;
 iGPU only stays (its value is stopping apps from waking the dGPU, and it is
 free); brightness stays as a flag (content-dependent: dark film showed
 nothing, a white page will not); the DC block stays (free, harmless).
+
+## 2026-08-31 10:08-10:47 - C8: work per Wh under load on battery. Race-to-idle wins.
+
+Fixed work unit: `y-cruncher bench` on all 16 cores, one computation per run,
+A-B-A, a logger (2 s) during each computation. First pass with 500m digits
+was useless (12 s per computation, 4 samples); repeated with 5b (~145 s).
+
+Facts established by the 500m pass anyway:
+- On battery the platform caps the package at ~38-46 W whatever the mode
+  (135 W on AC): every knob acts under that ceiling.
+- `PROCTHROTTLEMAX` 80/60 % and EPP change neither clocks (~2400-2500 MHz
+  effective) nor duration: this AMD CPPC setup ignores them with boost off.
+
+5b results (bat W x seconds = energy per computation):
+
+| Run | s | pkg W | eff MHz | bat W | Wh/computation |
+|---|---|---|---|---|---|
+| base x3 | 144.9 / 142.8 / 142.2 | 44-46 | ~1600 | 61.0 / 56.7 / 52.6 | 2.46 / 2.25 / 2.08 |
+| quiet | 168.4 (+17 %) | 40.6 | 1218 | 60.8 | 2.84 (+20 % vs neighbours) |
+| EPP 100 | 141.7 (=) | 44.1 | 1646 | 50.8 | 2.00 (= inside base drift) |
+
+The base bat W drifts down through the session (61 -> 53) with pkg constant,
+so small energy deltas are noise; the quiet result is outside it: 17 % slower
+with the same total battery draw = more energy per unit of work, not less.
+Race-to-idle: the platform's own DC cap already puts the CPU near its
+efficiency sweet spot; capping further (quiet) stretches the platform
+overhead over more seconds and loses.
+
+Conclusion for working on battery: no CPU knob improves work per Wh on this
+machine. Quiet mode is for noise and temperature (-4 C, fans lower), at
++20 % energy per task; EPP and max-state do nothing. `power battery` keeps
+quiet for light use; no `--work` mode is warranted by the data.
