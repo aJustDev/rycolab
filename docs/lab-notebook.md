@@ -585,3 +585,22 @@ other way round. Undone/corrected:
   deepens the mystery: after a *boot* the BIOS applies -5 (verified on
   27/08). +1 after this reset and after `off` on 30/08 19:50 is still
   unexplained; the reset to -5 wrote and verified fine.
+
+## 2026-08-31 15:53 - The campaign survives reboots by itself now
+
+Two fixes and a relaunch after the afternoon's incidents:
+
+- `KeepAwake` (SetThreadExecutionState ES_CONTINUOUS|ES_SYSTEM_REQUIRED)
+  held by the sweep for its whole life: no more mid-run sleeps.
+- Auto-resume: `find` registers the scheduled task `rycolab-find-resume`
+  (ONLOGON, 30 s delay, no time limit) when a campaign starts and removes
+  it when the campaign completes; a cold reboot from a positive continues
+  the campaign at the next logon with no human involved. `find --resume`
+  with nothing pending exits quietly and removes the task.
+- The campaign itself now runs *through* that task, so it no longer depends
+  on any shell session either. Resumed 15:53:30: core 4's reboot recorded
+  as a hang positive (continues from -45), cores 0/1/2 kept, core 3
+  re-measured from -50. 12 cores pending, ~5.1 h estimated.
+- Remaining gap, accepted: the ONLOGON task waits at the lock screen unless
+  auto-logon is enabled (netplwiz) while campaigns run; the user does that
+  by hand - the tool never stores the Windows password.

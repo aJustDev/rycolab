@@ -54,7 +54,13 @@ public static class FindCommand
         var currentUnfinished = current is not null && Directory.Exists(current) && !IsComplete(current, cores);
         if (resume)
         {
-            if (!currentUnfinished) { Console.Error.WriteLine("  Nothing to resume."); return 2; }
+            if (!currentUnfinished)
+            {
+                // The auto-resume task lands here after the campaign is done; leave quietly and clean up.
+                Console.Error.WriteLine("  Nothing to resume.");
+                Service.RemoveFindResume();
+                return 0;
+            }
             dir = current!;
         }
         else if (currentUnfinished && !args.Has("new"))
@@ -83,7 +89,7 @@ public static class FindCommand
         Console.WriteLine($"  Estimate   ~{typical.TotalHours:F1} h if most cores settle within two margins; up to {worst.TotalHours:F0} h worst case");
         Console.WriteLine();
         Console.WriteLine("  While it runs: leave the machine plugged in and alone. A too-deep margin can");
-        Console.WriteLine("  reboot it; if that happens, run `rycolab find` again and it resumes.");
+        Console.WriteLine("  reboot it; the campaign resumes by itself at the next logon.");
         Console.WriteLine();
         if (!Ask("  Start? [y/N] ", args, defaultYes: false)) { Console.WriteLine("  Cancelled."); return 0; }
 
@@ -97,6 +103,13 @@ public static class FindCommand
 
         AppPaths.EnsureData();
         File.WriteAllText(AppPaths.CurrentCampaign, dir);
+
+        // If a positive cold-reboots the machine, the campaign continues by itself at logon.
+        var selfExe = File.Exists(AppPaths.Exe) ? AppPaths.Exe : Environment.ProcessPath!;
+        if (Service.InstallFindResume(selfExe, Path.Combine(dir, "resume.log")) == 0)
+            Console.WriteLine("  Auto-resume armed: if the machine reboots, the campaign continues at logon (task rycolab-find-resume).");
+        else
+            Console.Error.WriteLine("  Could not create the auto-resume task; after a reboot run `rycolab find --resume` by hand.");
 
         // ---- sweep ----
         var options = new SweepOptions { Cores = cores, CampaignDir = dir };
@@ -135,6 +148,8 @@ public static class FindCommand
             Console.WriteLine("  Interrupted. `rycolab find --resume` continues where it stopped.");
             return code;
         }
+
+        Service.RemoveFindResume();
 
         // ---- proposal ----
         var profile = Profile.FromLimits(limits, config, Path.GetFileName(dir.TrimEnd('\\', '/')), CpuFingerprint.Of(co));

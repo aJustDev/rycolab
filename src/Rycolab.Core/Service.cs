@@ -35,6 +35,27 @@ public static class Service
         return p.ExitCode;
     }
 
+    public const string FindTaskName = "rycolab-find-resume";
+
+    /// <summary>
+    /// Task that resumes an unfinished find campaign at logon: a too-deep
+    /// margin can cold-reboot the machine (it happened on core 4 at -50,
+    /// twice), and a harness that needs a human after that is not a harness.
+    /// The campaign registers it when it starts; `find` removes it when the
+    /// campaign completes. 30 s logon delay so the system settles first.
+    /// </summary>
+    public static int InstallFindResume(string exe, string log)
+    {
+        var tr = $"powershell -NoProfile -WindowStyle Hidden -Command \\\"& '{exe}' find --resume --yes --plain *>> '{log}'\\\"";
+        var code = Run($"/Create /TN {FindTaskName} /TR \"{tr}\" /SC ONLOGON /DELAY 0000:30 /RL HIGHEST /IT /F", quiet: true);
+        if (code == 0) code = RunPs($"Set-ScheduledTask -TaskName {FindTaskName} -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero)) | Out-Null");
+        return code;
+    }
+
+    public static int RemoveFindResume() => Run($"/Delete /TN {FindTaskName} /F", quiet: true);
+    public static bool FindResumeExists() => Run($"/Query /TN {FindTaskName}", quiet: true) == 0;
+    public static int StartFindResume() => Run($"/Run /TN {FindTaskName}", quiet: true);
+
     public static int Remove() => Run($"/Delete /TN {TaskName} /F", quiet: true);
     public static int Enable() => Run($"/Change /TN {TaskName} /ENABLE", quiet: true);
     public static int Disable() => Run($"/Change /TN {TaskName} /DISABLE", quiet: true);

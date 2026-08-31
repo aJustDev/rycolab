@@ -80,6 +80,11 @@ public sealed class Sweep
         var t0 = DateTime.Now;
         _sink.Event($"sweep: cores {string.Join(",", _o.Cores)}  {Start} -> {Top} step {Step}  {Seconds} s  engines {string.Join(" | ", _plan.Engines)}  tests {string.Join(",", _plan.Tests)}");
 
+        // A y-cruncher load does not count as user activity: without this the
+        // machine slept mid-run on 2026-08-31 (AC standby 1 h) and the run
+        // closed as a false CLEAN at the baseline.
+        KeepAwake.On();
+
         // Machine hang during the previous run: the BIOS restored the baseline by itself.
         var hang = Journal.ReadJsonFile<InProgress>(_inProgressPath);
         if (hang is not null)
@@ -125,6 +130,7 @@ public sealed class Sweep
         }
         finally
         {
+            KeepAwake.Off();
             _co.TryRestore(_plan.Base);
             _runs.Dispose();
             _samples.Dispose();
