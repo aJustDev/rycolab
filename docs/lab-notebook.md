@@ -546,3 +546,23 @@ for), 3 -45 (tainted), 13 -50.
 Tool fix pending: the sweep must call SetThreadExecutionState(ES_CONTINUOUS
 | ES_SYSTEM_REQUIRED) while running, and invalidate any run whose wall time
 exceeds its sample time by more than the interval (a clock gap = a sleep).
+
+## 2026-08-31 15:45 - The campaign process died with the session; cleanup
+
+The elevated `find` process was killed at ~14:00 (its parent shell went down
+with a Claude Code session restart), mid-run on core 4 (-50, 24-ZN5, 60 s
+in). Cleanup, in order:
+
+- `dev probe` read margin **+1 on all 16 cores** - neither the profile nor
+  the baseline, and phase 3 had shown that sleep restores -5. Same "1 on
+  all cores" was printed by `off` on 30/08 19:50. Open question: something
+  (sleep path? EC?) leaves +1 where -5 is expected. `dev reset` wrote and
+  verified -5 on all cores without complaint, so the SMU mailbox was fine.
+- `in-progress.json` deleted by hand: on resume the sweep would have
+  recorded a false "machine hang" positive for core 4 at -50
+  (Sweep.cs:83-90). The kill is externally explained; core 4 restarts its
+  -50 pair cleanly.
+- Core 3's tainted "-45" removed from limits.json (the 1096 s CLEAN);
+  core 3 will be measured again on resume.
+- Validated phase-1 profile re-applied for the afternoon (`rycolab on`);
+  the campaign resumes tonight with `find --resume` (cores 3-12, 14, 15).
