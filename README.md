@@ -272,7 +272,15 @@ build time. To update an existing install: `rycolab off`, build, run
 GPL-3.0. The core mask encoding and the SMU access sequence derive from Lenovo
 Legion Toolkit, also GPL-3.0. See `NOTICE`.
 
-## Warning
+## Warning and disclaimer
 
 This writes to your processor's SMU mailbox. A bad undervolt produces wrong
 results before it produces visible failures. Use it knowing that.
+
+**Use at your own risk.** Undervolting can crash, reboot or corrupt data on
+your machine, and an unstable margin can do so days later, at idle. This
+software is provided "as is", without warranty of any kind; the authors are
+not liable for any damage to your hardware, data or anything else arising
+from its use (GPL-3.0, sections 15 and 16). Every write it makes is
+volatile - a reboot returns the CPU to the BIOS state - but what runs while
+a margin is unstable is your responsibility.
