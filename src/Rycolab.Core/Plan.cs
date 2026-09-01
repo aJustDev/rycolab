@@ -18,6 +18,8 @@ public sealed class Plan
     public int Top { get; set; } = -5;
     public int SafetyMargin { get; set; } = 5;
     public string? YCruncher { get; set; }
+    /// <summary>Windows toast + chime when the guard hits bad news (WHEA, reset, margin lost, giveup).</summary>
+    public bool Notify { get; set; } = true;
     /// <summary>The guard applies the battery profile when the AC line drops and restores it when it is back (`rycolab power auto`).</summary>
     public bool PowerAuto { get; set; }
     public PowerOptions PowerAutoOptions { get; set; } = new();

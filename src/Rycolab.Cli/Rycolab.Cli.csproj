@@ -15,6 +15,7 @@
   <ItemGroup>
     <None Include="..\..\third_party\inpout\inpoutx64.dll" Link="inpoutx64.dll" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\third_party\inpout\InpOut.LICENSE.txt" Link="InpOut.LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="rycolab-alert.wav" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

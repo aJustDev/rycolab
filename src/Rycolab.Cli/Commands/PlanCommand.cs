@@ -27,7 +27,7 @@ public static class PlanCommand
                 return Show(Plan.LoadOrDefault(path));
             case "set":
             {
-                if (args.Positional.Count < 3) { Console.Error.WriteLine("Usage: rycolab plan set <key> <value>   keys: base engines tests seconds step start top safetyMargin ycruncher"); return 1; }
+                if (args.Positional.Count < 3) { Console.Error.WriteLine("Usage: rycolab plan set <key> <value>   keys: base engines tests seconds step start top safetyMargin ycruncher notify"); return 1; }
                 var plan = Plan.LoadOrDefault(path);
                 var key = args.Positional[1].ToLowerInvariant();
                 var value = args.Positional[2];
@@ -42,6 +42,7 @@ public static class PlanCommand
                     case "top": plan.Top = int.Parse(value); break;
                     case "safetymargin": plan.SafetyMargin = int.Parse(value); break;
                     case "ycruncher": plan.YCruncher = value; break;
+                    case "notify": plan.Notify = bool.Parse(value); break;
                     default: Console.Error.WriteLine($"Unknown key {key}"); return 1;
                 }
                 plan.Save(path);
@@ -62,6 +63,7 @@ public static class PlanCommand
         Console.WriteLine($"  engines    {string.Join(" | ", plan.Engines)}");
         Console.WriteLine($"  tests      {string.Join(",", plan.Tests)}");
         Console.WriteLine($"  y-cruncher {plan.YCruncherDir}{(Installer.HasYCruncher(plan.YCruncherDir, plan.Engines) ? "" : "   (NOT FOUND)")}");
+        Console.WriteLine($"  notify     {(plan.Notify ? "on" : "off")}  (toast + chime on WHEA / reset / margin lost / giveup)");
         Console.WriteLine();
         return 0;
     }

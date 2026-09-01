@@ -26,7 +26,7 @@ if (command is "help" or "-h" or "--help")
 }
 
 // Commands that only read files never need elevation.
-var unelevated = command is null or "status" or "report" or "profile" or "version" || (dev && command == "plan");
+var unelevated = command is null or "status" or "report" or "profile" or "version" || (dev && command is "plan" or "toast");
 if (!unelevated && !Elevation.IsElevated())
 {
     Console.Error.WriteLine($"'rycolab {(dev ? "dev " : "")}{command}' needs administrator privileges to talk to the SMU.");
@@ -48,6 +48,7 @@ try
             "sensors" => SensorsCommand.Run(opts),
             "calibrate" => CalibrateCommand.Run(opts),
             "plan" => PlanCommand.Run(opts),
+            "toast" => ToastCommand.Run(opts),
             "task" => TaskCommand.Run(opts),
             "profile" => ProfileCommand.Run(opts),
             "log" => LogCommand.Run(opts),
@@ -126,7 +127,7 @@ static void PrintHelp()
                                         (battery: --gpu igpu|auto|keep --hz 60 --brightness 40 --no-windows --close-apps)
           rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery charge mode (conservation stops at ~80 %)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
-                                        calibrate, plan, task, profile import, log   (`rycolab dev help`)
+                                        calibrate, plan, toast, task, profile import, log   (`rycolab dev help`)
 
         find
           --quick        three tests and 180 s per run instead of eight and 360 s
@@ -162,6 +163,7 @@ static void PrintDevHelp()
           sensors                                                         LibreHardwareMonitor dump
           calibrate [--core N] [--seconds 40]     locate the per-core PM table blocks (pm-index.json)
           plan show | init [--force] | set <key> <value>                  config.json (no elevation)
+          toast [--title t] [--body b]      test notification, same path as the guard (no elevation)
           task install|run|stop|remove|status                             the scheduled task by hand
           profile import --cores a,...,p --campaign <name> [--limits a,...,p] [--note ...]
           log --out <file.csv> [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans, battery W

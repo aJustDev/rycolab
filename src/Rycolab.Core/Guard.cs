@@ -50,6 +50,20 @@ public sealed class Guard
     private readonly Validation? _validation;
     private DateTime _t0;
 
+    // Bad news becomes a toast. A flapping margin fires "changed" every
+    // interval; the per-kind cooldown keeps that to one toast per 10 min.
+    private static readonly Dictionary<string, string> BadNews = new()
+    {
+        ["whea"] = "rycolab: WHEA event",
+        ["reset"] = "rycolab: machine reset detected",
+        ["changed"] = "rycolab: margin lost",
+        ["giveup"] = "rycolab: guard gave up",
+        ["apply-failed"] = "rycolab: profile apply failed",
+        ["error"] = "rycolab: guard error",
+    };
+    private readonly Dictionary<string, DateTime> _notified = [];
+    private const int NotifyCooldownMinutes = 10;
+
     public Guard(CoController co, Profile profile, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent)
     {
         _co = co;
@@ -286,6 +300,14 @@ public sealed class Guard
         if (_state.LastEvents.Count > 10) _state.LastEvents.RemoveAt(0);
         PublishState();
         _onEvent($"{DateTime.Now:HH:mm:ss}  {kind}: {detail}");
+
+        if (_o.PublishState && BadNews.TryGetValue(kind, out var title)
+            && (!_notified.TryGetValue(kind, out var last) || (DateTime.Now - last).TotalMinutes >= NotifyCooldownMinutes)
+            && Plan.LoadOrDefault().Notify)
+        {
+            _notified[kind] = DateTime.Now;
+            Notifier.Notify(title, detail);
+        }
     }
 
     private void PublishState()

@@ -101,7 +101,10 @@ wake), retries the SMU write, and on any WHEA event restores the baseline and
 stops with code 10. A profile starts in `validating` and becomes `steady`
 after 20 h guarded or 7 days without WHEA and without an unexpected reboot
 (Kernel-Power 41 since the previous guard tick is recorded as a `reset` event
-and counted; a hard reset leaves no WHEA).
+and counted; a hard reset leaves no WHEA). Bad news (WHEA, reset, margin
+lost, giveup) also raises a Windows toast with its own chime, one per kind
+per 10 min; `rycolab dev plan set notify false` turns it off and
+`rycolab dev toast` sends a test one.
 
 Data lives in `%LOCALAPPDATA%\rycolab` (`RYCOLAB_HOME` overrides): `bin\`,
 `tools\y-cruncher\`, `config.json` (baseline, engines, tests, seconds),
