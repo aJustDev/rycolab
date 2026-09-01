@@ -1,20 +1,21 @@
-using Rycolab.Core.Legion;
 using System.Diagnostics;
 using Rycolab.Core;
+using Rycolab.Core.Legion;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
 namespace Rycolab.Cli.Ui;
 
 /// <summary>
-/// The `rycolab status` panel: four sections (Curve Optimizer, Battery,
-/// Lenovo EC, Windows) built from data the callers gather. Colors follow
-/// GuardView: green ok, red wrong, grey unknown/desaturated. The EC section
-/// needs elevation; without it, it degrades to a hint.
+/// The `rycolab status` panel. By default one verdict line and a few rows
+/// (profile, hardware, events, battery): what is applied and whether it is
+/// right. `--all` adds the Lenovo EC, the processes burning the CPU and the
+/// Windows scheme, each in its own panel. Colors: green ok, red wrong,
+/// yellow attention, grey unknown or secondary.
 /// </summary>
 public static class StatusView
 {
-    private const int LabelWidth = 12;
+    private const int LabelWidth = 10;
 
     private static Grid NewGrid(int labelWidth = LabelWidth)
     {
@@ -32,61 +33,95 @@ public static class StatusView
 
     private static string E(string? s) => Markup.Escape(s ?? "-");
 
-    // ---- Curve Optimizer -------------------------------------------------
+    /// <summary>What Spectre will wrap at (80 when the output is redirected).</summary>
+    private static int Width() => Math.Max(60, AnsiConsole.Profile.Width);
 
-    public static IRenderable Co(Process? guard, State? state, Rycolab.Core.Profile? profile)
+    private static string Guarded(long seconds)
+        => seconds < 48 * 3600 ? $"{seconds / 3600.0:F1} h guarded" : $"{seconds / 86400.0:F1} d guarded";
+
+    private static string Version => typeof(Guard).Assembly.GetName().Version?.ToString(3) ?? "?";
+
+    // ---- the default view --------------------------------------------------
+
+    /// <summary>Header, verdict and the four rows. What `rycolab` and `rycolab status` show without `--all`.</summary>
+    public static IRenderable Summary(Process? guard, State? state, Rycolab.Core.Profile? profile)
     {
         var g = NewGrid();
-        KV(g, "guard", guard is { } p
-            ? $"[green]RUNNING[/]  pid {p.Id}, since {p.StartTime:HH:mm:ss}"
-            : "[red]not running[/]  (`rycolab on` applies and guards the profile)");
+        g.AddRow(new Markup(""), new Markup($"[grey]rycolab {Version}   {DateTime.Now:yyyy-MM-dd HH:mm:ss}[/]"));
+        g.AddEmptyRow();
+        g.AddRow(new Markup(""), new Markup(Verdict(guard, state, profile)));
+
         KV(g, "profile", profile is null ? "[red]none[/]" : E(Commands.StatusCommand.Describe(profile)));
 
         if (state is not null)
         {
-            var v = state.ValidationStartedAt is { } vs
-                ? $"  [grey](since {vs:yyyy-MM-dd}: {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Reapplies} re-applies,[/] {Count(state.Whea, "WHEA")}[grey],[/] {Count(state.Resets, "resets")}[grey])[/]"
-                : "";
-            KV(g, "phase", $"[bold]{E(state.Phase)}[/]{v}");
-            if (state.LastTick is { } t)
-                KV(g, "last sample", $"{t:yyyy-MM-dd HH:mm:ss}  {E(state.LastState)}  CPU {state.CpuLoad?.ToString("F0") ?? "-"} %  package {state.PackagePower?.ToString("F1") ?? "-"} W");
-
-            if (profile is not null || state.Hardware is { Length: > 0 })
-            {
-                var count = state.Hardware?.Length is > 0 and var n ? n
-                    : profile?.Fingerprint?.Cores is > 0 and var f ? f : Topology.MaxCores;
-                var off = 0;
-                for (var first = 0; first < count; first += Topology.CoresPerCcd)
-                {
-                    var cells = new List<string>();
-                    for (var c = first; c < Math.Min(count, first + Topology.CoresPerCcd); c++)
-                    {
-                        var want = profile is not null && c < profile.Cores.Length ? profile.Cores[c] : (int?)null;
-                        var hw = state.Hardware is { } h && c < h.Length ? h[c] : null;
-                        var color = hw is null ? "grey" : want is null || hw == want ? "default" : "red";
-                        if (hw is not null && want is not null && hw != want) off++;
-                        cells.Add($"[{color}]{(hw?.ToString() ?? "-"),4}[/]");
-                    }
-                    KV(g, first == 0 ? "hardware" : "", $"[grey]{Topology.CcdNameFromIndex(first / Topology.CoresPerCcd)}[/] {string.Join(" ", cells)}");
-                }
-                KV(g, "", off == 0 && guard is not null && state.Applied
-                    ? "[green]all cores on profile[/]"
-                    : off > 0 ? $"[red]{off} cores off profile[/]" : "[grey]baseline (profile not applied)[/]");
-            }
-
+            Hardware(g, guard, state, profile);
             if (state.LastError is { } err) KV(g, "last error", $"[red]{E(err)}[/]");
-            foreach (var (e, i) in state.LastEvents.TakeLast(5).Select((e, i) => (e, i)))
-                KV(g, i == 0 ? "events" : "", $"[grey]{E(e.Length > 110 ? e[..110] + "..." : e)}[/]");
+            var room = Width() - LabelWidth - 4;
+            foreach (var (e, i) in state.LastEvents.TakeLast(3).Select((e, i) => (e, i)))
+                KV(g, i == 0 ? "events" : "", $"[grey]{E(e.Length > room ? e[..Math.Max(0, room - 3)] + "..." : e)}[/]");
         }
-        return Section("Curve Optimizer", g);
+
+        KV(g, "battery", BatteryLine(state));
+        return g;
+    }
+
+    /// <summary>One line, in color: is the profile on the cores right now, and in what phase.</summary>
+    private static string Verdict(Process? guard, State? state, Rycolab.Core.Profile? profile)
+    {
+        if (profile is null) return "[yellow bold]NO PROFILE[/]";
+        var applied = guard is not null && state is { Applied: true };
+        var head = applied ? "[green bold]PROFILE APPLIED[/]" : "[red bold]PROFILE NOT APPLIED[/]";
+        if (state is null) return $"{head}   [grey]no guard state yet[/]";
+
+        var phase = state.Phase == "positive" && state.Positive is { } why ? $"positive ({why})" : state.Phase;
+        var who = guard is { } p
+            ? $"guard pid {p.Id} since {p.StartTime:HH:mm}"
+            : state.LastTick is { } t ? $"guard stopped, last sample {t:HH:mm:ss}" : "guard not running";
+        var counters = state.ValidationStartedAt is not null
+            ? $"   {Guarded(state.GuardedSeconds)}   {Count(state.Whea, "WHEA")}   {Count(state.Resets, "resets")}"
+            : "";
+        var detail = !applied && guard is not null && state.LastState is { } ls && ls != "ok" ? $"   [yellow]{E(ls)}[/]" : "";
+        return $"{head}   [bold]{E(phase)}[/]   {E(who)}{counters}{detail}";
+    }
+
+    /// <summary>One row when every core is on profile; the per-CCD rows with the wrong ones in red otherwise.</summary>
+    private static void Hardware(Grid g, Process? guard, State state, Rycolab.Core.Profile? profile)
+    {
+        var sample = state.LastTick is { } t
+            ? $"   [grey]last sample {t:HH:mm:ss}   CPU {state.CpuLoad?.ToString("F0") ?? "-"} %   package {state.PackagePower?.ToString("F1") ?? "-"} W[/]"
+            : "";
+        if (state.Hardware is not { Length: > 0 } hw)
+        {
+            KV(g, "hardware", $"[grey]no reading yet[/]{sample}");
+            return;
+        }
+
+        var off = 0;
+        var rows = new List<string>();
+        for (var first = 0; first < hw.Length; first += Topology.CoresPerCcd)
+        {
+            var cells = new List<string>();
+            for (var c = first; c < Math.Min(hw.Length, first + Topology.CoresPerCcd); c++)
+            {
+                var want = profile is not null && c < profile.Cores.Length ? profile.Cores[c] : (int?)null;
+                var color = hw[c] is null ? "grey" : want is null || hw[c] == want ? "default" : "red";
+                if (hw[c] is not null && want is not null && hw[c] != want) off++;
+                cells.Add($"[{color}]{(hw[c]?.ToString() ?? "-"),4}[/]");
+            }
+            rows.Add($"[grey]{Topology.CcdNameFromIndex(first / Topology.CoresPerCcd)}[/] {string.Join(" ", cells)}");
+        }
+
+        if (off == 0 && guard is not null && state.Applied)
+        {
+            KV(g, "hardware", $"[green]all {hw.Count(x => x is not null)} cores on profile[/]{sample}");
+            return;
+        }
+        for (var i = 0; i < rows.Count; i++) KV(g, i == 0 ? "hardware" : "", rows[i]);
+        KV(g, "", (off > 0 ? $"[red]{off} cores off profile[/]" : "[grey]baseline (profile not applied)[/]") + sample);
     }
 
     private static string Count(int v, string label) => v == 0 ? $"[green]0 {label}[/]" : $"[red]{v} {label}[/]";
-
-    /// <summary>The mode list only changes with the resolution; enumerate once per process.</summary>
-    private static readonly Lazy<string> AvailableRates = new(() => string.Join(",", WindowsPower.AvailableRefreshRates()));
-
-    private static bool _loadPrimed;
 
     /// <summary>Design capacity and cycle count move daily at most; the live view repaints every 2 s.</summary>
     private static readonly Lazy<(double? DesignWh, int? Cycles)> HealthStatics = new(() =>
@@ -95,48 +130,55 @@ public static class StatusView
         return (s.DesignWh, s.Cycles);
     });
 
-    // ---- Battery ---------------------------------------------------------
+    private static string BatteryLine(State? state)
+    {
+        var b = BatteryInfo.Read();
+        if (b.OnAc is null) return "[grey]no battery[/]";
+        var line = b.OnAc == true
+            ? "[green]AC[/]"
+            : $"[yellow]battery[/]  {b.DischargeW?.ToString("F1") ?? "-"} W  {b.Percent?.ToString("F0") ?? "-"} %  {b.RemainingWh?.ToString("F1") ?? "-"} Wh{(b.HoursLeft is { } h ? $"  [grey]~{h:F1} h at this rate[/]" : "")}";
 
-    public static IRenderable Battery(State? state)
+        var (design, cycles) = HealthStatics.Value;
+        var health = b.FullWh is { } fw
+            ? $"   {fw:F1} Wh full[grey]{(design is > 0 and var dw ? $" ({100.0 * fw / dw:F0} % of {dw:F1} Wh design" + (cycles is { } cy ? $", {cy} cycles)" : ")") : "")}[/]"
+            : "";
+
+        var plan = Plan.LoadOrDefault();
+        var snap = PowerSnapshot.Load();
+        var byGuard = state?.PowerProfile == "battery" ? " by the guard" : "";
+        var prof = snap is { } s
+            ? $"   [green]battery profile applied[/]{byGuard} [grey]at {s.TakenAt:HH:mm} (`rycolab legion power ac` restores)[/]"
+            : plan.PowerAuto ? "   [grey]power auto on, battery profile not applied[/]" : "";
+        return $"{line}{health}{prof}";
+    }
+
+    // ---- the `--all` panels -------------------------------------------------
+
+    /// <summary>The mode list only changes with the resolution; enumerate once per process.</summary>
+    private static readonly Lazy<string> AvailableRates = new(() => string.Join(",", WindowsPower.AvailableRefreshRates()));
+
+    private static bool _loadPrimed;
+
+    /// <summary>Who burns the CPU (between two samples) and the panel. Belongs to the machine, not to the profile.</summary>
+    public static IRenderable Machine(State? state)
     {
         var g = NewGrid();
-        var b = BatteryInfo.Read();
-        KV(g, "line", b.OnAc is { } ac
-            ? (ac ? "[green]AC[/]" : $"[yellow]battery[/]  {b.DischargeW?.ToString("F1") ?? "-"} W  {b.Percent?.ToString("F0") ?? "-"} %  {b.RemainingWh?.ToString("F1") ?? "-"} Wh{(b.HoursLeft is { } h ? $"  [grey]~{h:F1} h at this rate[/]" : "")}")
-            : "[grey]?[/]");
-
         var top = ProcessLoad.Top(4);
         var primed = _loadPrimed;
         _loadPrimed = true;
-        // A single LibreHardwareMonitor sample occasionally returns garbage (373 W seen on 01/09); no attribution beyond the physical ceiling.
         var pkg = state?.GuardPid is not null && state.PackagePower is > 0 and < 250 ? state.PackagePower : null;
         KV(g, "cpu top", top.Count == 0
             ? (primed ? "[grey]everything under 0.5 % CPU[/]" : "[grey]sampling...[/]")
             : string.Join("   ", top.Select(t =>
                 // Below ~5 % CPU the "share" is mostly the idle/uncore floor, not the process; no watt figure there.
                 $"{E(t.Name.Length > 16 ? t.Name[..16] : t.Name)} {t.CpuPct:F1}[grey]%[/]{(pkg is { } w && t.CpuPct >= 5 ? $" [grey]~{t.BusyShare * w:F0} W[/]" : "")}")));
-
-        var (design, cycles) = HealthStatics.Value;
-        KV(g, "health", b.FullWh is { } fw
-            ? $"{fw:F1} Wh full charge{(design is > 0 and var dw ? $"  [grey]{100.0 * fw / dw:F1} % of {dw:F1} Wh design[/]" : "")}{(cycles is { } cy ? $"  [grey]{cy} cycles[/]" : "")}"
-            : "[grey]?[/]");
-
-        var snap = PowerSnapshot.Load();
-        var byGuard = state?.PowerProfile == "battery" ? " [grey](applied by the guard)[/]" : "";
-        KV(g, "profile", snap is { } s
-            ? $"[green]applied[/] at {s.TakenAt:HH:mm:ss}{byGuard}  [grey](`legion power ac` restores {E(LenovoEc.ModeName(s.Mode))}, {E(LenovoEc.IGpuModeName(s.IGpuMode))}, {s.Hz?.ToString() ?? "?"} Hz)[/]"
-            : "[grey]not applied[/]");
-
+        KV(g, "panel", $"{WindowsPower.RefreshHz?.ToString() ?? "?"} Hz  [grey](available {AvailableRates.Value})[/]  brightness {WindowsPower.Brightness?.ToString() ?? "?"} %");
         var plan = Plan.LoadOrDefault();
-        KV(g, "auto", plan.PowerAuto
+        KV(g, "power auto", plan.PowerAuto
             ? $"[green]on[/]  [grey]{E(plan.PowerAutoOptions.ToString())}; battery profile {Guard.AcDebounceSeconds} s after unplugging, restored on AC[/]"
             : "[grey]off[/]  (`rycolab legion power auto on` lets the guard handle it)");
-
-        KV(g, "panel", $"{WindowsPower.RefreshHz?.ToString() ?? "?"} Hz  [grey](available {AvailableRates.Value})[/]  brightness {WindowsPower.Brightness?.ToString() ?? "?"} %");
-        return Section("Battery", g);
+        return Section("Machine", g);
     }
-
-    // ---- Lenovo EC -------------------------------------------------------
 
     /// <summary>Pass null instances when not elevated; the callers own their lifetime (the live view reuses them across refreshes).</summary>
     public static IRenderable Ec(LenovoEc? ec, LenovoEnergy? energy)
@@ -144,7 +186,7 @@ public static class StatusView
         var g = NewGrid();
         if (ec is null)
         {
-            KV(g, "", "[grey]run elevated (`sudo rycolab status`) to read the EC: power mode and limits, GPU mode, fans, charge mode[/]");
+            KV(g, "", "[grey]run elevated (`sudo rycolab status --all`) to read the EC: power mode and limits, GPU mode, fans, charge mode[/]");
             return Section("Lenovo EC", g);
         }
         if (!ec.IsAvailable)
@@ -167,8 +209,6 @@ public static class StatusView
         return Section("Lenovo EC", g);
     }
 
-    // ---- Windows ---------------------------------------------------------
-
     public static IRenderable Windows()
     {
         var g = NewGrid(22);
@@ -178,8 +218,9 @@ public static class StatusView
         foreach (var (sub, setting, label, battery) in WindowsPower.DcSettings)
         {
             if (WindowsPower.Query(sub, setting) is not { } q) continue;
-            var dc = snapActive && q.Dc == battery ? $"[green]{q.Dc}[/]" : q.Dc.ToString();
-            KV(g, label, $"AC {q.Ac}   DC {dc}");
+            var dc = $"{E(WindowsPower.DcName(setting, q.Dc))} [grey]({q.Dc})[/]";
+            if (snapActive && q.Dc == battery) dc = $"[green]{dc}[/]";
+            KV(g, label, $"AC {E(WindowsPower.DcName(setting, q.Ac))} [grey]({q.Ac})[/]   DC {dc}");
         }
         return Section("Windows", g);
     }

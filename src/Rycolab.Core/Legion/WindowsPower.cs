@@ -157,6 +157,21 @@ public static class WindowsPower
         (SubUsb, UsbSelectiveSuspend, "USB selective suspend", 1),
     ];
 
+    /// <summary>What an index means for one of the settings above, for people (the raw number says nothing).</summary>
+    public static string DcName(string setting, int value) => setting switch
+    {
+        PerfBoostMode => value switch
+        {
+            0 => "disabled", 1 => "enabled", 2 => "aggressive", 3 => "efficient enabled", 4 => "efficient aggressive",
+            5 => "aggressive at guaranteed", 6 => "efficient aggressive at guaranteed", _ => value.ToString(),
+        },
+        ProcThrottleMax => $"{value} %",
+        Aspm => value switch { 0 => "off", 1 => "moderate", 2 => "maximum", _ => value.ToString() },
+        WifiPowerSave => value switch { 0 => "max performance", 1 => "low saving", 2 => "medium saving", 3 => "max saving", _ => value.ToString() },
+        UsbSelectiveSuspend => value switch { 0 => "disabled", 1 => "enabled", _ => value.ToString() },
+        _ => value.ToString(),
+    };
+
     /// <summary>Current (AC, DC) indices of a setting in the active scheme, or null if powercfg does not know it.</summary>
     public static (int Ac, int Dc)? Query(string sub, string setting)
     {

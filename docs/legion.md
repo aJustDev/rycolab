@@ -5,7 +5,7 @@ fan switch, the battery profile and the charge modes. None of it is needed
 for Curve Optimizer; it lives here because the reference machine is a Legion
 Pro 7 and every knob was measured on it (`lab-notebook.md`). All of it talks
 to the same interfaces Legion Toolkit uses (WMI `LENOVO_GAMEZONE_DATA` /
-`LENOVO_OTHER_METHOD`, the `\.nergyDrv` driver) and reads every write
+`LENOVO_OTHER_METHOD`, the `\\.\EnergyDrv` driver) and reads every write
 back. On a machine without them every command says so and does nothing.
 
 ```
