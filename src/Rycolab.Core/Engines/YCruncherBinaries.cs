@@ -18,6 +18,19 @@ public static class YCruncherBinaries
 
     public static string[] Recommended() => [Sse3, HasAvx512 ? Avx512 : Avx2];
 
+    /// <summary>
+    /// CLI shorthand ("p4p", "zn5", "zn2") or an exact binary name. On the
+    /// 9955HX3D the definitive campaign's 26 positives all came from ZN5 and
+    /// P4P never failed, so a single-engine sweep loses nothing there.
+    /// </summary>
+    public static string Resolve(string spec) => spec.ToLowerInvariant() switch
+    {
+        "p4p" or "sse3" => Sse3,
+        "zn5" or "avx512" => Avx512,
+        "zn2" or "avx2" => Avx2,
+        _ => spec,
+    };
+
     public static string Why() => HasAvx512 ? $"AVX-512 available -> {Avx512}" : $"no AVX-512 -> {Avx2}";
 
     /// <summary>Engines whose exe is not in the directory.</summary>

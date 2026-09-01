@@ -131,6 +131,7 @@ static void PrintHelp()
         find
           --quick        three tests and 180 s per run instead of eight and 360 s
           --cores <spec> 0-15, 0,3,8-11 ...      --resume   continue the unfinished campaign
+          --engines <l>  zn5,p4p,zn2 or binary names; overrides the config for this run
           --yes          no questions            --accept   save the proposed profile
 
         SAFETY
@@ -155,8 +156,8 @@ static void PrintDevHelp()
           apply --margin M [--core N | --ccd 0|1] | --profile [path] [--force]   [--dry-run]
           reset [--to N]                                                  all cores to the baseline
           guard [--profile path] [--minutes N] [--interval s] [--plain]   the guard, in this console
-          sweep [--campaign n] [--cores 0-15] [--start M] [--top M] [--step N] [--seconds S]
-                [--no-suspend] [--plain]                                  the sweep without the wizard
+          sweep [--campaign n] [--cores 0-15] [--engines zn5,p4p] [--start M] [--top M]
+                [--step N] [--seconds S] [--no-suspend] [--plain]         the sweep without the wizard
           watch --core N [--seconds] [--interval ms] [--jsonl f] [--summary f] [--raw]
           sensors                                                         LibreHardwareMonitor dump
           calibrate [--core N] [--seconds 40]     locate the per-core PM table blocks (pm-index.json)

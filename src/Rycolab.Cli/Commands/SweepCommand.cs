@@ -6,8 +6,8 @@ using Spectre.Console;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab sweep [--campaign name] [--cores 0-15|0,3,8-11] [--start M] [--top M]
-/// [--step N] [--seconds S] [--no-suspend] [--plain]
+/// rycolab sweep [--campaign name] [--cores 0-15|0,3,8-11] [--engines zn5,p4p]
+/// [--start M] [--top M] [--step N] [--seconds S] [--no-suspend] [--plain]
 /// </summary>
 public static class SweepCommand
 {
@@ -18,6 +18,7 @@ public static class SweepCommand
         var dir = AppPaths.Campaign(campaign);
         var cores = args.Get("cores") is { } spec ? ParseCores(spec) : null;
         if (args.Get("cores") is not null && cores is null) { Console.Error.WriteLine("--cores: use 0-15, 0,3,8-11 ..."); return 2; }
+        if (FindCommand.ParseEngines(args, config) is { } engineError) { Console.Error.WriteLine(engineError); return 2; }
 
         if (!Installer.HasYCruncher(config.YCruncherDir, config.Engines))
         {

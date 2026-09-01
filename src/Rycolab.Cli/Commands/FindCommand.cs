@@ -6,7 +6,7 @@ using Spectre.Console;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab find [--quick] [--cores 0-15] [--resume] [--yes] [--accept] [--plain]
+/// rycolab find [--quick] [--cores 0-15] [--engines zn5,p4p] [--resume] [--yes] [--accept] [--plain]
 /// The sweep with a wizard around it: checks, time estimate, confirmation,
 /// campaign bookkeeping, and the proposed profile at the end.
 /// </summary>
@@ -21,6 +21,7 @@ public static class FindCommand
         var config = Plan.LoadOrDefault();
         var quick = args.Has("quick");
         if (quick) { config.Tests = QuickTests; config.Seconds = QuickSeconds; }
+        if (ParseEngines(args, config) is { } engineError) { Console.Error.WriteLine(engineError); return 2; }
 
         // The controller only reads here; the core universe is what this CPU has.
         using var co = new CoController();
@@ -172,6 +173,17 @@ public static class FindCommand
         else Console.WriteLine($"  Not saved. `rycolab profile from-sweep {Path.GetFileName(dir.TrimEnd('\\', '/'))}` saves it later; `rycolab report` shows the details.");
         Console.WriteLine();
         return 0;
+    }
+
+    /// <summary>--engines zn5,p4p overrides the config's engine list for this run. Null when ok.</summary>
+    internal static string? ParseEngines(Args args, Plan config)
+    {
+        if (args.Get("engines") is not { } spec) return null;
+        var engines = spec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                          .Select(Rycolab.Core.Engines.YCruncherBinaries.Resolve).ToArray();
+        if (engines.Length == 0) return "  --engines: at least one engine (zn5, p4p, zn2 or a binary name).";
+        config.Engines = engines;
+        return null;
     }
 
     private static bool IsComplete(string dir, int[] cores)
