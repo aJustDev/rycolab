@@ -674,3 +674,32 @@ margins that were clean once for 12 min. limit + 5 is the profile of record.
 If the experiment is ever wanted: only after this gate passes, then the same
 14-day gate again at limit + 0, and the first WHEA returns that core to +5
 permanently.
+
+## 2026-09-01 - Guard notifications: toast + own chime (roadmap item 1)
+
+Bad news (`whea`, `reset`, `changed`, `giveup`, `apply-failed`, `error`) now
+raises a Windows toast from the guard's Event funnel, one per kind per
+10 min (a flapping margin fires `changed` every interval and must not spam),
+gated on the new `notify` config key (default on) and on PublishState
+(installed-profile guards only).
+
+Mechanics, native at the user's request (no PowerShell child): TFM bumped
+to `net9.0-windows10.0.17763.0` for the WinRT projection - the output grows
+by Microsoft.Windows.SDK.NET.dll (~25 MB), OS floor Win10 1809. `Notifier`
+registers the AUMID `rycolab` under HKCU\Software\Classes\AppUserModelId
+(what lets an unpackaged exe own toasts), sends the toast silent and plays
+`rycolab-alert.wav` through winmm `PlaySound` (ASYNC|NODEFAULT): unpackaged
+toasts only accept Windows' stock ms-winsoundevent sounds, so the chime is
+ours - two synthesized tones (E5 -> A5, exponential decay, 0.65 s),
+generated, no licensing. `rycolab dev toast` (unelevated) tests the path.
+
+Verified: toast + chime unelevated, elevated (the risk case: the guard runs
+/RL HIGHEST) and from the installed binary; `dev plan set notify false/true`
+round-trip; existing commands fine on the new TFM. The user confirmed the
+toasts and the chime.
+
+Incident while reinstalling: `off` restored the baseline and closed the
+journal cleanly (restore code 0) but the guard *process* stayed alive
+afterwards, holding the bin DLLs; killed by hand (safe: baseline already
+written). First time seen; some non-background thread survives Run's
+return. Open item, to reproduce on the next off.
