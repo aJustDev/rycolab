@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Management;
 using System.Text.Json;
 
 namespace Rycolab.Core;
@@ -87,6 +88,14 @@ public static class PowerProfile
                 else
                 {
                     var present = WaitDgpu(false, 25, log);
+                    // A recently active card sometimes never leaves after the switch and
+                    // burns ~12 W awake (twice on 2026-09-01). Disabling the device node
+                    // completes the ejection: the EC reported it off within seconds.
+                    if (g == LenovoEc.IGpuOnly && present && DgpuSetEnabled(false, log))
+                    {
+                        Thread.Sleep(5000);
+                        present = LenovoEc.DgpuPresent();
+                    }
                     ec.NotifyDgpuStatus(present);
                     log($"gpu {LenovoEc.IGpuModeName(before)} -> {LenovoEc.IGpuModeName(after)}; dGPU {(present ? "still present (notified 1)" : "gone (notified 0)")}");
                 }
@@ -171,6 +180,11 @@ public static class PowerProfile
             log($"panel -> {after?.ToString() ?? "?"} Hz{(after == hz ? "" : " (FAILED)")}");
         }
 
+        // If the battery profile had to disable the stuck dGPU node, bring it
+        // back before the mode switch so the driver reloads with it. Checked
+        // unconditionally: idempotent, and it also cleans up a manual disable.
+        DgpuSetEnabled(true, log);
+
         if (snap.IGpuMode is { } g && (force || ec.IGpuMode != g))
         {
             var after = ec.SetIGpuMode(g);
@@ -194,6 +208,32 @@ public static class PowerProfile
         if (failed == 0) PowerSnapshot.Delete();
         else log("snapshot kept because something failed; `power restore` retries");
         return failed;
+    }
+
+    /// <summary>
+    /// Enables or disables the NVIDIA display device node via WMI. Returns
+    /// true when it actually changed the state (disabled is ConfigManager
+    /// error code 22). Silent no-op on machines without an NVIDIA device.
+    /// </summary>
+    private static bool DgpuSetEnabled(bool enabled, Action<string> log)
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher(@"root\cimv2",
+                "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Display' AND Name LIKE '%NVIDIA%'");
+            foreach (ManagementObject m in s.Get())
+            {
+                var disabled = Convert.ToInt32(m["ConfigManagerErrorCode"]) == 22;
+                if (disabled == !enabled) return false;   // already in the wanted state
+                var rc = Convert.ToUInt32(m.InvokeMethod(enabled ? "Enable" : "Disable", null));
+                log(rc == 0
+                    ? $"dGPU device node {(enabled ? "re-enabled" : "disabled (stuck awake after the switch)")}"
+                    : $"dGPU device node {(enabled ? "enable" : "disable")} returned {rc}");
+                return rc == 0;
+            }
+        }
+        catch (Exception ex) { log($"dGPU device node toggle failed: {ex.Message}"); }
+        return false;
     }
 
     private static bool WaitDgpu(bool wantPresent, int seconds, Action<string> log)
