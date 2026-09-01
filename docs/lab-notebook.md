@@ -647,3 +647,30 @@ completion. Still open: the +1-on-all-cores probe reading after some
 reboots, and invalidating runs that span a wall-clock gap.
 
 Full detail: `rycolab report` over the campaign dir.
+
+## 2026-09-01 - Validation gate for the step-5 profile (review 15/09)
+
+Agreed criterion for calling the applied profile (limit + 5) validated. The
+scale comes from the one hard data point we have: a core 10 counts over its
+limit (core 7 in phase 1) took **under 48 h of normal use** to reset the
+machine, so the gate covers several times that horizon and the scenarios the
+sweep never exercises (light and irregular load, sleep cycles, battery).
+
+All conditions must hold on **2026-09-15**, read from the guard's own
+counters (`rycolab status`), validation running since 01/09 11:10:
+
+- **14 calendar days** with **0 WHEA and 0 unexplained resets**. A single
+  corrected WHEA sends that core one step back (UNDERVOLT 7.2 rule).
+- **>= 100 h guarded** (`guardedSeconds`).
+- **>= 10 sleep/resume cycles** (`resumes`).
+- **Several battery sessions** (journal `power` events; power auto is on).
+- **>= 2 heavy-load sessions** (PUBG or Cinebench; the pending C5 Cinebench
+  comparison counts as one).
+- **>= 3 overnight idles** (the classic CO failure window).
+
+On promotion to the raw limits (limit + 0): **not planned**. The prize is
+~15 mV / ~+1 % Cinebench extrapolating C4; the cost is running exactly on
+margins that were clean once for 12 min. limit + 5 is the profile of record.
+If the experiment is ever wanted: only after this gate passes, then the same
+14-day gate again at limit + 0, and the first WHEA returns that core to +5
+permanently.
