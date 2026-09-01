@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Management;
 
 namespace Rycolab.Core;
 
@@ -62,17 +63,47 @@ public static class Service
     public static int Start() => Run($"/Run /TN {TaskName}", quiet: true);
     public static int Query() => Run($"/Query /TN {TaskName} /V /FO LIST", quiet: false);
 
+    /// <summary>
+    /// The rycolab process that owns the SMU: a guard, sweep or find - never a
+    /// viewer. Counting any other rycolab.exe blocked on/off/install while the
+    /// user simply kept `rycolab status` open (2026-09-01). Told apart by the
+    /// command line; when that is unreadable (an elevated guard seen from an
+    /// unelevated viewer), the pid published in state.json decides.
+    /// </summary>
     public static Process? GuardProcess()
-        => Process.GetProcessesByName("rycolab").FirstOrDefault(p => p.Id != Environment.ProcessId);
+    {
+        foreach (var p in Process.GetProcessesByName("rycolab").Where(p => p.Id != Environment.ProcessId))
+        {
+            var cl = CommandLine(p.Id);
+            if (cl is null ? p.Id == State.Load()?.GuardPid : OwnsSmu(cl)) return p;
+        }
+        return null;
+    }
+
+    private static bool OwnsSmu(string commandLine)
+        => commandLine.Contains(" guard", StringComparison.OrdinalIgnoreCase)
+        || commandLine.Contains(" sweep", StringComparison.OrdinalIgnoreCase)
+        || commandLine.Contains(" find", StringComparison.OrdinalIgnoreCase);
+
+    private static string? CommandLine(int pid)
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher(@"root\cimv2", $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {pid}");
+            foreach (ManagementObject o in s.Get()) return o["CommandLine"] as string;
+        }
+        catch { /* fall back to the state.json pid */ }
+        return null;
+    }
 
     /// <summary>Asks the running guard to exit cleanly (it restores the baseline) and waits for it.</summary>
     public static bool Stop(int timeoutSeconds = 90)
     {
-        var others = Process.GetProcessesByName("rycolab").Where(p => p.Id != Environment.ProcessId).ToList();
-        if (others.Count == 0) return true;
+        var guard = GuardProcess();
+        if (guard is null) return true;
         Directory.CreateDirectory(AppPaths.Guard);
         File.WriteAllText(Guard.StopFile(AppPaths.Guard), DateTime.Now.ToString("o"));
-        foreach (var p in others) p.WaitForExit(timeoutSeconds * 1000);
+        guard.WaitForExit(timeoutSeconds * 1000);
         return GuardProcess() is null;
     }
 
