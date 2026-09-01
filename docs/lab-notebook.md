@@ -805,3 +805,31 @@ Roadmap state: items 1-5 done (notifications, charge full, battery
 health, step-5 campaign, publish). Left: the tray icon when it is worth
 it, the validation gate review on 15/09, and the two open mysteries
 (+1 probe readings, the guard's stray foreground thread - worked around).
+
+## 2026-09-01 17:50 - Incident: the dGPU got stuck awake on battery (~50 W); cpu-top row added
+
+A ~65 W battery drain traced in two acts. Act one: Steam installing a
+game (25 % of 32 threads on shader precompile, package at 52 W) -
+legitimate, one-off. Act two, after Steam finished: the RTX 5080 stuck
+awake at 13-19 W (P4/P0, 0 MiB, no process using it) with the CPU
+package at 7.7 W. It refused to sleep through: closing MSI Afterburner,
+a pnputil disable/enable cycle, and switching iGPU-only -> hybrid; flat
+at ~50 W for 4 untouched minutes. Wedged driver/ACPI runtime-D3 state
+(the machine had also had the device cycled and the mode switched by
+then); the honest fix is a reboot. Note: every `nvidia-smi` query wakes
+the card and resets its idle timer - measure sleep by battery draw, not
+by asking the card.
+
+Collateral: LibreHardwareMonitor started returning garbage package
+readings (365-373 W) in the same wedged state, and its Dispose hung the
+guard on exit - which explains today's lingering-process mystery only
+partially (the first hang predates the wedge). GuardCommand now calls
+Environment.Exit right after Run returns, no disposes (journal, SQLite
+and baseline close inside Run's finally); verified: clean stop, zero
+processes left, even while LHM is wedged.
+
+Shipped from the incident: `status` grew a `cpu top` row - per-process
+CPU sampled between refreshes, with an estimated share of the package
+watts for processes above 5 % CPU (below that the "share" is the idle
+floor, not the process), and a sanity cap that ignores package readings
+over 250 W.
