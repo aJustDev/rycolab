@@ -116,7 +116,12 @@ public sealed class Sweep
                     foreach (var engine in _plan.Engines)
                     {
                         if (ct.IsCancellationRequested) { clean = false; break; }
-                        var r = RunOne(core, m, engine, ct);
+                        RunResult r;
+                        do
+                        {
+                            r = RunOne(core, m, engine, ct);
+                            if (r.Verdict == "invalid") _sink.Event($"core {core} margin {m} {engine}: INVALID ({r.Error}); the run repeats");
+                        } while (r.Verdict == "invalid" && !ct.IsCancellationRequested);
                         if (r.Verdict != "clean") { clean = false; break; }
                     }
                     if (clean) { limit = m; break; }
@@ -161,13 +166,23 @@ public sealed class Sweep
 
         EngineStatus status;
         var taken = new List<Sample>();
+        // A sleep of any kind mid-run resets every margin to the BIOS baseline and the
+        // rest of the run tests nothing (it happened on 2026-08-31: a "-45 CLEAN after
+        // 1096 s" that mostly ran at -5). Two independent detectors: a wall-clock jump
+        // between loop iterations, and the margin no longer holding at the end.
+        double gapSeconds = 0;
+        var marginHeld = true;
         try
         {
             engine.Start(core, work);
             var deadline = started.AddSeconds(Seconds);
+            var lastLoop = DateTime.Now;
             while (true)
             {
                 Thread.Sleep(1000);
+                var loopGap = (DateTime.Now - lastLoop).TotalSeconds;
+                lastLoop = DateTime.Now;
+                if (loopGap > 30) { gapSeconds = loopGap; break; }
                 var s = sampler.Take();
                 status = engine.Poll();
                 taken.Add(s);
@@ -176,6 +191,7 @@ public sealed class Sweep
                 if (status.State != EngineState.Running || DateTime.Now >= deadline || ct.IsCancellationRequested) break;
             }
             status = engine.Stop();
+            marginHeld = _co.ReadCore(core) == margin;
         }
         finally
         {
@@ -185,22 +201,27 @@ public sealed class Sweep
 
         Thread.Sleep(1500);   // the WHEA log takes a moment to be written
         var whea = Whea.HardwareSince(started);
-        var verdict = status.State switch
-        {
-            EngineState.Error => "error",
-            EngineState.Crashed => "crashed",
-            _ when whea.Count > 0 => "whea",
-            _ when ct.IsCancellationRequested => "aborted",
-            _ => "clean",
-        };
-        var error = status.Error ?? (whea.Count > 0 ? string.Join(" | ", whea.Select(e => $"{e.Provider.Replace("Microsoft-Windows-", "")} {e.Id}: {e.Message}")) : null);
+        var invalid = gapSeconds > 0 || !marginHeld;
+        var verdict =
+            ct.IsCancellationRequested ? "aborted" :
+            invalid ? "invalid" :   // before error/crash: whatever the engine did after a reset ran at the baseline, not at the margin
+            status.State switch
+            {
+                EngineState.Error => "error",
+                EngineState.Crashed => "crashed",
+                _ when whea.Count > 0 => "whea",
+                _ => "clean",
+            };
+        var error = invalid && verdict == "invalid"
+            ? (gapSeconds > 0 ? $"wall-clock gap of {gapSeconds:F0} s (sleep?); margins untrustworthy" : "margin not held at the end of the run (reset to baseline?)")
+            : status.Error ?? (whea.Count > 0 ? string.Join(" | ", whea.Select(e => $"{e.Provider.Replace("Microsoft-Windows-", "")} {e.Id}: {e.Message}")) : null);
 
         var result = new RunResult(core, margin, engineName, verdict, (int)(DateTime.Now - started).TotalSeconds, error, status.ExitCode,
             whea.Count, status.Lines, status.Suspensions, sampler.Summary(), started, DateTime.Now);
         Record(result);
         _store.AddSamples(core, margin, engineName, taken);
 
-        if (verdict is not ("clean" or "aborted"))
+        if (verdict is not ("clean" or "aborted" or "invalid"))
         {
             var dir = Path.Combine(_o.CampaignDir, "positives", $"core{core}-m{margin}-{Sanitize(engineName)}-{started:HHmmss}");
             Directory.CreateDirectory(dir);

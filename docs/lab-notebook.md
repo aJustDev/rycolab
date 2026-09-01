@@ -762,3 +762,28 @@ Verified end to end: sample line in guard.jsonl at 15:41:04, design cache
 created, report with the guard running, status row, no duplicate after a
 guard restart, and two clean `off`s in a row (the Environment.Exit
 workaround holds - no lingering process today).
+
+## 2026-09-01 16:00 - The sweep invalidates runs that lost time or margin
+
+The last known false-CLEAN vector is closed (pending since the 31/08
+incident: a sleep mid-run reset every margin to -5 and the run closed as
+"-45 CLEAN after 1096 s"). KeepAwake prevents the idle sleep, but not a
+critical-battery hibernation, a manual sleep or a frozen process. Two
+independent detectors in `RunOne`, either one voids the run:
+
+- a wall-clock jump over 30 s between loop iterations (the loop samples
+  every ~1 s; only a sleep or a frozen process skips 30);
+- the core's margin no longer reading back at the end of the run (a reset
+  of any kind restores the BIOS baseline).
+
+Verdict `invalid`: not a positive, not clean - the sweep repeats the same
+margin and engine until it gets an uninterrupted run. `invalid` outranks
+error/crash in the verdict (whatever the engine did after a reset ran at
+the baseline, not at the margin) and is excluded from the positives dir.
+
+Tested both ways without touching the machine's sleep: a normal short
+sweep stays CLEAN (no false invalids), and freezing the sweep process
+40 s mid-run with NtSuspendProcess produced exactly
+"INVALID after 71 s  wall-clock gap of 41 s (sleep?)" followed by an
+automatic repeat that closed CLEAN in 92 s - the limit came from the
+valid run only.
