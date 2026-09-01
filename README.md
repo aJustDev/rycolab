@@ -70,13 +70,7 @@ rycolab report [<campaign>]   limits, positives with time to error, telemetry, e
 rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV: power, temps, clocks, V, fans, battery
 rycolab report --health       battery capacity history: the guard samples FullChargedCapacity, design
                               capacity and cycle count once a day, so degradation shows as data, not guesswork
-rycolab power show|battery|ac|restore|auto on|off   Lenovo Legion battery profile (see below)
-rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery charge mode through the Energy
-                              driver (\\.\EnergyDrv, what Legion Toolkit's battery section talks to): conservation
-                              stops at ~80 % (firmware threshold), rapid charges fastest; night charge is a separate
-                              slow-overnight toggle. Every write is read back; the Vantage registry key is kept in sync
-rycolab charge full [--target 98]   one-shot full charge: rapid now, and the running guard restores the
-                              previous mode when the battery reaches the target (a manual mode change cancels it)
+rycolab legion <command>      Lenovo Legion only: fan, power (battery profile), charge (see docs/legion.md)
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 
@@ -146,61 +140,12 @@ discharge rate, charge and remaining Wh. The summary uses the samples above
 dilute the means; with `--battery` it uses the samples on battery instead and
 adds the runtime a full charge would give at the mean discharge.
 
-### Fans on Lenovo Legion
+### Lenovo Legion extras
 
-The EC drives the fans from a 10-level table (CPU fan 1700...5200 RPM on the
-reference machine) and ramps at about 60 RPM/s whatever the curve says, so
-under a sustained load the CPU sits at its thermal limit for a minute before
-the fan reaches its top level. The "maximum fan speed" switch in Legion
-Toolkit (`FanFullSpeed`, WMI `LENOVO_OTHER_METHOD` id `0x04020000`) goes past
-the table (5700 / 5700 / 7200 RPM) and ramps in seconds; measured under
-Cinebench R23 at the same 145 W it gave -3 C and +107 MHz sustained. The EC
-only honours the switch in the custom power mode (smart fan mode 255), so
-`fan on` and `fan auto` select it themselves (the same WMI call Legion
-Toolkit makes), print the CPU power limits the custom slot runs with (never
-written by rycolab), and `fan off` or the end of `auto` restore the mode
-found. `rycolab fan show` prints mode, limits, switch, fans and EC temperatures. `rycolab fan auto` (elevated)
-turns the switch on after `--hold` seconds at or above `--on` C of EC CPU
-temperature, off below `--off`, and off again when it exits. Legion Toolkit, if
-running, re-applies its own preset (mode, switch and, if
-`amd_overclocking.json` exists, its per-core Curve Optimizer) on mode
-change, AC events, resume and start; the guard restores the profile within
-one interval, `auto` reports the mode change. The EC's fan table is untouched.
-
-### Battery profile on Lenovo Legion
-
-`rycolab power battery` (elevated) changes, in this order, what makes the
-difference on battery and nothing else: the EC power mode to quiet (the CPU
-limits it runs with are printed, never written), the GPU mode to iGPU only
-(`LENOVO_GAMEZONE_DATA.SetIGPUModeStatus`, Legion Toolkit's "Hybrid mode -
-iGPU only"; no reboot; the EC is told whether the dGPU node has gone, as
-Legion Toolkit does), the internal panel to 60 Hz (a display mode change,
-frequency only) and 40 % brightness, and the DC values of the active Windows
-power scheme (boost mode off, max processor state 99 %, PCIe ASPM maximum,
-Wi-Fi maximum power saving, USB selective suspend). `--gpu igpu|auto|keep`,
-`--hz`, `--brightness` (a non-numeric value like `--brightness keep` leaves
-it alone), `--mode quiet|keep`, `--no-windows` and `--close-apps` (kills
-Legion Toolkit and HWiNFO) tune it. Measured on the reference machine
-(A-B-A, fixed video segment): quiet -1.2 W and 60 Hz -2.1 W carry the
-profile (-13 % all together, 3.5 -> 4.0 h of video); brightness and the DC
-block moved nothing there, and under load no CPU knob improves work per Wh
-(race-to-idle: the platform's own ~45 W DC cap already governs efficiency;
-quiet costs +20 % energy per task while being quieter and cooler). Everything is snapshotted before the first
-change (`power-prev.json`) and `rycolab power ac` puts it back; `power
-restore` writes every snapshot value even if it looks untouched. `power
-show` prints line, discharge W, charge, GPU mode and dGPU presence, panel,
-brightness, the Windows slider per line and the DC values. The Windows
-power-mode slider is not written: Windows keeps one position per line and
-switches it itself.
-
-`rycolab power auto on` makes the guard apply the battery profile 15 s after
-the AC line drops and restore it 15 s after it is back (the debounce ignores
-the line blips of a few seconds that the reference machine's adapter
-produces). One change per knob, never a burst. The guard must already be
-running (`rycolab on`, which needs AC to start; it keeps running on
-battery). Each knob was measured on the reference machine before going in
-(see the lab notebook); a knob that does not move the discharge rate is not
-in the default profile.
+`rycolab legion fan|power|charge` drives what only a Legion machine has: the
+EC fan switch, a measured battery profile (quiet mode, iGPU only, 60 Hz) that
+the guard can apply on AC line changes, and the charge modes. Not needed for
+Curve Optimizer; see `docs/legion.md`.
 
 ## Supported hardware
 
@@ -235,13 +180,6 @@ Measured on the reference machine, not assumed:
   intermittent garbage on the 9955HX3D: 150-270 W at ~1 % CPU. Package power
   comes from the SMU power table too (located by `dev calibrate`); LHM is only
   a median-of-3 fallback on unknown table versions.
-- Probes wake the dGPU: nvidia-smi, NVML and `Win32_VideoController` all reset
-  its idle timer, and a card that is kept awake never leaves the bus after the
-  switch to iGPU-only. rycolab checks presence through `Win32_PnPEntity` only.
-  If the card still does not leave, the EC is re-notified (NotifyDGPUStatus -
-  Legion Toolkit's EnsureDGPUEjected) every guard tick. A DISABLED node is not
-  success: the silicon keeps ~20 W with no driver managing it. Success is the
-  node leaving the bus.
 - What does discriminate per core in LHM is `Core #N (SMU)` (power) and the
   effective clock.
 - CCDs are numbered **from 0**, like Legion Toolkit and the SMU mask. HWiNFO
