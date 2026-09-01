@@ -43,7 +43,9 @@ public sealed class PowerSnapshot
 /// </summary>
 public static class PowerProfile
 {
-    public static readonly string[] BackgroundApps = ["LenovoLegionToolkit", "HWiNFO64"];
+    // Afterburner and RTSS poll the dGPU continuously and keep resetting its
+    // idle timer on battery; RTSS survives Afterburner and must go too.
+    public static readonly string[] BackgroundApps = ["LenovoLegionToolkit", "HWiNFO64", "MSIAfterburner", "RTSS"];
 
     /// <summary>Returns the number of knobs that failed.</summary>
     public static int Battery(LenovoEc ec, PowerOptions o, Action<string> log)
