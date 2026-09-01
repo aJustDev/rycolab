@@ -111,13 +111,19 @@ public sealed class LenovoEc : IDisposable
     /// <summary>NotifyDGPUStatus: what Toolkit sends after a mode change, with whether the dGPU PnP node is still present.</summary>
     public bool NotifyDgpuStatus(bool present) => GameZone("NotifyDGPUStatus", ("Status", present ? 1 : 0)) is not null;
 
-    /// <summary>The NVIDIA display adapter is enumerated and healthy (same question Toolkit answers with SetupDi).</summary>
+    /// <summary>
+    /// The NVIDIA display adapter is enumerated and healthy (same question
+    /// Toolkit answers with SetupDi). PnP data only: Win32_VideoController
+    /// goes through the display driver and wakes the card, which kept it
+    /// from ever idling into the pending ejection (2026-09-01, the guard
+    /// and the status viewer polling it every minute / every 2 s).
+    /// </summary>
     public static bool DgpuPresent()
     {
         try
         {
-            using var s = new ManagementObjectSearcher(@"root\CIMV2", @"SELECT Status, ConfigManagerErrorCode FROM Win32_VideoController WHERE PNPDeviceID LIKE 'PCI\\VEN_10DE%'");
-            return s.Get().Cast<ManagementObject>().Any(o => (o["Status"] as string) == "OK" && Convert.ToInt32(o["ConfigManagerErrorCode"]) == 0);
+            using var s = new ManagementObjectSearcher(@"root\CIMV2", @"SELECT ConfigManagerErrorCode FROM Win32_PnPEntity WHERE PNPClass = 'Display' AND PNPDeviceID LIKE 'PCI\\VEN_10DE%'");
+            return s.Get().Cast<ManagementObject>().Any(o => Convert.ToInt32(o["ConfigManagerErrorCode"]) == 0);
         }
         catch { return false; }
     }

@@ -297,9 +297,10 @@ public sealed class Guard
 
     /// <summary>
     /// Finishes a pending dGPU ejection: nudges the EC every tick (the notify
-    /// makes it retry; it lands once the card has idled ~2-3 min), and after
-    /// 6 min disables the node as a last resort worth ~12 W and says so with
-    /// a toast - burning ~25 W of battery in silence is not acceptable.
+    /// makes it retry), and after 6 min disables the node as a last resort
+    /// worth ~12 W and says so with a toast - burning ~25 W of battery in
+    /// silence is not acceptable. Never needed since the probe fix; kept as
+    /// the safety net.
     /// </summary>
     private void DgpuEjectTick()
     {

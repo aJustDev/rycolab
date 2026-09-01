@@ -88,23 +88,23 @@ public static class PowerProfile
                 else
                 {
                     var present = WaitDgpu(false, 25, log);
-                    // A recently active card sometimes never leaves after the switch
-                    // (reproducible: query it awake right before). The cure is Legion
-                    // Toolkit's EnsureDGPUEjected: notifying the EC that the card is
-                    // still there makes it RETRY the ejection - but it only lands once
-                    // the card has idled for ~2-3 min (three timed cures on
-                    // 2026-09-01; nothing pnputil does speeds that up). A short round
-                    // here, then a marker: the guard nudges the EC every tick until
-                    // the node LEAVES the bus, and disables it as a paltry last
-                    // resort (a disabled node is silicon with power and no driver,
-                    // ~20 W measured).
+                    // Safety net for a card that does not leave. The "wedge" chased all
+                    // day on 2026-09-01 was our own presence probe waking the card
+                    // (Win32_VideoController, fixed in DgpuPresent); with a PnP-only
+                    // probe even a card in P0 two seconds before the switch left within
+                    // the 25 s wait. If it ever does not: Legion Toolkit's
+                    // EnsureDGPUEjected - notifying the EC that the card is still there
+                    // makes it retry the ejection - a short round here, then a marker so
+                    // the guard keeps nudging every tick until the node LEAVES the bus.
+                    // A disabled node is not success: silicon with power and no driver,
+                    // ~20 W measured.
                     if (g == LenovoEc.IGpuOnly && present)
                     {
                         present = NotifyRetry(ec, 3, log);
                         if (present)
                         {
                             new DgpuEject(DateTime.Now).Save();
-                            log("dGPU still present; the guard keeps nudging the EC (a busy card ejects only after ~2-3 min of idle)");
+                            log("dGPU still present; the guard keeps nudging the EC every tick");
                         }
                     }
                     ec.NotifyDgpuStatus(present);

@@ -3,9 +3,9 @@ namespace Rycolab.Core;
 /// <summary>
 /// Marker for a pending dGPU ejection: the battery profile drops it when the
 /// card refuses to leave after the switch to iGPU-only. The guard nudges the
-/// EC every tick (NotifyDGPUStatus makes it retry the ejection, which lands
-/// once the card has idled for ~2-3 min - measured 2026-09-01) and deletes
-/// the marker on success, on AC restore, or after giving up.
+/// EC every tick (NotifyDGPUStatus makes it retry the ejection) and deletes
+/// the marker on success, on AC restore, or after giving up. A safety net:
+/// with a PnP-only presence probe the card leaves within the first wait.
 /// </summary>
 public sealed record DgpuEject(DateTime Started)
 {

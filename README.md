@@ -226,11 +226,13 @@ Measured on the reference machine, not assumed:
   intermittent garbage on the 9955HX3D: 150-270 W at ~1 % CPU. Package power
   comes from the SMU power table too (located by `dev calibrate`); LHM is only
   a median-of-3 fallback on unknown table versions.
-- A dGPU that will not leave the bus after switching to iGPU-only ejects only
-  after ~2-3 min of idle, and only when the EC is re-notified
-  (NotifyDGPUStatus - Legion Toolkit's EnsureDGPUEjected); the guard nudges it
-  every tick. A DISABLED node is not success: the silicon keeps ~20 W with no
-  driver managing it. Success is the node leaving the bus.
+- Probes wake the dGPU: nvidia-smi, NVML and `Win32_VideoController` all reset
+  its idle timer, and a card that is kept awake never leaves the bus after the
+  switch to iGPU-only. rycolab checks presence through `Win32_PnPEntity` only.
+  If the card still does not leave, the EC is re-notified (NotifyDGPUStatus -
+  Legion Toolkit's EnsureDGPUEjected) every guard tick. A DISABLED node is not
+  success: the silicon keeps ~20 W with no driver managing it. Success is the
+  node leaving the bus.
 - What does discriminate per core in LHM is `Core #N (SMU)` (power) and the
   effective clock.
 - CCDs are numbered **from 0**, like Legion Toolkit and the SMU mask. HWiNFO

@@ -963,3 +963,35 @@ Also fixed on the way: the WMI Enable/Disable invoke (NullReference on
 2026-09-01) replaced by pnputil with ArgumentList - the `&` in the
 instance id breaks shell-level quoting, which is what sank the first
 manual disable attempt via sudo.
+
+## 2026-09-01 21:15 - Root cause: our own presence probe kept the card awake. 50 -> 13.3 W
+
+Real unplug with the notify-retry guard: the card still refused to leave
+for 6+ minutes of nudges. The difference from every manual cure was the
+probe. `LenovoEc.DgpuPresent()` asked `Win32_VideoController`, which goes
+through the display driver and wakes the card exactly like nvidia-smi
+does - the guard hit it every minute and the live `status` viewer every
+2 s, so the card never reached the 2-3 min of idle the ejection needs.
+The manual cures had all used PnP-only queries.
+
+Fix: presence from `Win32_PnPEntity` (PnP data, no driver contact),
+shared by the guard, the profile and the status panel. Verified on the
+same unplug with the viewer closed: "dGPU ejected 33 s after the switch"
+on the first nudge, node gone from the bus, discharge 50.4 -> 13.3 W -
+the best figure of the day, no reboot.
+
+Lesson for the notebook's methodology page: a probe can perturb what it
+measures. nvidia-smi, NVML, Win32_VideoController and any display-driver
+query reset the dGPU idle timer; only PnP/SetupAPI-level presence checks
+and the battery gauge are safe while waiting for the card to sleep.
+
+## 2026-09-01 21:25 - Correction: the minutes of idle were the probe too
+
+Retested with the PnP-only probe: nvidia-smi left the card in P0 two
+seconds before the switch, and it still left within the first 25 s wait
+("dGPU gone (notified 0)", no retries). The "2-3 minutes of idle"
+requirement written above was an artifact of our own polling; the card
+needs seconds, not minutes, once nothing touches its driver. The
+notify-retry round, the marker and the guard's nudges stay as a safety
+net that has not been needed since the probe fix. Comments and README
+corrected.
