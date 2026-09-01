@@ -49,6 +49,14 @@ public static class Notifier
         _registered = true;
     }
 
+    /// <summary>Removes the AppUserModelID key (`uninstall`). Never throws.</summary>
+    public static void Unregister()
+    {
+        try { Registry.CurrentUser.DeleteSubKeyTree($@"Software\Classes\AppUserModelId\{AppId}", throwOnMissingSubKey: false); }
+        catch { /* nothing to clean, or no rights: not worth failing the uninstall */ }
+        _registered = false;
+    }
+
     private const uint SND_ASYNC = 0x0001, SND_NODEFAULT = 0x0002, SND_FILENAME = 0x00020000;
 
     [DllImport("winmm.dll", CharSet = CharSet.Unicode)]

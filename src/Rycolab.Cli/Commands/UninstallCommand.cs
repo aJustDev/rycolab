@@ -16,6 +16,7 @@ public static class UninstallCommand
         if (Service.Exists()) { Service.Remove(); Console.WriteLine($"  task {Service.TaskName} removed"); }
         Installer.RemoveFromUserPath();
         Console.WriteLine("  PATH entry removed");
+        Notifier.Unregister();
 
         var runningFromInstall = AppContext.BaseDirectory.StartsWith(AppPaths.Bin, StringComparison.OrdinalIgnoreCase);
         if (args.Has("purge"))

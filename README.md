@@ -276,7 +276,11 @@ and `rycolab` works from anywhere.
 
 `inpoutx64.dll`, the port-access layer ZenStates.Core needs, ships in
 `third_party/inpout` (InpOut32, MIT) and is copied next to the executable at
-build time. To update an existing install: `rycolab off`, build, run
+build time. The first time the SMU is opened it installs its kernel driver
+(`inpoutx64.sys`) as a system service; `rycolab uninstall` does not remove
+it because other tools (ZenTimings, SMUDebugTool) share it. To take it out
+by hand: `sc stop inpoutx64`, `sc delete inpoutx64`, delete
+`%SystemRoot%\System32\drivers\inpoutx64.sys`. To update an existing install: `rycolab off`, build, run
 `install` from the new build, `rycolab on`.
 
 ## License

@@ -81,7 +81,8 @@ keeps the choice; on the reference machine:
 Prime95 (small FFT AVX-512, and CoreCycler's SSE/Huge recipe) was measured
 first and found nothing on this laptop: every sustained torture is capped at
 ~14 W per core, so it never reaches the high end of the curve. The recipes
-and scripts are kept under `scripts/` as diagnostics.
+were PowerShell prototypes, since removed from the tree; the numbers are in
+`lab-notebook.md` (phase 0).
 
 y-cruncher offers eight tests (`BKT, BBP, SFTv4, SNT, SVT, FFTv4, N63, VT3`);
 the reference sweep used three (`SFTv4, FFTv4, N63`). `BKT` is scalar integer,
