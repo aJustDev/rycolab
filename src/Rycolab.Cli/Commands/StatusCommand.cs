@@ -66,7 +66,6 @@ public static class StatusCommand
         using var energy = elevated ? new LenovoEnergy() : null;
         AnsiConsole.Write(new Rows(
             StatusView.Summary(guard, state, profile),
-            new Markup(""),
             StatusView.Machine(state),
             StatusView.Ec(ec, energy),
             StatusView.Windows()));
@@ -97,7 +96,7 @@ public static class StatusCommand
                 if (all && tick > 0 && tick % 8 == 0) windows = StatusView.Windows();
                 tick++;
                 var rows = new List<IRenderable> { StatusView.Summary(guard, state, profile) };
-                if (all) rows.AddRange([new Markup(""), StatusView.Machine(state), StatusView.Ec(ec, energy), windows]);
+                if (all) rows.AddRange([StatusView.Machine(state), StatusView.Ec(ec, energy), windows]);
                 rows.Add(new Markup($"  [bold]Next:[/] {Markup.Escape(Next(profile, state, guard))}\n  [grey]refreshing every 2 s; Ctrl+C closes{(all ? "" : "; --all adds the machine, the Lenovo EC and the Windows scheme")}[/]"));
                 ctx.UpdateTarget(new Rows(rows));
                 ctx.Refresh();

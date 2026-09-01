@@ -43,27 +43,58 @@ public static class StatusView
 
     // ---- the default view --------------------------------------------------
 
-    /// <summary>Header, verdict and the four rows. What `rycolab` and `rycolab status` show without `--all`.</summary>
+    /// <summary>Header line, the Curve Optimizer panel (verdict first) and the Battery panel. What `rycolab` and `rycolab status` show without `--all`.</summary>
     public static IRenderable Summary(Process? guard, State? state, Rycolab.Core.Profile? profile)
+        => new Rows(
+            new Markup($"  [grey]rycolab {Version}   {DateTime.Now:yyyy-MM-dd HH:mm:ss}[/]\n"),
+            Co(guard, state, profile),
+            Battery(state));
+
+    public static IRenderable Co(Process? guard, State? state, Rycolab.Core.Profile? profile)
     {
         var g = NewGrid();
-        g.AddRow(new Markup(""), new Markup($"[grey]rycolab {Version}   {DateTime.Now:yyyy-MM-dd HH:mm:ss}[/]"));
-        g.AddEmptyRow();
         g.AddRow(new Markup(""), new Markup(Verdict(guard, state, profile)));
-
         KV(g, "profile", profile is null ? "[red]none[/]" : E(Commands.StatusCommand.Describe(profile)));
 
         if (state is not null)
         {
             Hardware(g, guard, state, profile);
             if (state.LastError is { } err) KV(g, "last error", $"[red]{E(err)}[/]");
-            var room = Width() - LabelWidth - 4;
+            var room = Width() - LabelWidth - 8;
             foreach (var (e, i) in state.LastEvents.TakeLast(3).Select((e, i) => (e, i)))
                 KV(g, i == 0 ? "events" : "", $"[grey]{E(e.Length > room ? e[..Math.Max(0, room - 3)] + "..." : e)}[/]");
         }
+        return Section("Curve Optimizer", g);
+    }
 
-        KV(g, "battery", BatteryLine(state));
-        return g;
+    public static IRenderable Battery(State? state)
+    {
+        var g = NewGrid();
+        var b = BatteryInfo.Read();
+        if (b.OnAc is null)
+        {
+            KV(g, "", "[grey]no battery on this machine[/]");
+            return Section("Battery", g);
+        }
+        KV(g, "line", b.OnAc == true
+            ? "[green]AC[/]"
+            : $"[yellow]battery[/]  {b.DischargeW?.ToString("F1") ?? "-"} W  {b.Percent?.ToString("F0") ?? "-"} %  {b.RemainingWh?.ToString("F1") ?? "-"} Wh{(b.HoursLeft is { } h ? $"  [grey]~{h:F1} h at this rate[/]" : "")}");
+
+        var (design, cycles) = HealthStatics.Value;
+        KV(g, "health", b.FullWh is { } fw
+            ? $"{fw:F1} Wh full charge{(design is > 0 and var dw ? $"   [grey]{100.0 * fw / dw:F0} % of {dw:F1} Wh design[/]" : "")}{(cycles is { } cy ? $"   [grey]{cy} cycles[/]" : "")}"
+            : "[grey]?[/]");
+
+        var plan = Plan.LoadOrDefault();
+        var snap = PowerSnapshot.Load();
+        var byGuard = state?.PowerProfile == "battery" ? " by the guard" : "";
+        var auto = plan.PowerAuto
+            ? $"   [grey]power auto on: battery profile {Guard.AcDebounceSeconds} s after unplugging, restored on AC[/]"
+            : "   [grey]power auto off (`rycolab legion power auto on`)[/]";
+        KV(g, "profile", snap is { } s
+            ? $"[green]applied[/]{byGuard} at {s.TakenAt:HH:mm}  [grey](`rycolab legion power ac` restores)[/]{auto}"
+            : $"not applied{auto}");
+        return Section("Battery", g);
     }
 
     /// <summary>One line, in color: is the profile on the cores right now, and in what phase.</summary>
@@ -130,28 +161,6 @@ public static class StatusView
         return (s.DesignWh, s.Cycles);
     });
 
-    private static string BatteryLine(State? state)
-    {
-        var b = BatteryInfo.Read();
-        if (b.OnAc is null) return "[grey]no battery[/]";
-        var line = b.OnAc == true
-            ? "[green]AC[/]"
-            : $"[yellow]battery[/]  {b.DischargeW?.ToString("F1") ?? "-"} W  {b.Percent?.ToString("F0") ?? "-"} %  {b.RemainingWh?.ToString("F1") ?? "-"} Wh{(b.HoursLeft is { } h ? $"  [grey]~{h:F1} h at this rate[/]" : "")}";
-
-        var (design, cycles) = HealthStatics.Value;
-        var health = b.FullWh is { } fw
-            ? $"   {fw:F1} Wh full[grey]{(design is > 0 and var dw ? $" ({100.0 * fw / dw:F0} % of {dw:F1} Wh design" + (cycles is { } cy ? $", {cy} cycles)" : ")") : "")}[/]"
-            : "";
-
-        var plan = Plan.LoadOrDefault();
-        var snap = PowerSnapshot.Load();
-        var byGuard = state?.PowerProfile == "battery" ? " by the guard" : "";
-        var prof = snap is { } s
-            ? $"   [green]battery profile applied[/]{byGuard} [grey]at {s.TakenAt:HH:mm} (`rycolab legion power ac` restores)[/]"
-            : plan.PowerAuto ? "   [grey]power auto on, battery profile not applied[/]" : "";
-        return $"{line}{health}{prof}";
-    }
-
     // ---- the `--all` panels -------------------------------------------------
 
     /// <summary>The mode list only changes with the resolution; enumerate once per process.</summary>
@@ -174,9 +183,7 @@ public static class StatusView
                 $"{E(t.Name.Length > 16 ? t.Name[..16] : t.Name)} {t.CpuPct:F1}[grey]%[/]{(pkg is { } w && t.CpuPct >= 5 ? $" [grey]~{t.BusyShare * w:F0} W[/]" : "")}")));
         KV(g, "panel", $"{WindowsPower.RefreshHz?.ToString() ?? "?"} Hz  [grey](available {AvailableRates.Value})[/]  brightness {WindowsPower.Brightness?.ToString() ?? "?"} %");
         var plan = Plan.LoadOrDefault();
-        KV(g, "power auto", plan.PowerAuto
-            ? $"[green]on[/]  [grey]{E(plan.PowerAutoOptions.ToString())}; battery profile {Guard.AcDebounceSeconds} s after unplugging, restored on AC[/]"
-            : "[grey]off[/]  (`rycolab legion power auto on` lets the guard handle it)");
+        if (plan.PowerAuto) KV(g, "power auto", $"[grey]{E(plan.PowerAutoOptions.ToString())}[/]");
         return Section("Machine", g);
     }
 
