@@ -1,6 +1,6 @@
 using System.Management;
 
-namespace Rycolab.Core;
+namespace Rycolab.Core.Legion;
 
 /// <summary>
 /// Fan speeds and EC temperatures on Lenovo Legion machines, through the

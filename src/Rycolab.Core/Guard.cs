@@ -1,3 +1,5 @@
+using Rycolab.Core.Legion;
+
 namespace Rycolab.Core;
 
 public sealed record GuardTick(
@@ -277,7 +279,7 @@ public sealed class Guard
         catch (Exception ex) { Event("tick-failed", $"{what}: {ex.Message}"); }
     }
 
-    /// <summary>Applies the battery/AC profile once the line has been stable for the debounce, if `power auto` is on.</summary>
+    /// <summary>Applies the battery/AC profile once the line has been stable for the debounce, if `legion power auto` is on.</summary>
     private void PowerAutoTick()
     {
         bool target;
@@ -302,7 +304,7 @@ public sealed class Guard
         Event("power", $"AC line {(target ? "back" : "off")} -> {(target ? "restored the snapshot" : $"battery profile ({plan.PowerAutoOptions})")}{(failed > 0 ? $", {failed} knob(s) FAILED" : "")}: {string.Join(" | ", lines)}");
     }
 
-    /// <summary>Ends a `charge full`: once the battery hits the target, back to the previous mode.</summary>
+    /// <summary>Ends a `legion charge full`: once the battery hits the target, back to the previous mode.</summary>
     private void ChargeFullTick()
     {
         if (!_o.PublishState || ChargeFull.Load() is not { } full) return;

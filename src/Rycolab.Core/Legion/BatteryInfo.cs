@@ -1,6 +1,6 @@
 using System.Management;
 
-namespace Rycolab.Core;
+namespace Rycolab.Core.Legion;
 
 /// <summary>
 /// Battery through the WMI classes the battery class driver publishes

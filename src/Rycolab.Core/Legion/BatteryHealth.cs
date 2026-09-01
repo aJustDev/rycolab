@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Management;
 using System.Xml;
 
-namespace Rycolab.Core;
+namespace Rycolab.Core.Legion;
 
 public sealed record HealthSample(DateTime Ts, double? FullWh, double? DesignWh, int? Cycles);
 

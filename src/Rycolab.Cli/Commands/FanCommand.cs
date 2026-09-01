@@ -1,9 +1,10 @@
+using Rycolab.Core.Legion;
 using Rycolab.Core;
 
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab fan show | on | off | auto [--on 85] [--off 80] [--hold 3] [--interval 2]
+/// rycolab legion fan show | on | off | auto [--on 85] [--off 80] [--hold 3] [--interval 2]
 /// Lenovo Legion only: the EC's "fan full speed" switch, by hand or driven
 /// by the CPU temperature with hysteresis. The EC's fan table tops out at
 /// its level 10 (5200 RPM on the reference machine) and ramps at ~60 RPM/s;
@@ -49,7 +50,7 @@ public static class FanCommand
                 if (!EnterCustomMode(ec)) return 1;
                 return Auto(ec, args.GetInt("on") ?? 85, args.GetInt("off") ?? 80, args.GetInt("hold") ?? 3, args.GetInt("interval") ?? 2);
             default:
-                Console.Error.WriteLine("Usage: rycolab fan show | on | off | auto [--on 85] [--off 80] [--hold 3] [--interval 2]");
+                Console.Error.WriteLine("Usage: rycolab legion fan show | on | off | auto [--on 85] [--off 80] [--hold 3] [--interval 2]");
                 return 2;
         }
     }
@@ -91,7 +92,7 @@ public static class FanCommand
     {
         Console.WriteLine();
         Console.WriteLine($"  power mode   {LenovoEc.ModeName(ec.SmartFanMode)}   {LenovoEc.Describe(ec.PowerLimits)}");
-        Console.WriteLine($"  full speed   {(ec.FanFullSpeed is { } f ? (f ? "ON" : "off") : "?")}{(ec.SmartFanMode == LenovoEc.CustomMode ? "" : "   (ignored by the EC outside the custom mode; `fan on` / `fan auto` select it)")}");
+        Console.WriteLine($"  full speed   {(ec.FanFullSpeed is { } f ? (f ? "ON" : "off") : "?")}{(ec.SmartFanMode == LenovoEc.CustomMode ? "" : "   (ignored by the EC outside the custom mode; `legion fan on` / `legion fan auto` select it)")}");
         Console.WriteLine($"  fans         CPU {ec.CpuFanRpm?.ToString() ?? "-"}   GPU {ec.GpuFanRpm?.ToString() ?? "-"}   PCH {ec.PchFanRpm?.ToString() ?? "-"} RPM");
         Console.WriteLine($"  EC temps     CPU {ec.CpuTempC?.ToString() ?? "-"}   GPU {ec.GpuTempC?.ToString() ?? "-"}   PCH {ec.PchTempC?.ToString() ?? "-"} C");
         Console.WriteLine();

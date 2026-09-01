@@ -1,3 +1,4 @@
+using Rycolab.Core.Legion;
 using Microsoft.Win32;
 
 namespace Rycolab.Core;

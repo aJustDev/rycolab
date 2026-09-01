@@ -28,6 +28,16 @@ if (command == "dev")
     if (command is null or "help" or "-h") { PrintDevHelp(); return 0; }
     argv.RemoveAt(0);
 }
+
+// `legion <sub>`: the Lenovo Legion extras (fans, battery profile, charge modes), kept apart from the product.
+var legion = false;
+if (command == "legion")
+{
+    legion = true;
+    command = argv.Count > 0 && !argv[0].StartsWith("--", StringComparison.Ordinal) ? argv[0].ToLowerInvariant() : null;
+    if (command is null or "help" or "-h") { PrintLegionHelp(); return 0; }
+    argv.RemoveAt(0);
+}
 var opts = new Args(argv);
 
 if (command is "help" or "-h" or "--help")
@@ -40,7 +50,7 @@ if (command is "help" or "-h" or "--help")
 var unelevated = command is null or "status" or "report" or "profile" or "version" || (dev && command is "plan" or "toast");
 if (!unelevated && !Elevation.IsElevated())
 {
-    Console.Error.WriteLine($"'rycolab {(dev ? "dev " : "")}{command}' needs administrator privileges to talk to the SMU.");
+    Console.Error.WriteLine($"'rycolab {(dev ? "dev " : legion ? "legion " : "")}{command}' needs administrator privileges to talk to the {(legion ? "EC" : "SMU")}.");
     Console.Error.WriteLine("Open an elevated console (or use sudo) and try again.");
     return 3;
 }
@@ -66,6 +76,15 @@ try
             _ => UnknownDev(command!),
         };
 
+    if (legion)
+        return command switch
+        {
+            "fan" => FanCommand.Run(opts),
+            "power" => PowerCommand.Run(opts),
+            "charge" => ChargeCommand.Run(opts),
+            _ => UnknownLegion(command!),
+        };
+
     return command switch
     {
         null => RootCommand.Run(opts),
@@ -80,9 +99,7 @@ try
         "profile" => ProfileCommand.Run(opts),
         // The task itself runs `guard --plain`; keep it reachable at the top level.
         "guard" => GuardCommand.Run(opts),
-        "fan" => FanCommand.Run(opts),
-        "power" => PowerCommand.Run(opts),
-        "charge" => ChargeCommand.Run(opts),
+        "fan" or "power" or "charge" => Moved(command),
         _ => Unknown(command),
     };
 }
@@ -105,7 +122,13 @@ static int Version()
 
 static int Unknown(string c)
 {
-    Console.Error.WriteLine($"Unknown command: {c}. `rycolab help` lists them; low-level commands live under `rycolab dev`.");
+    Console.Error.WriteLine($"Unknown command: {c}. `rycolab help` lists them; Lenovo Legion extras live under `rycolab legion`, low-level commands under `rycolab dev`.");
+    return 2;
+}
+
+static int Moved(string c)
+{
+    Console.Error.WriteLine($"`rycolab {c}` moved to `rycolab legion {c}` in 0.2.0 (the Lenovo Legion extras are not the product).");
     return 2;
 }
 
@@ -113,6 +136,13 @@ static int UnknownDev(string c)
 {
     Console.Error.WriteLine($"Unknown dev command: {c}");
     PrintDevHelp();
+    return 2;
+}
+
+static int UnknownLegion(string c)
+{
+    Console.Error.WriteLine($"Unknown legion command: {c}");
+    PrintLegionHelp();
     return 2;
 }
 
@@ -132,13 +162,7 @@ static void PrintHelp()
           rycolab report --health       battery capacity history (one sample per day while the guard runs)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
-          rycolab fan show|on|off|auto  Lenovo Legion: the EC "fan full speed" switch, by hand or by CPU temperature
-                                        (auto: --on 85 --off 80 --hold 3; selects custom mode itself, restores it on exit)
-          rycolab power show|battery|ac|restore|auto on|off   Lenovo Legion battery profile: quiet mode, iGPU only, 60 Hz,
-                                        brightness 40 %, DC scheme values; `ac` restores; `auto` lets the guard do it on AC line changes
-                                        (battery: --gpu igpu|auto|keep --hz 60 --brightness 40 --no-windows --close-apps)
-          rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery charge mode (conservation stops at ~80 %)
-          rycolab charge full [--target 98]   one-shot: rapid now, the guard restores the mode at the target
+          rycolab legion <command>      Lenovo Legion extras: fan, power (battery profile), charge   (`rycolab legion help`)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
                                         calibrate, plan, toast, task, profile import, log   (`rycolab dev help`)
 
@@ -158,6 +182,23 @@ static void PrintHelp()
         EXIT CODES
           0 ok   1 error   2 mismatch / refused   3 needs elevation   4 blocked by safety
           10 positive (WHEA or margin lost)
+        """);
+}
+
+static void PrintLegionHelp()
+{
+    Console.WriteLine("""
+        rycolab legion <command>   (Lenovo Legion only; elevated)
+
+          fan show|on|off|auto [--on 85] [--off 80] [--hold 3]   the EC "fan full speed" switch, by hand or by CPU temperature
+                                        (auto selects the custom power mode itself and restores it on exit)
+          power show|battery|ac|restore|auto on|off   battery profile: quiet mode, iGPU only, 60 Hz, brightness 40 %,
+                                        DC scheme values; `ac` restores the snapshot; `auto` lets the guard do it on AC line changes
+                                        (battery: --gpu igpu|auto|keep --mode quiet|keep --hz 60 --brightness 40 --no-windows --close-apps)
+          charge show|normal|conservation|rapid|night on|off   battery charge mode through the Energy driver (conservation stops at ~80 %)
+          charge full [--target 98]     one-shot: rapid now, the running guard restores the mode at the target
+
+        Details: docs/legion.md
         """);
 }
 

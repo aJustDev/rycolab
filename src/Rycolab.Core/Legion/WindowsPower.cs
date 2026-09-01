@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
-namespace Rycolab.Core;
+namespace Rycolab.Core.Legion;
 
 /// <summary>
 /// The Windows side of the battery profile: the internal panel's refresh

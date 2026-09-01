@@ -1,3 +1,4 @@
+using Rycolab.Core.Legion;
 using System.Text.Json;
 using Rycolab.Cli.Ui;
 using Rycolab.Core;

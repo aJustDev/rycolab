@@ -1,3 +1,4 @@
+using Rycolab.Core.Legion;
 using System.Diagnostics;
 using Rycolab.Core;
 using Spectre.Console;
@@ -123,13 +124,13 @@ public static class StatusView
         var snap = PowerSnapshot.Load();
         var byGuard = state?.PowerProfile == "battery" ? " [grey](applied by the guard)[/]" : "";
         KV(g, "profile", snap is { } s
-            ? $"[green]applied[/] at {s.TakenAt:HH:mm:ss}{byGuard}  [grey](`power ac` restores {E(LenovoEc.ModeName(s.Mode))}, {E(LenovoEc.IGpuModeName(s.IGpuMode))}, {s.Hz?.ToString() ?? "?"} Hz)[/]"
+            ? $"[green]applied[/] at {s.TakenAt:HH:mm:ss}{byGuard}  [grey](`legion power ac` restores {E(LenovoEc.ModeName(s.Mode))}, {E(LenovoEc.IGpuModeName(s.IGpuMode))}, {s.Hz?.ToString() ?? "?"} Hz)[/]"
             : "[grey]not applied[/]");
 
         var plan = Plan.LoadOrDefault();
         KV(g, "auto", plan.PowerAuto
             ? $"[green]on[/]  [grey]{E(plan.PowerAutoOptions.ToString())}; battery profile {Guard.AcDebounceSeconds} s after unplugging, restored on AC[/]"
-            : "[grey]off[/]  (`rycolab power auto on` lets the guard handle it)");
+            : "[grey]off[/]  (`rycolab legion power auto on` lets the guard handle it)");
 
         KV(g, "panel", $"{WindowsPower.RefreshHz?.ToString() ?? "?"} Hz  [grey](available {AvailableRates.Value})[/]  brightness {WindowsPower.Brightness?.ToString() ?? "?"} %");
         return Section("Battery", g);

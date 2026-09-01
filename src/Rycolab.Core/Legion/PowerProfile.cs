@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Management;
 using System.Text.Json;
 
-namespace Rycolab.Core;
+namespace Rycolab.Core.Legion;
 
-/// <summary>What `power battery` changes. Saved in config.json as PowerAuto options too.</summary>
+/// <summary>What `legion power battery` changes. Saved in config.json as PowerAuto options too.</summary>
 public sealed class PowerOptions
 {
     /// <summary>igpu | auto | keep</summary>
@@ -40,7 +40,7 @@ public sealed class PowerSnapshot
 /// The battery profile: EC quiet mode, iGPU-only, 60 Hz, dimmer panel, the
 /// DC values of the Windows scheme; and the way back. Each knob is applied
 /// once, read back and reported through <paramref name="log"/>; a knob that
-/// fails does not stop the others. Shared by `rycolab power` and the guard.
+/// fails does not stop the others. Shared by `rycolab legion power` and the guard.
 /// </summary>
 public static class PowerProfile
 {
@@ -61,7 +61,7 @@ public static class PowerProfile
             snap.Save();
             log($"snapshot: mode {LenovoEc.ModeName(snap.Mode)}, gpu {LenovoEc.IGpuModeName(snap.IGpuMode)}, {snap.Hz?.ToString() ?? "?"} Hz, brightness {snap.Brightness?.ToString() ?? "?"} %, {snap.Dc.Count} DC settings");
         }
-        else log($"snapshot from {snap.TakenAt:HH:mm:ss} kept (battery profile already applied once; `power ac` restores it)");
+        else log($"snapshot from {snap.TakenAt:HH:mm:ss} kept (battery profile already applied once; `legion power ac` restores it)");
 
         // EC power mode: quiet. The limits it runs with are printed, never written.
         if (o.Mode != "quiet") log($"power mode kept ({LenovoEc.ModeName(ec.SmartFanMode)})");
@@ -219,7 +219,7 @@ public static class PowerProfile
         }
 
         if (failed == 0) PowerSnapshot.Delete();
-        else log("snapshot kept because something failed; `power restore` retries");
+        else log("snapshot kept because something failed; `legion power restore` retries");
         return failed;
     }
 

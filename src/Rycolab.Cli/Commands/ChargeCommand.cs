@@ -1,9 +1,10 @@
+using Rycolab.Core.Legion;
 using Rycolab.Core;
 
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab charge [show] | normal | conservation | rapid | full [--target 98] | night on|off
+/// rycolab legion charge [show] | normal | conservation | rapid | full [--target 98] | night on|off
 /// Lenovo battery charge modes through the Energy driver (what Legion
 /// Toolkit's battery section does): conservation stops at ~80 % (firmware
 /// threshold, protects the pack when living on AC), rapid charges fastest,
@@ -56,14 +57,14 @@ public static class ChargeCommand
             case "night":
             {
                 var want = args.Positional.Skip(1).FirstOrDefault()?.ToLowerInvariant();
-                if (want is not ("on" or "off")) { Console.Error.WriteLine("Usage: rycolab charge night on|off"); return 2; }
+                if (want is not ("on" or "off")) { Console.Error.WriteLine("Usage: rycolab legion charge night on|off"); return 2; }
                 if (energy.NightCharge() is null) { Console.Error.WriteLine("  Night charge is not supported on this machine."); return 1; }
                 var after = energy.SetNightCharge(want == "on");
                 Console.WriteLine($"  night charge -> {(after is { } a ? (a ? "on" : "off") : "?")}{(after == (want == "on") ? "" : "  (the driver did not confirm the change)")}");
                 return after == (want == "on") ? 0 : 1;
             }
             default:
-                Console.Error.WriteLine("Usage: rycolab charge [show] | normal | conservation | rapid | full [--target 98] | night on|off");
+                Console.Error.WriteLine("Usage: rycolab legion charge [show] | normal | conservation | rapid | full [--target 98] | night on|off");
                 return 2;
         }
     }

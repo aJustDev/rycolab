@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 
-namespace Rycolab.Core;
+namespace Rycolab.Core.Legion;
 
 /// <summary>
 /// Battery charge modes on Lenovo machines, through the same driver Legion

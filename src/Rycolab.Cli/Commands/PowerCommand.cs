@@ -1,10 +1,11 @@
+using Rycolab.Core.Legion;
 using System.Diagnostics;
 using Rycolab.Core;
 
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab power show | battery [--gpu igpu|auto|keep] [--mode quiet|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows]
+/// rycolab legion power show | battery [--gpu igpu|auto|keep] [--mode quiet|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows]
 ///               | ac | restore | auto on|off
 /// Lenovo Legion battery profile: EC quiet mode, iGPU only, 60 Hz, dimmer
 /// panel, DC power-scheme values; `ac` puts everything back from the
@@ -41,7 +42,7 @@ public static class PowerCommand
                 Console.WriteLine($"  battery profile: {o}");
                 var failed = PowerProfile.Battery(ec, o, Line);
                 Show(ec);
-                if (failed > 0) Console.Error.WriteLine($"  {failed} knob(s) failed; the rest is applied. `power ac` restores the snapshot.");
+                if (failed > 0) Console.Error.WriteLine($"  {failed} knob(s) failed; the rest is applied. `legion power ac` restores the snapshot.");
                 return failed > 0 ? 1 : 0;
             }
             case "ac":
@@ -55,7 +56,7 @@ public static class PowerCommand
             case "auto":
             {
                 var on = args.Positional.Skip(1).FirstOrDefault()?.ToLowerInvariant();
-                if (on is not ("on" or "off")) { Console.Error.WriteLine("Usage: rycolab power auto on|off [--gpu ...] [--hz ...] [--brightness ...] [--no-windows] [--close-apps]"); return 2; }
+                if (on is not ("on" or "off")) { Console.Error.WriteLine("Usage: rycolab legion power auto on|off [--gpu ...] [--hz ...] [--brightness ...] [--no-windows] [--close-apps]"); return 2; }
                 var plan = Rycolab.Core.Plan.LoadOrDefault();
                 plan.PowerAuto = on == "on";
                 if (on == "on")
@@ -74,7 +75,7 @@ public static class PowerCommand
                 return 0;
             }
             default:
-                Console.Error.WriteLine("Usage: rycolab power show | battery [--gpu igpu|auto|keep] [--mode quiet|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows] | ac | restore | auto on|off");
+                Console.Error.WriteLine("Usage: rycolab legion power show | battery [--gpu igpu|auto|keep] [--mode quiet|keep] [--hz 60] [--brightness 40] [--close-apps] [--no-windows] | ac | restore | auto on|off");
                 return 2;
         }
     }
@@ -100,7 +101,7 @@ public static class PowerCommand
         foreach (var (sub, setting, label, _) in WindowsPower.DcSettings)
             if (WindowsPower.Query(sub, setting) is { } q) Console.WriteLine($"               {label,-24} AC {q.Ac}   DC {q.Dc}");
         Console.WriteLine($"  apps         {(apps.Count > 0 ? string.Join(", ", apps) + " running" : "none of " + string.Join(", ", PowerProfile.BackgroundApps))}");
-        Console.WriteLine($"  snapshot     {(PowerSnapshot.Load() is { } s ? $"battery profile applied at {s.TakenAt:HH:mm:ss} (`power ac` restores)" : "none (nothing applied)")}");
+        Console.WriteLine($"  snapshot     {(PowerSnapshot.Load() is { } s ? $"battery profile applied at {s.TakenAt:HH:mm:ss} (`legion power ac` restores)" : "none (nothing applied)")}");
         Console.WriteLine($"  auto         {(plan.PowerAuto ? $"on: {plan.PowerAutoOptions}" : "off")}");
         Console.WriteLine();
     }

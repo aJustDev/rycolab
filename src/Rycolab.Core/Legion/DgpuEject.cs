@@ -1,4 +1,4 @@
-namespace Rycolab.Core;
+namespace Rycolab.Core.Legion;
 
 /// <summary>
 /// Marker for a pending dGPU ejection: the battery profile drops it when the
