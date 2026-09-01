@@ -926,3 +926,40 @@ frozen background) plus a genuinely quiet machine. Also measured: at
 100 % brightness with dark content the brightness slider barely moves
 the draw (39.7 W at 100 % vs 41.3 W at 40 % - mini-LED zone dimming
 does the work); brightness matters on bright content.
+
+## 2026-09-01 20:50 - The stuck dGPU, solved for real: notify retries once the card idles
+
+The evening's disable-and-hold "fix" was half a fix, and the user's
+insistence that something was still escaping us was right. Autopsy of a
+battery session with the node disabled: slope-verified ~40-55 W total
+draw with the socket at 10-18 W, the "off" GPU at 44-46 C with its fan
+spinning, and a ~30-35 W non-socket floor all session. A disabled node
+is silicon with power and no driver managing it (~20-25 W); the EC
+reports it "off" because a node with a problem code counts as
+unavailable. The only healthy state is the node LEAVING the bus (the
+ACPI removal is what cuts slot power): the afternoon's 14-18 W session.
+
+The wedge is reproducible at will: query the card awake (nvidia-smi,
+P0) right before switching to iGPU-only and it never leaves. Cures
+tried on live wedges: pnputil restart-device alone - no; disable+enable
+pairs - only sometimes; patience alone - no. What works, from Legion
+Toolkit's EnsureDGPUEjectedIfNeeded (HybridModeFeature.cs): re-sending
+NotifyDGPUStatus(1) makes the EC retry the ejection, and it lands once
+the card has been idle ~2-3 minutes. Four timed cures, same pattern;
+a clean idle-3-min-then-one-notify test ejected on the first try.
+Nothing pnputil does speeds up the idle requirement.
+
+Shipped: the battery profile does one short notify round after the
+25 s wait; if the card stays, it drops `dgpu-eject.json` and the guard
+nudges the EC every tick until the node leaves (event: "dGPU ejected
+N s after the switch"). After 6 min it gives up: disables the node
+(worth ~12 W of the ~25) and toasts "dGPU stuck awake" - burning
+battery in silence is not acceptable. `power ac` deletes the marker
+and re-enables a disabled node before restoring hybrid; the EC
+re-plants the card on the mode switch either way (seen at 20:12 even
+with the enable failing).
+
+Also fixed on the way: the WMI Enable/Disable invoke (NullReference on
+2026-09-01) replaced by pnputil with ArgumentList - the `&` in the
+instance id breaks shell-level quoting, which is what sank the first
+manual disable attempt via sudo.

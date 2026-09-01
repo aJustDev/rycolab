@@ -61,6 +61,7 @@ public sealed class Guard
         ["giveup"] = "rycolab: guard gave up",
         ["apply-failed"] = "rycolab: profile apply failed",
         ["error"] = "rycolab: guard error",
+        ["dgpu-stuck"] = "rycolab: dGPU stuck awake",
     };
     private readonly Dictionary<string, DateTime> _notified = [];
     private const int NotifyCooldownMinutes = 10;
@@ -143,6 +144,7 @@ public sealed class Guard
 
                 ChargeFullTick();
                 HealthTick();
+                DgpuEjectTick();
 
                 var readings = _co.ReadAll();
                 var hw = readings.Select(x => x.Margin).ToArray();
@@ -291,6 +293,30 @@ public sealed class Guard
         var after = energy.IsAvailable ? energy.SetChargeMode(full.Restore) : null;
         ChargeFull.Delete();
         Event("charge", $"battery at {p:F0} % -> full charge done, mode back to {after ?? "?"}{(after == full.Restore ? "" : " (NOT CONFIRMED)")}");
+    }
+
+    /// <summary>
+    /// Finishes a pending dGPU ejection: nudges the EC every tick (the notify
+    /// makes it retry; it lands once the card has idled ~2-3 min), and after
+    /// 6 min disables the node as a last resort worth ~12 W and says so with
+    /// a toast - burning ~25 W of battery in silence is not acceptable.
+    /// </summary>
+    private void DgpuEjectTick()
+    {
+        if (!_o.PublishState || DgpuEject.Load() is not { } eject) return;
+        if (!LenovoEc.DgpuPresent())
+        {
+            DgpuEject.Delete();
+            Event("power", $"dGPU ejected {(int)(DateTime.Now - eject.Started).TotalSeconds} s after the switch");
+            return;
+        }
+        using var ec = new LenovoEc();
+        if (!ec.IsAvailable || ec.IGpuMode != LenovoEc.IGpuOnly) { DgpuEject.Delete(); return; }
+        if ((DateTime.Now - eject.Started).TotalMinutes < 6) { ec.NotifyDgpuStatus(true); return; }
+        DgpuEject.Delete();
+        var lines = new List<string>();
+        PowerProfile.Dgpu("disable-device", lines.Add);
+        Event("dgpu-stuck", $"dGPU still on the bus 6 min after the switch; {string.Join(" | ", lines)}; the silicon keeps ~20 W without a driver, a reboot truly powers it off");
     }
 
     /// <summary>One battery-health sample per day, write-through like ticks so Rebuild regenerates it.</summary>

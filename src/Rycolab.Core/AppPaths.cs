@@ -24,6 +24,7 @@ public static class AppPaths
     public static string CurrentCampaign => Path.Combine(Data, "current-campaign");
     public static string ChargeFull => Path.Combine(Data, "charge-full.json");
     public static string BatteryDesign => Path.Combine(Data, "battery-design.json");
+    public static string DgpuEject => Path.Combine(Data, "dgpu-eject.json");
 
     public static string Campaign(string name)
         => Path.IsPathRooted(name) ? name : Path.Combine(Campaigns, name);

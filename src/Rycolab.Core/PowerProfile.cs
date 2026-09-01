@@ -88,13 +88,24 @@ public static class PowerProfile
                 else
                 {
                     var present = WaitDgpu(false, 25, log);
-                    // A recently active card sometimes never leaves after the switch and
-                    // burns ~12 W awake (twice on 2026-09-01). Disabling the device node
-                    // completes the ejection: the EC reported it off within seconds.
-                    if (g == LenovoEc.IGpuOnly && present && DgpuSetEnabled(false, log))
+                    // A recently active card sometimes never leaves after the switch
+                    // (reproducible: query it awake right before). The cure is Legion
+                    // Toolkit's EnsureDGPUEjected: notifying the EC that the card is
+                    // still there makes it RETRY the ejection - but it only lands once
+                    // the card has idled for ~2-3 min (three timed cures on
+                    // 2026-09-01; nothing pnputil does speeds that up). A short round
+                    // here, then a marker: the guard nudges the EC every tick until
+                    // the node LEAVES the bus, and disables it as a paltry last
+                    // resort (a disabled node is silicon with power and no driver,
+                    // ~20 W measured).
+                    if (g == LenovoEc.IGpuOnly && present)
                     {
-                        Thread.Sleep(5000);
-                        present = LenovoEc.DgpuPresent();
+                        present = NotifyRetry(ec, 3, log);
+                        if (present)
+                        {
+                            new DgpuEject(DateTime.Now).Save();
+                            log("dGPU still present; the guard keeps nudging the EC (a busy card ejects only after ~2-3 min of idle)");
+                        }
                     }
                     ec.NotifyDgpuStatus(present);
                     log($"gpu {LenovoEc.IGpuModeName(before)} -> {LenovoEc.IGpuModeName(after)}; dGPU {(present ? "still present (notified 1)" : "gone (notified 0)")}");
@@ -180,10 +191,12 @@ public static class PowerProfile
             log($"panel -> {after?.ToString() ?? "?"} Hz{(after == hz ? "" : " (FAILED)")}");
         }
 
-        // If the battery profile had to disable the stuck dGPU node, bring it
+        // A pending ejection is over either way once AC is back.
+        DgpuEject.Delete();
+        // If the guard's last resort disabled the stuck dGPU node, bring it
         // back before the mode switch so the driver reloads with it. Checked
         // unconditionally: idempotent, and it also cleans up a manual disable.
-        DgpuSetEnabled(true, log);
+        Dgpu("enable-device", log, onlyIfDisabled: true);
 
         if (snap.IGpuMode is { } g && (force || ec.IGpuMode != g))
         {
@@ -211,28 +224,52 @@ public static class PowerProfile
     }
 
     /// <summary>
-    /// Enables or disables the NVIDIA display device node via WMI. Returns
-    /// true when it actually changed the state (disabled is ConfigManager
-    /// error code 22). Silent no-op on machines without an NVIDIA device.
+    /// Legion Toolkit's EnsureDGPUEjected: NotifyDGPUStatus(1) makes the EC
+    /// retry the ejection; checks every 5 s. Returns whether the card is
+    /// still present after the attempts.
     /// </summary>
-    private static bool DgpuSetEnabled(bool enabled, Action<string> log)
+    private static bool NotifyRetry(LenovoEc ec, int attempts, Action<string> log)
+    {
+        for (var i = 1; i <= attempts; i++)
+        {
+            ec.NotifyDgpuStatus(true);
+            Thread.Sleep(5000);
+            if (!LenovoEc.DgpuPresent()) { log($"dGPU ejected after notify retry {i}"); return false; }
+        }
+        log($"dGPU still present after {attempts} notify retries");
+        return true;
+    }
+
+    /// <summary>
+    /// Runs `pnputil /&lt;verb&gt; &lt;instanceId&gt;` on the NVIDIA display node
+    /// (restart-device / disable-device / enable-device). pnputil rather than
+    /// WMI Enable/Disable: the WMI invoke threw NullReferenceException on
+    /// 2026-09-01, and ArgumentList sidesteps the quoting of the `&amp;` in the
+    /// instance id that broke the shell attempts. Silent no-op without an
+    /// NVIDIA device; false when nothing was done or pnputil failed.
+    /// </summary>
+    internal static bool Dgpu(string verb, Action<string> log, bool onlyIfDisabled = false)
     {
         try
         {
             using var s = new ManagementObjectSearcher(@"root\cimv2",
-                "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Display' AND Name LIKE '%NVIDIA%'");
+                "SELECT PNPDeviceID, ConfigManagerErrorCode FROM Win32_PnPEntity WHERE PNPClass = 'Display' AND Name LIKE '%NVIDIA%'");
             foreach (ManagementObject m in s.Get())
             {
-                var disabled = Convert.ToInt32(m["ConfigManagerErrorCode"]) == 22;
-                if (disabled == !enabled) return false;   // already in the wanted state
-                var rc = Convert.ToUInt32(m.InvokeMethod(enabled ? "Enable" : "Disable", null));
-                log(rc == 0
-                    ? $"dGPU device node {(enabled ? "re-enabled" : "disabled (stuck awake after the switch)")}"
-                    : $"dGPU device node {(enabled ? "enable" : "disable")} returned {rc}");
-                return rc == 0;
+                if (onlyIfDisabled && Convert.ToInt32(m["ConfigManagerErrorCode"]) != 22) return false;
+                var id = (string)m["PNPDeviceID"];
+                var psi = new ProcessStartInfo("pnputil.exe") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+                psi.ArgumentList.Add($"/{verb}");
+                psi.ArgumentList.Add(id);
+                var p = Process.Start(psi)!;
+                p.StandardOutput.ReadToEnd(); p.StandardError.ReadToEnd();
+                p.WaitForExit(30000);
+                var ok = p.ExitCode == 0;
+                log($"dGPU node {verb}{(ok ? "" : $" FAILED (pnputil exit {p.ExitCode})")}");
+                return ok;
             }
         }
-        catch (Exception ex) { log($"dGPU device node toggle failed: {ex.Message}"); }
+        catch (Exception ex) { log($"dGPU node {verb} failed: {ex.Message}"); }
         return false;
     }
 
