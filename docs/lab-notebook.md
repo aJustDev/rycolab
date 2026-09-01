@@ -728,3 +728,37 @@ disposes and `Environment.Exit(code)` after the ordered shutdown (journal
 and SQLite are closed by then). Root cause still open; candidates
 (SystemEvents' pump, a LibreHardwareMonitor thread) unconfirmed - do not
 guess, measure with a thread dump if it matters later.
+
+## 2026-09-01 15:41 - Battery health history (roadmap item 3); baseline recorded
+
+The guard now takes one battery-health sample per day (first main-loop
+tick of the day): FullChargedCapacity and CycleCount from root\WMI,
+design capacity from one `powercfg /batteryreport` XML cached in
+battery-design.json (`BatteryStaticData` fails on this machine even
+elevated; Win32_Battery has no DesignCapacity). Write-through pair like
+ticks: a `health` line in guard.jsonl plus a `health` table in the
+guard's SQLite, with a Rebuild branch so reports regenerate it. Duplicate
+protection: last sample timestamp seeded from the db at guard start
+(verified: restart on the same day adds no second row).
+
+`rycolab report --health` (unelevated) prints the summary and the daily
+table, `--md` writes it; the status panel's Battery section shows a
+health row (design + cycles cached per process, the live view repaints
+every 2 s). Baseline for the record, day one:
+
+    2026-09-01  100.0 Wh full charge  /  99.9 Wh design (100.1 %)  5 cycles
+
+(Refurbished machine; capacity above design and 5 cycles say new-ish pack,
+and the C5-C8 campaigns measured ~100 Wh of real delivered energy, which
+no spoofed gauge could fake. From today the reference is this series.)
+
+Fix that fell out of testing: `Store.Rebuild` read the JSONL with
+`File.ReadLines`, which cannot open a journal a live guard holds - so
+`report guard` and `report --health` failed with a sharing violation
+while the guard runs. Replaced with a FileShare.ReadWrite reader; the
+temp-db rebuild path now actually works against a live guard.
+
+Verified end to end: sample line in guard.jsonl at 15:41:04, design cache
+created, report with the guard running, status row, no duplicate after a
+guard restart, and two clean `off`s in a row (the Environment.Exit
+workaround holds - no lingering process today).

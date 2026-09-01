@@ -64,6 +64,8 @@ public sealed class Guard
     private readonly Dictionary<string, DateTime> _notified = [];
     private const int NotifyCooldownMinutes = 10;
 
+    private DateTime? _lastHealthAt;
+
     public Guard(CoController co, Profile profile, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent)
     {
         _co = co;
@@ -77,6 +79,7 @@ public sealed class Guard
         _journal = new Journal(Path.Combine(_o.RunsDir, "guard.jsonl"));
         _store = new Store(Path.Combine(_o.RunsDir, "rycolab.db"));
         if (_o.PublishState) _validation = Validation.LoadFor(profile);
+        _lastHealthAt = _store.LastHealthTs();
     }
 
     /// <summary>File that `off` / `task stop` drop to request a clean exit (killing the process would not restore the baseline).</summary>
@@ -137,6 +140,7 @@ public sealed class Guard
                 }
 
                 ChargeFullTick();
+                HealthTick();
 
                 var readings = _co.ReadAll();
                 var hw = readings.Select(x => x.Margin).ToArray();
@@ -285,6 +289,17 @@ public sealed class Guard
         var after = energy.IsAvailable ? energy.SetChargeMode(full.Restore) : null;
         ChargeFull.Delete();
         Event("charge", $"battery at {p:F0} % -> full charge done, mode back to {after ?? "?"}{(after == full.Restore ? "" : " (NOT CONFIRMED)")}");
+    }
+
+    /// <summary>One battery-health sample per day, write-through like ticks so Rebuild regenerates it.</summary>
+    private void HealthTick()
+    {
+        if (!_o.PublishState || _lastHealthAt?.Date == DateTime.Now.Date) return;
+        var s = BatteryHealth.Read();
+        if (s.FullWh is null) { _lastHealthAt = s.Ts; return; }   // no battery here; do not retry every minute
+        _journal.Write(new { kind = "health", ts = s.Ts, fullWh = s.FullWh, designWh = s.DesignWh, cycles = s.Cycles });
+        _store.AddHealth(s);
+        _lastHealthAt = s.Ts;
     }
 
     private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)

@@ -33,6 +33,8 @@ public sealed class Store : IDisposable
                 id INTEGER PRIMARY KEY, ts TEXT, kind TEXT, detail TEXT);
             CREATE TABLE IF NOT EXISTS ticks (
                 id INTEGER PRIMARY KEY, ts TEXT, elapsed INT, ok INT, hardware TEXT, whea INT, cpu REAL, pkg_w REAL, state TEXT);
+            CREATE TABLE IF NOT EXISTS health (
+                id INTEGER PRIMARY KEY, ts TEXT, full_wh REAL, design_wh REAL, cycles INT);
             CREATE INDEX IF NOT EXISTS ix_runs_core ON runs(core, margin);
             CREATE INDEX IF NOT EXISTS ix_samples_run ON samples(core, margin, engine);
             """);
@@ -76,6 +78,27 @@ public sealed class Store : IDisposable
             ("$ts", t.Ts.ToString("o")), ("$el", t.Elapsed), ("$ok", t.Ok ? 1 : 0), ("$hw", string.Join(",", t.Hardware.Select(h => h?.ToString() ?? "-"))),
             ("$whea", t.Whea), ("$cpu", t.CpuLoad), ("$pkg", t.PackagePower), ("$state", t.State));
 
+    public void AddHealth(HealthSample s)
+        => Exec("INSERT INTO health (ts, full_wh, design_wh, cycles) VALUES ($ts, $full, $design, $cycles)",
+            ("$ts", s.Ts.ToString("o")), ("$full", s.FullWh), ("$design", s.DesignWh), ("$cycles", s.Cycles));
+
+    public List<HealthSample> Health()
+    {
+        var list = new List<HealthSample>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT ts, full_wh, design_wh, cycles FROM health ORDER BY ts";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(new HealthSample(DateTime.Parse(r.GetString(0)), D(r, 1), D(r, 2), r.IsDBNull(3) ? null : r.GetInt32(3)));
+        return list;
+    }
+
+    public DateTime? LastHealthTs()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT MAX(ts) FROM health";
+        return cmd.ExecuteScalar() is string s ? DateTime.Parse(s) : null;
+    }
+
     public List<RunResult> Runs()
     {
         var list = new List<RunResult>();
@@ -106,19 +129,19 @@ public sealed class Store : IDisposable
     /// <summary>Empties the database and refills it from runs.jsonl, samples.jsonl and guard.jsonl in the directory.</summary>
     public void Rebuild(string dir)
     {
-        Exec("DELETE FROM runs; DELETE FROM samples; DELETE FROM events; DELETE FROM ticks;");
+        Exec("DELETE FROM runs; DELETE FROM samples; DELETE FROM events; DELETE FROM ticks; DELETE FROM health;");
         var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
         var runs = System.IO.Path.Combine(dir, "runs.jsonl");
         if (File.Exists(runs))
-            foreach (var line in File.ReadLines(runs).Where(l => l.Trim().Length > 0))
+            foreach (var line in Lines(runs))
                 AddRun(JsonSerializer.Deserialize<RunResult>(line, opts)!);
 
         var samples = System.IO.Path.Combine(dir, "samples.jsonl");
         if (File.Exists(samples))
         {
             using var tx = _db.BeginTransaction();
-            foreach (var line in File.ReadLines(samples).Where(l => l.Trim().Length > 0))
+            foreach (var line in Lines(samples))
             {
                 using var doc = JsonDocument.Parse(line);
                 var e = doc.RootElement;
@@ -136,7 +159,7 @@ public sealed class Store : IDisposable
 
         var guard = System.IO.Path.Combine(dir, "guard.jsonl");
         if (File.Exists(guard))
-            foreach (var line in File.ReadLines(guard).Where(l => l.Trim().Length > 0))
+            foreach (var line in Lines(guard))
             {
                 using var doc = JsonDocument.Parse(line);
                 var e = doc.RootElement;
@@ -145,9 +168,21 @@ public sealed class Store : IDisposable
                     AddTick(new GuardTick(e.GetProperty("Ts").GetDateTime(), e.GetProperty("Elapsed").GetInt32(), e.GetProperty("Ok").GetBoolean(),
                         e.GetProperty("Hardware").EnumerateArray().Select(x => x.ValueKind == JsonValueKind.Number ? x.GetInt32() : (int?)null).ToArray(),
                         e.GetProperty("Whea").GetInt32(), Num(e, "CpuLoad"), Num(e, "PackagePower"), e.GetProperty("State").GetString()!));
+                else if (kind == "health")
+                    AddHealth(new HealthSample(e.GetProperty("ts").GetDateTime(), Num(e, "fullWh"), Num(e, "designWh"),
+                        e.TryGetProperty("cycles", out var cy) && cy.ValueKind == JsonValueKind.Number ? cy.GetInt32() : null));
                 else
                     AddEvent(e.GetProperty("ts").GetDateTime(), kind, e.GetProperty("detail").GetString() ?? "");
             }
+    }
+
+    /// <summary>Like File.ReadLines but shares with a live writer (the guard keeps its journal open).</summary>
+    private static IEnumerable<string> Lines(string path)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var sr = new StreamReader(fs);
+        while (sr.ReadLine() is { } line)
+            if (line.Trim().Length > 0) yield return line;
     }
 
     private static double? Num(JsonElement e, string name)

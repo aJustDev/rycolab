@@ -85,6 +85,13 @@ public static class StatusView
     /// <summary>The mode list only changes with the resolution; enumerate once per process.</summary>
     private static readonly Lazy<string> AvailableRates = new(() => string.Join(",", WindowsPower.AvailableRefreshRates()));
 
+    /// <summary>Design capacity and cycle count move daily at most; the live view repaints every 2 s.</summary>
+    private static readonly Lazy<(double? DesignWh, int? Cycles)> HealthStatics = new(() =>
+    {
+        var s = BatteryHealth.Read();
+        return (s.DesignWh, s.Cycles);
+    });
+
     // ---- Battery ---------------------------------------------------------
 
     public static IRenderable Battery(State? state)
@@ -93,6 +100,11 @@ public static class StatusView
         var b = BatteryInfo.Read();
         KV(g, "line", b.OnAc is { } ac
             ? (ac ? "[green]AC[/]" : $"[yellow]battery[/]  {b.DischargeW?.ToString("F1") ?? "-"} W  {b.Percent?.ToString("F0") ?? "-"} %  {b.RemainingWh?.ToString("F1") ?? "-"} Wh{(b.HoursLeft is { } h ? $"  [grey]~{h:F1} h at this rate[/]" : "")}")
+            : "[grey]?[/]");
+
+        var (design, cycles) = HealthStatics.Value;
+        KV(g, "health", b.FullWh is { } fw
+            ? $"{fw:F1} Wh full charge{(design is > 0 and var dw ? $"  [grey]{100.0 * fw / dw:F1} % of {dw:F1} Wh design[/]" : "")}{(cycles is { } cy ? $"  [grey]{cy} cycles[/]" : "")}"
             : "[grey]?[/]");
 
         var snap = PowerSnapshot.Load();

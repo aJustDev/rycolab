@@ -68,6 +68,8 @@ rycolab status [--once]       live panel with everything applied, refreshed ever
 rycolab off                   stop the guard, back to the BIOS baseline, task disabled
 rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md
 rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV: power, temps, clocks, V, fans, battery
+rycolab report --health       battery capacity history: the guard samples FullChargedCapacity, design
+                              capacity and cycle count once a day, so degradation shows as data, not guesswork
 rycolab power show|battery|ac|restore|auto on|off   Lenovo Legion battery profile (see below)
 rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery charge mode through the Energy
                               driver (\\.\EnergyDrv, what Legion Toolkit's battery section talks to): conservation

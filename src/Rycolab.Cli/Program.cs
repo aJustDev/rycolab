@@ -118,6 +118,7 @@ static void PrintHelp()
                                         Lenovo EC (with sudo), Windows scheme; --once prints it and exits
           rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
           rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV (samples > 100 W, or on battery)
+          rycolab report --health       battery capacity history (one sample per day while the guard runs)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
           rycolab fan show|on|off|auto  Lenovo Legion: the EC "fan full speed" switch, by hand or by CPU temperature
