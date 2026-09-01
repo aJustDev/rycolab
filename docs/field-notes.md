@@ -35,6 +35,14 @@ not assumed. The raw numbers are in `lab-notebook.md`; the Lenovo-only ones
   line: the only trace is Kernel-Power 41 at the next boot. The sweep treats
   a run left in progress across a reboot as a positive (hang); the guard
   counts the reboot as a `reset`.
+- The SMU mailbox has no cross-process lock: ZenStates.Core takes no
+  global mutex (LibreHardwareMonitor takes `Global\Access_PCI`, HWiNFO the
+  usual `Global\Access_*` ones; none of them covers the SMU). `dev probe`,
+  `dev log`, HWiNFO and Legion Toolkit read while the guard reads and
+  writes. Reads crossing reads have never produced a wrong value here; a
+  write crossing another tool's write could read back the other tool's
+  status. A sporadic `readback != margin` from the guard is that before it
+  is the silicon: close the other writer and retry.
 - Legion Toolkit, if it has `amd_overclocking.json`, re-applies its own
   per-core Curve Optimizer on mode change, AC events, resume and start. The
   guard re-applies the profile within one interval and gives up after three
