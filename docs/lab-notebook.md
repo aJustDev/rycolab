@@ -251,6 +251,11 @@ mod idea for the heatsink contact.
   --write-test` (`FAILED` on MP1 0x54 with 16- and 20-bit margins: "writes
   are LOCKED on this CPU"), `uninstall.ps1` (task, PATH and bin removed,
   data kept). Hardware at 0 x 8 throughout.
+- 2026-09-01 23:26, core map from the fuses (commit 5b01fca): `dev probe
+  --write-test --no-compare` reports "1 CCD, 8 cores, SMT on, APU", no
+  warning, masks `0x0..0x7`, 8 of 8 read, FMax 4450, write test `FAILED`
+  on MP1 0x54 (16- and 20-bit). Same as by hand; the map derivation holds
+  on a one-CCD APU.
 
 ## 2026-08-28 - Fans: table, ramp and the full-speed switch (Legion Pro 7)
 
