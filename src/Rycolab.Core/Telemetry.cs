@@ -98,35 +98,6 @@ public sealed class Telemetry : IDisposable
     public double? CoreVid(int coreIndex) => Exact(SensorType.Voltage, $"{CoreLabel(coreIndex)} VID");
     public double? CorePower(int coreIndex) => Exact(SensorType.Power, $"{CoreLabel(coreIndex)} (SMU)");
 
-    /// <summary>Total CPU load in %, refreshed.</summary>
-    public double? CpuLoad()
-    {
-        if (!IsAvailable) return null;
-        Refresh();
-        return Exact(SensorType.Load, "CPU Total") ?? Fuzzy(SensorType.Load, "Total");
-    }
-
-    /// <summary>
-    /// Package power with the RAPL garbage filtered: LHM derives it from an
-    /// energy-counter delta and intermittently returns 150-270 W at idle
-    /// (2026-09-01). Median of three spaced reads, values outside (0, 250) W
-    /// dropped. Fallback only; the PM table is the primary source.
-    /// </summary>
-    public double? PackageMedian3()
-    {
-        if (!IsAvailable) return null;
-        var xs = new List<double>();
-        for (var i = 0; i < 3; i++)
-        {
-            if (i > 0) Thread.Sleep(150);
-            Refresh();
-            var v = Exact(SensorType.Power, "Package") ?? Fuzzy(SensorType.Power, "Package");
-            if (v is > 0 and < 250 and var w) xs.Add(w);
-        }
-        xs.Sort();
-        return xs.Count > 0 ? xs[xs.Count / 2] : null;
-    }
-
     public TelemetrySnapshot Read(int? targetCore = null)
     {
         if (!IsAvailable)

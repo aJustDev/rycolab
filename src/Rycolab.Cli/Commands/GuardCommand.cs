@@ -31,7 +31,6 @@ public static class GuardCommand
             return 2;
         }
 
-        using var telemetry = new Telemetry();
         var pm = new PmTable(co.Cpu);
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
@@ -39,7 +38,7 @@ public static class GuardCommand
         int code;
         if (args.Has("plain"))
         {
-            var guard = new Guard(co, profile, options, telemetry.IsAvailable ? telemetry : null,
+            var guard = new Guard(co, profile, options,
                 t => Console.WriteLine($"{t.Ts:HH:mm:ss}  {t.Elapsed / 60,4} min  {(t.Ok ? "ok" : "OFF PROFILE")}  WHEA {t.Whea}  CPU {t.CpuLoad?.ToString("F0") ?? "-"}%  {t.State}"),
                 Console.WriteLine, pm);
             code = guard.Run(cts.Token);
@@ -51,7 +50,7 @@ public static class GuardCommand
             AnsiConsole.Live(view.Render()).AutoClear(false).Start(ctx =>
             {
                 void Refresh() { ctx.UpdateTarget(view.Render()); ctx.Refresh(); }
-                var guard = new Guard(co, profile, options, telemetry.IsAvailable ? telemetry : null,
+                var guard = new Guard(co, profile, options,
                     t => { view.OnTick(t); Refresh(); },
                     e => { view.OnEvent(e); Refresh(); }, pm);
                 c = guard.Run(cts.Token);
@@ -59,12 +58,6 @@ public static class GuardCommand
             code = c;
         }
 
-        // Exit immediately: journal, SQLite and the baseline are already
-        // handled inside Run's finally, and both a stray foreground thread
-        // and a hung LibreHardwareMonitor Dispose have kept this process
-        // alive after a clean stop (three times on 2026-09-01). The OS
-        // releases the handles; nothing here needs a polite dispose.
-        Environment.Exit(code);
         return code;
     }
 }

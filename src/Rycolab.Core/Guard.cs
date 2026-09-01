@@ -30,7 +30,7 @@ public sealed class Guard
     private readonly GuardOptions _o;
     private readonly Journal _journal;
     private readonly Store _store;
-    private readonly Telemetry? _telemetry;
+    private readonly CpuLoad _load = new();
     private readonly PmTable? _pm;
     private readonly Action<GuardTick> _onTick;
     private readonly Action<string> _onEvent;
@@ -68,12 +68,11 @@ public sealed class Guard
 
     private DateTime? _lastHealthAt;
 
-    public Guard(CoController co, Profile profile, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent, PmTable? pm = null)
+    public Guard(CoController co, Profile profile, GuardOptions options, Action<GuardTick> onTick, Action<string> onEvent, PmTable? pm = null)
     {
         _co = co;
         _profile = profile;
         _o = options;
-        _telemetry = telemetry;
         _pm = pm;
         _onTick = onTick;
         _onEvent = onEvent;
@@ -157,7 +156,7 @@ public sealed class Guard
                 for (; ignoredSeen < ignored.Count; ignoredSeen++)
                     Event("whea-info", $"{ignored[ignoredSeen].Time:HH:mm:ss} WHEA id {ignored[ignoredSeen].Id} not counted (PCIe, not a core): {ignored[ignoredSeen].Message}");
                 var el = (int)(DateTime.Now - _t0).TotalSeconds;
-                var cpu = _telemetry?.CpuLoad();
+                var cpu = _load.Percent();
                 var pkg = PackagePower();
 
                 if (hardware.Count > wheaSeen)
@@ -351,14 +350,13 @@ public sealed class Guard
     }
 
     /// <summary>
-    /// PM table first (the SMU's own float); LHM's RAPL-delta reading only as
-    /// a filtered fallback for machines whose table version is unknown.
+    /// The SMU's own package float from the PM table; null on a table version
+    /// without a calibrated index (the guard does not need it, the panel only
+    /// shows it). No LibreHardwareMonitor here: its driver and its hang on
+    /// Dispose have no place in the process that runs for days.
     /// </summary>
     private double? PackagePower()
-    {
-        if (_pm?.Refresh() == true && _pm.Package() is { } w) return w;
-        return _telemetry?.PackageMedian3();
-    }
+        => _pm?.Refresh() == true ? _pm.Package() : null;
 
     private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)
     {
