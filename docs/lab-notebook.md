@@ -277,7 +277,7 @@ Same Cinebench R23 load (145-150 W package) logged with `rycolab dev log`
   CPU temperature with hysteresis (default on >= 85 C, off <= 80 C, 3 s
   hold) and turns it off on exit.
 
-Logs: `Legion-Linea-Base\hwinfo-logs\C4b..C4f*.csv`.
+Logs: local HWiNFO CSVs (C4b..C4f), kept outside the repo.
 
 ## 2026-08-28 23:50 - `fan auto` under Cinebench, an AC blip and a hard reset
 
@@ -408,7 +408,7 @@ What the session did establish:
 
 Next: repeat with a local video loop (constant load), interleaving each
 knob with a baseline run (A-B-A) so the drift cancels, starting from a
-full battery. Until then nothing goes into UNDERVOLT.md 7.4.
+full battery. Until then nothing goes into the write-up.
 
 ## 2026-08-30 21:20 - The smart fan mode map was off by one; quiet works on battery
 
@@ -660,7 +660,7 @@ All conditions must hold on **2026-09-15**, read from the guard's own
 counters (`rycolab status`), validation running since 01/09 11:10:
 
 - **14 calendar days** with **0 WHEA and 0 unexplained resets**. A single
-  corrected WHEA sends that core one step back (UNDERVOLT 7.2 rule).
+  corrected WHEA sends that core one step back (the standing validation rule).
 - **>= 100 h guarded** (`guardedSeconds`).
 - **>= 10 sleep/resume cycles** (`resumes`).
 - **Several battery sessions** (journal `power` events; power auto is on).
@@ -748,9 +748,9 @@ every 2 s). Baseline for the record, day one:
 
     2026-09-01  100.0 Wh full charge  /  99.9 Wh design (100.1 %)  5 cycles
 
-(Refurbished machine; capacity above design and 5 cycles say new-ish pack,
-and the C5-C8 campaigns measured ~100 Wh of real delivered energy, which
-no spoofed gauge could fake. From today the reference is this series.)
+(Capacity above design and 5 cycles say new-ish pack, and the C5-C8
+campaigns measured ~100 Wh of real delivered energy, which no spoofed
+gauge could fake. From today the reference is this series.)
 
 Fix that fell out of testing: `Store.Rebuild` read the JSONL with
 `File.ReadLines`, which cannot open a journal a live guard holds - so

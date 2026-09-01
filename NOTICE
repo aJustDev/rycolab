@@ -1,5 +1,5 @@
 rycolab
-Copyright (C) 2026
+Copyright (C) 2026 aJustDev
 
 This program is distributed under GPL-3.0 (see LICENSE).
 
@@ -21,7 +21,8 @@ Dependencies
   LibreHardwareMonitorLib
   Spectre.Console
   Microsoft.Data.Sqlite
-  inpoutx64.dll             InpOut32 (highrez.co.uk); currently copied from a
-                            local path at build time, not redistributed here.
+  inpoutx64.dll             InpOut32 (highrez.co.uk), redistributed in
+                            third_party/inpout with its MIT-style license
+                            (see InpOut.LICENSE.txt there).
   y-cruncher                (Alexander J. Yee) binaries are NOT redistributed;
                             the user obtains them from the official distribution.
