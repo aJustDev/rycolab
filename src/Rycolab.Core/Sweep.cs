@@ -85,13 +85,26 @@ public sealed class Sweep
         // closed as a false CLEAN at the baseline.
         KeepAwake.On();
 
-        // Machine hang during the previous run: the BIOS restored the baseline by itself.
+        // A run left in progress: a machine hang (the BIOS restored the baseline by itself) if
+        // the machine has rebooted since; if it is still the same boot session, the process was
+        // killed (console closed, session ended) and the run simply repeats (2026-08-31 15:45).
         var hang = Journal.ReadJsonFile<InProgress>(_inProgressPath);
+        InProgress? killed = null;
         if (hang is not null)
         {
             File.Delete(_inProgressPath);
-            _sink.Event($"RUN IN PROGRESS AT STARTUP: core {hang.Core} margin {hang.Margin} {hang.Engine} since {hang.Ts:HH:mm:ss} -> machine hang, positive");
-            Record(new RunResult(hang.Core, hang.Margin, hang.Engine, "hang", 0, "machine hang (reboot)", null, 0, 0, 0, null, hang.Ts, DateTime.Now));
+            if (SameBoot(hang.Boot, BootTime()))
+            {
+                killed = hang;
+                hang = null;
+                _sink.Event($"RUN IN PROGRESS AT STARTUP: core {killed.Core} margin {killed.Margin} {killed.Engine} since {killed.Ts:HH:mm:ss}, same boot session -> the process was killed, not a hang; the run repeats");
+                Record(new RunResult(killed.Core, killed.Margin, killed.Engine, "aborted", 0, "process killed (same boot session)", null, 0, 0, 0, null, killed.Ts, DateTime.Now));
+            }
+            else
+            {
+                _sink.Event($"RUN IN PROGRESS AT STARTUP: core {hang.Core} margin {hang.Margin} {hang.Engine} since {hang.Ts:HH:mm:ss} -> machine hang, positive");
+                Record(new RunResult(hang.Core, hang.Margin, hang.Engine, "hang", 0, "machine hang (reboot)", null, 0, 0, 0, null, hang.Ts, DateTime.Now));
+            }
         }
 
         try
@@ -105,8 +118,10 @@ public sealed class Sweep
                     continue;
                 }
 
+                // Every margin below the one in progress was a positive (a clean one would have closed the core).
                 var from = Start;
                 if (hang is not null && hang.Core == core) from = Math.Min(Top, hang.Margin + Step);
+                if (killed is not null && killed.Core == core) from = killed.Margin;
 
                 int? limit = null;
                 for (var m = from; m <= Top; m += Step)
@@ -157,7 +172,7 @@ public sealed class Sweep
         var read = _co.ReadCore(core);
         if (read != margin) throw new CoWriteFailedException($"core {core}: requested {margin}, hardware {read}");
 
-        Journal.WriteJsonFile(_inProgressPath, new InProgress(core, margin, engineName, started));
+        Journal.WriteJsonFile(_inProgressPath, new InProgress(core, margin, engineName, started, BootTime()));
 
         var work = Path.Combine(_o.CampaignDir, "work", $"core{core}");
         using var engine = new YCruncherEngine(_plan.YCruncherDir, engineName, _plan.Tests, suspend: _o.Suspend);
@@ -201,6 +216,8 @@ public sealed class Sweep
 
         Thread.Sleep(1500);   // the WHEA log takes a moment to be written
         var whea = Whea.HardwareSince(started);
+        foreach (var e in Whea.IgnoredSince(started))
+            _sink.Event($"core {core} margin {margin}: WHEA id {e.Id} during the run not counted (PCIe, not a core): {e.Message}");
         var invalid = gapSeconds > 0 || !marginHeld;
         var verdict =
             ct.IsCancellationRequested ? "aborted" :
@@ -240,5 +257,12 @@ public sealed class Sweep
 
     private static string Sanitize(string s) => new(s.Where(char.IsLetterOrDigit).ToArray());
 
-    private sealed record InProgress(int Core, int Margin, string Engine, DateTime Ts);
+    /// <summary><paramref name="Boot"/>: when the machine booted, so a file left behind can be told apart from a hang. Null on files from before it was recorded (treated as a hang, the old behaviour).</summary>
+    internal sealed record InProgress(int Core, int Margin, string Engine, DateTime Ts, DateTime? Boot = null);
+
+    /// <summary>Boot time from the tick counter; drifts by fractions of a second between calls, hence the tolerance in <see cref="SameBoot"/>.</summary>
+    internal static DateTime BootTime() => DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+
+    internal static bool SameBoot(DateTime? recorded, DateTime now)
+        => recorded is { } r && Math.Abs((now - r).TotalSeconds) < 120;
 }
