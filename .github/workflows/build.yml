@@ -3,6 +3,7 @@ name: build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 jobs:
@@ -23,3 +24,34 @@ jobs:
         with:
           name: rycolab-win-x64
           path: publish
+
+  # A tag v* makes a GitHub Release with the zip and its SHA-256; the notes come from the tag message.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: rycolab-win-x64
+          path: publish
+      - name: Zip and hash
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zip = "rycolab-$tag-win-x64.zip"
+          Compress-Archive -Path publish\* -DestinationPath $zip
+          "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $zip" | Out-File -Encoding ascii SHA256SUMS.txt
+          Get-Content SHA256SUMS.txt
+      - name: Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = git tag -l --format='%(contents)' $tag
+          if (-not $notes) { $notes = "rycolab $tag" }
+          gh release create $tag "rycolab-$tag-win-x64.zip" SHA256SUMS.txt --title "rycolab $tag" --notes "$notes"
