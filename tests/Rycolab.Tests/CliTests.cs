@@ -16,13 +16,41 @@ public class ArgsTests
         Assert.Equal(["campaign1"], a.Positional);
     }
 
-    /// <summary>A bare option swallows the next token: positionals go before the options (every command does).</summary>
     [Fact]
-    public void BareOptionTakesTheNextTokenAsItsValue()
+    public void BooleanFlagsNeverSwallowTheNextToken()
     {
-        var a = new Args(["--plain", "campaign1"]);
-        Assert.Equal("campaign1", a.Get("plain"));
-        Assert.Empty(a.Positional);
+        var a = new Args(["--plain", "campaign1", "--all", "--yes"]);
+        Assert.True(a.Has("plain"));
+        Assert.Null(a.Get("plain"));
+        Assert.True(a.Has("all"));
+        Assert.True(a.Has("yes"));
+        Assert.Equal(["campaign1"], a.Positional);
+    }
+
+    [Fact]
+    public void ValueOptionsTakeTheNextTokenOrEquals()
+    {
+        var a = new Args(["--compare", "other.json", "--md=report.md", "--json", "--once"]);
+        Assert.Equal("other.json", a.Get("compare"));
+        Assert.Equal("report.md", a.Get("md"));
+        Assert.True(a.Has("json"));
+        Assert.Null(a.Get("json"));   // followed by another option: no value
+        Assert.True(a.Has("once"));
+    }
+
+    [Fact]
+    public void FlagWithEqualsStillCarriesAValue()
+    {
+        var a = new Args(["--plain=1"]);
+        Assert.Equal("1", a.Get("plain"));
+    }
+
+    [Fact]
+    public void EveryFlagIsKnownByName()
+    {
+        // The list is the contract with the commands: a typo here would silently turn a flag back into a value option.
+        foreach (var f in new[] { "plain", "quick", "yes", "accept", "resume", "force", "dry-run", "once", "follow", "purge", "all" })
+            Assert.Contains(f, Args.Flags);
     }
 
     [Fact]

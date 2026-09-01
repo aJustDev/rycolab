@@ -4,18 +4,29 @@ using Rycolab.Core;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+// The command comes first; options go after it. (An option first used to be
+// skipped over, and its value could be taken as the command.)
 var argv = Environment.GetCommandLineArgs().Skip(1).ToList();
-var command = argv.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal))?.ToLowerInvariant();
-if (command is not null) argv.Remove(argv.First(a => string.Equals(a, command, StringComparison.OrdinalIgnoreCase)));
+string? command = null;
+if (argv.Count > 0)
+{
+    if (argv[0].StartsWith("--", StringComparison.Ordinal) && argv[0] != "--help")
+    {
+        Console.Error.WriteLine($"Options go after the command: rycolab <command> {argv[0]} ...  (`rycolab help` lists the commands)");
+        return 2;
+    }
+    command = argv[0].ToLowerInvariant();
+    argv.RemoveAt(0);
+}
 
 // `dev <sub>`: the low-level commands the user-facing ones are built on.
 var dev = false;
 if (command == "dev")
 {
     dev = true;
-    command = argv.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal))?.ToLowerInvariant();
-    if (command is null or "help" or "-h" or "--help") { PrintDevHelp(); return 0; }
-    argv.Remove(argv.First(a => string.Equals(a, command, StringComparison.OrdinalIgnoreCase)));
+    command = argv.Count > 0 && !argv[0].StartsWith("--", StringComparison.Ordinal) ? argv[0].ToLowerInvariant() : null;
+    if (command is null or "help" or "-h") { PrintDevHelp(); return 0; }
+    argv.RemoveAt(0);
 }
 var opts = new Args(argv);
 
