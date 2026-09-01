@@ -15,7 +15,8 @@ namespace Rycolab.Cli.Ui;
 /// </summary>
 public static class StatusView
 {
-    private const int LabelWidth = 10;
+    /// <summary>One label column for every panel, so the values line up from panel to panel.</summary>
+    private const int LabelWidth = 13;
 
     private static Grid NewGrid(int labelWidth = LabelWidth)
     {
@@ -30,6 +31,15 @@ public static class StatusView
 
     private static Panel Section(string title, IRenderable body)
         => new(body) { Header = new PanelHeader($" [bold]{title}[/] "), Border = BoxBorder.Rounded, Expand = true, Padding = new Padding(1, 0, 1, 0) };
+
+    /// <summary>The powercfg labels, cut to the shared label column.</summary>
+    private static string ShortLabel(string label) => label switch
+    {
+        "max processor state %" => "max proc. %",
+        "Wi-Fi power saving" => "Wi-Fi saving",
+        "USB selective suspend" => "USB suspend",
+        _ => label,
+    };
 
     private static string E(string? s) => Markup.Escape(s ?? "-");
 
@@ -53,7 +63,7 @@ public static class StatusView
     public static IRenderable Co(Process? guard, State? state, Rycolab.Core.Profile? profile)
     {
         var g = NewGrid();
-        g.AddRow(new Markup(""), new Markup(Verdict(guard, state, profile)));
+        KV(g, "status", Verdict(guard, state, profile));
         KV(g, "profile", profile is null ? "[red]none[/]" : E(Commands.StatusCommand.Describe(profile)));
 
         if (state is not null)
@@ -88,12 +98,12 @@ public static class StatusView
         var plan = Plan.LoadOrDefault();
         var snap = PowerSnapshot.Load();
         var byGuard = state?.PowerProfile == "battery" ? " by the guard" : "";
-        var auto = plan.PowerAuto
-            ? $"   [grey]power auto on: battery profile {Guard.AcDebounceSeconds} s after unplugging, restored on AC[/]"
-            : "   [grey]power auto off (`rycolab legion power auto on`)[/]";
         KV(g, "profile", snap is { } s
-            ? $"[green]applied[/]{byGuard} at {s.TakenAt:HH:mm}  [grey](`rycolab legion power ac` restores)[/]{auto}"
-            : $"not applied{auto}");
+            ? $"[green]applied[/]{byGuard} at {s.TakenAt:HH:mm}   [grey]`rycolab legion power ac` restores[/]"
+            : "not applied");
+        KV(g, "auto", plan.PowerAuto
+            ? $"[green]on[/]   [grey]battery profile {Guard.AcDebounceSeconds} s after unplugging, restored on AC[/]"
+            : "[grey]off[/]   [grey]`rycolab legion power auto on` lets the guard handle it[/]");
         return Section("Battery", g);
     }
 
@@ -183,7 +193,7 @@ public static class StatusView
                 $"{E(t.Name.Length > 16 ? t.Name[..16] : t.Name)} {t.CpuPct:F1}[grey]%[/]{(pkg is { } w && t.CpuPct >= 5 ? $" [grey]~{t.BusyShare * w:F0} W[/]" : "")}")));
         KV(g, "panel", $"{WindowsPower.RefreshHz?.ToString() ?? "?"} Hz  [grey](available {AvailableRates.Value})[/]  brightness {WindowsPower.Brightness?.ToString() ?? "?"} %");
         var plan = Plan.LoadOrDefault();
-        if (plan.PowerAuto) KV(g, "power auto", $"[grey]{E(plan.PowerAutoOptions.ToString())}[/]");
+        if (plan.PowerAuto) KV(g, "auto profile", $"[grey]{E(plan.PowerAutoOptions.ToString())}[/]");
         return Section("Machine", g);
     }
 
@@ -205,8 +215,9 @@ public static class StatusView
         var present = LenovoEc.DgpuPresent();
         KV(g, "gpu", $"{E(LenovoEc.IGpuModeName(ec.IGpuMode))}  dGPU {(present ? "present" : "[green]off[/]")}");
         var full = ec.FanFullSpeed;
-        KV(g, "fans", $"CPU {ec.CpuFanRpm?.ToString() ?? "-"}  GPU {ec.GpuFanRpm?.ToString() ?? "-"}  PCH {ec.PchFanRpm?.ToString() ?? "-"} RPM   full speed {(full is { } f ? (f ? "[yellow]ON[/]" : "off") : "?")}");
-        KV(g, "EC temps", $"CPU {ec.CpuTempC?.ToString() ?? "-"}  GPU {ec.GpuTempC?.ToString() ?? "-"}  PCH {ec.PchTempC?.ToString() ?? "-"} C");
+        // Same sub-columns on both rows: CPU / GPU / PCH, values right-aligned to a fixed width.
+        KV(g, "fans", $"CPU {ec.CpuFanRpm?.ToString() ?? "-",5}   GPU {ec.GpuFanRpm?.ToString() ?? "-",5}   PCH {ec.PchFanRpm?.ToString() ?? "-",5} RPM   full speed {(full is { } f ? (f ? "[yellow]ON[/]" : "off") : "?")}");
+        KV(g, "EC temps", $"CPU {ec.CpuTempC?.ToString() ?? "-",5}   GPU {ec.GpuTempC?.ToString() ?? "-",5}   PCH {ec.PchTempC?.ToString() ?? "-",5} C");
         if (energy is { IsAvailable: true })
         {
             var mode = energy.ChargeMode();
@@ -218,16 +229,22 @@ public static class StatusView
 
     public static IRenderable Windows()
     {
-        var g = NewGrid(22);
+        // Three columns: setting, on AC, on battery. The DC value turns green when it is the battery profile's.
+        var g = new Grid();
+        g.AddColumn(new GridColumn().NoWrap().PadRight(2).Width(LabelWidth));
+        g.AddColumn(new GridColumn().NoWrap().PadRight(3));
+        g.AddColumn(new GridColumn().NoWrap());
+        g.AddRow(new Markup(""), new Markup("[grey]on AC[/]"), new Markup("[grey]on battery[/]"));
         var (oac, odc) = WindowsPower.Overlays();
-        KV(g, "slider", $"AC {E(oac)}  [grey]/[/]  battery {E(odc)}");
+        g.AddRow(new Markup("[grey]slider[/]"), new Markup(E(oac)), new Markup(E(odc)));
         var snapActive = PowerSnapshot.Load() is not null;
         foreach (var (sub, setting, label, battery) in WindowsPower.DcSettings)
         {
             if (WindowsPower.Query(sub, setting) is not { } q) continue;
+            var ac = $"{E(WindowsPower.DcName(setting, q.Ac))} [grey]({q.Ac})[/]";
             var dc = $"{E(WindowsPower.DcName(setting, q.Dc))} [grey]({q.Dc})[/]";
             if (snapActive && q.Dc == battery) dc = $"[green]{dc}[/]";
-            KV(g, label, $"AC {E(WindowsPower.DcName(setting, q.Ac))} [grey]({q.Ac})[/]   DC {dc}");
+            g.AddRow(new Markup($"[grey]{Markup.Escape(ShortLabel(label))}[/]"), new Markup(ac), new Markup(dc));
         }
         return Section("Windows", g);
     }

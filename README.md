@@ -103,19 +103,20 @@ rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
   rycolab 0.2.0   2026-09-01 23:31:16
 
-+- Curve Optimizer ------------------------------------------------------------------------------------------+
-|             PROFILE APPLIED   validating   guard pid 22668 since 23:02   11.1 h guarded   0 WHEA   0 resets |
-| profile     -35,-35,-30,-35,-35,-40,-45,-25,-45,-30,-40,-30,-40,-45,-45,-45   find-20260828-1232, limit + 5 |
-| hardware    all 16 cores on profile   last sample 23:30:42   CPU 1 %   package 13.4 W                      |
-| events      23:02:36  start: profile -35,-35,-30,-35,-35,-40,-45,-25,-45,-30,-40,-30,-40,-45,-45,-45 ...  |
-|             23:02:36  apply: start: profile applied and verified: -35,-35,-30,-35,-35,-40,-45,-25,-45,...  |
-|             23:02:51  power: AC line back -> restored the snapshot: no battery profile applied (no snap...  |
-+------------------------------------------------------------------------------------------------------------+
-+- Battery --------------------------------------------------------------------------------------------------+
-| line        AC                                                                                             |
-| health      100.0 Wh full charge   100 % of 99.9 Wh design   6 cycles                                      |
-| profile     not applied   power auto on: battery profile 15 s after unplugging, restored on AC             |
-+------------------------------------------------------------------------------------------------------------+
++- Curve Optimizer ---------------------------------------------------------------------------------------------+
+| status         PROFILE APPLIED   validating   guard pid 22668 since 23:02   11.1 h guarded   0 WHEA   0 resets |
+| profile        -35,-35,-30,-35,-35,-40,-45,-25,-45,-30,-40,-30,-40,-45,-45,-45   find-20260828-1232, limit + 5 |
+| hardware       all 16 cores on profile   last sample 23:30:42   CPU 1 %   package 13.4 W                      |
+| events         23:02:36  start: profile -35,-35,-30,-35,-35,-40,-45,-25,-45,-30,-40,-30,-40,-45,-45,-45 ...  |
+|                23:02:36  apply: start: profile applied and verified: -35,-35,-30,-35,-35,-40,-45,-25,-45,...  |
+|                23:02:51  power: AC line back -> restored the snapshot: no battery profile applied (no snap...  |
++---------------------------------------------------------------------------------------------------------------+
++- Battery -----------------------------------------------------------------------------------------------------+
+| line           AC                                                                                             |
+| health         100.0 Wh full charge   100 % of 99.9 Wh design   6 cycles                                      |
+| profile        not applied                                                                                    |
+| auto           on   battery profile 15 s after unplugging, restored on AC                                     |
++---------------------------------------------------------------------------------------------------------------+
 
   Next: profile in validation: 11.1 h guarded, 1 resumes, 0 WHEA, 0 unexplained resets. Use the machine normally.
 ```
