@@ -103,7 +103,8 @@ below its measured limit. The guard writes `state.json` on every sample (what
 `status` reads), re-applies after resume (the BIOS restores the baseline on
 wake), retries the SMU write, and on any WHEA event restores the baseline and
 stops with code 10. A profile starts in `validating` and becomes `steady`
-after 20 h guarded or 7 days without WHEA and without an unexpected reboot
+after 20 h guarded, or 7 days with at least 8 h guarded, without WHEA and
+without an unexpected reboot
 (Kernel-Power 41 since the previous guard tick is recorded as a `reset` event
 and counted; a hard reset leaves no WHEA). Bad news (WHEA, reset, margin
 lost, giveup) also raises a Windows toast with its own chime, one per kind

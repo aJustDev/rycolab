@@ -18,8 +18,15 @@ public sealed class Validation
 
     public const int SteadyAfterHours = 20;
     public const int SteadyAfterDays = 7;
+    /// <summary>The calendar route still needs the guard to have actually watched something.</summary>
+    public const int SteadyMinGuardedHours = 8;
 
-    public bool IsSteady => Whea == 0 && Resets == 0 && (GuardedSeconds >= SteadyAfterHours * 3600L || (DateTime.Now - StartedAt).TotalDays >= SteadyAfterDays);
+    public bool IsSteady => IsSteadyAt(DateTime.Now);
+
+    public bool IsSteadyAt(DateTime now)
+        => Whea == 0 && Resets == 0
+           && (GuardedSeconds >= SteadyAfterHours * 3600L
+               || ((now - StartedAt).TotalDays >= SteadyAfterDays && GuardedSeconds >= SteadyMinGuardedHours * 3600L));
 
     public static string KeyOf(Profile p) => string.Join(",", p.Cores);
 
