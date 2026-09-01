@@ -127,6 +127,34 @@ public static class Installer
         return hash == expected.ToLowerInvariant();
     }
 
+    // ---- the inpout kernel driver -------------------------------------------
+    // ZenStates.Core 1.0.1 refuses to initialise without inpoutx64.dll even
+    // though it embeds PawnIO modules (checked 2026-09-01: "Can't load DLL
+    // inpoutx64.dll"), so the driver stays. Its service outlives the install.
+
+    public const string InpoutService = "inpoutx64";
+
+    public static bool InpoutServiceExists() => Sc($"query {InpoutService}") == 0;
+
+    /// <summary>Stops and deletes the service and its .sys. Best effort; every step is reported.</summary>
+    public static void RemoveInpoutService(Action<string> log)
+    {
+        log($"sc stop {InpoutService}: {(Sc($"stop {InpoutService}") == 0 ? "ok" : "not running")}");
+        log($"sc delete {InpoutService}: {(Sc($"delete {InpoutService}") == 0 ? "ok" : "FAILED")}");
+        var sys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers", "inpoutx64.sys");
+        try { if (File.Exists(sys)) { File.Delete(sys); log($"deleted {sys}"); } }
+        catch (Exception ex) { log($"{sys} stays ({ex.Message}); a reboot releases it"); }
+    }
+
+    private static int Sc(string arguments)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("sc.exe", arguments) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        p.StandardOutput.ReadToEnd(); p.StandardError.ReadToEnd();
+        p.WaitForExit();
+        return p.ExitCode;
+    }
+
     /// <summary>The margin the BIOS leaves on the cores: what they all read now, or the most common value.</summary>
     public static int ReadBaseline(CoController co, Action<string> log)
     {

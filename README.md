@@ -75,7 +75,8 @@ false` turns it off.
 
 Talking to the SMU needs a kernel driver: `inpoutx64.sys` (InpOut32),
 installed as a system service the first time the SMU is opened and left in
-place by `uninstall` because other tools share it (see Build).
+place by `uninstall` because other tools share it (`uninstall --purge` asks;
+see Build).
 
 ## Commands
 
@@ -259,10 +260,11 @@ To update an existing install: `rycolab off`, `.\install.ps1`, `rycolab on`.
 `inpoutx64.dll`, the port-access layer ZenStates.Core needs, ships in
 `third_party/inpout` (InpOut32, MIT) and is copied next to the executable at
 build time. The first time the SMU is opened it installs its kernel driver
-(`inpoutx64.sys`) as a system service; `rycolab uninstall` does not remove
-it because other tools (ZenTimings, SMUDebugTool) share it. To take it out
-by hand: `sc stop inpoutx64`, `sc delete inpoutx64`, delete
-`%SystemRoot%\System32\drivers\inpoutx64.sys`.
+(`inpoutx64.sys`) as a system service. `rycolab uninstall` leaves it in
+place because other tools (ZenTimings, SMUDebugTool) share it;
+`uninstall --purge` asks whether to remove it (`--yes` answers for you).
+ZenStates.Core 1.0.1 does not start without the DLL even though it embeds
+PawnIO modules, so PawnIO alone is not an option yet.
 
 ## License
 

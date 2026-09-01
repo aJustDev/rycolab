@@ -21,6 +21,18 @@ public static class UninstallCommand
         var runningFromInstall = AppContext.BaseDirectory.StartsWith(AppPaths.Bin, StringComparison.OrdinalIgnoreCase);
         if (args.Has("purge"))
         {
+            // The kernel driver ZenStates needs. Shared with other tools, so only on request and only on --purge.
+            if (Installer.InpoutServiceExists())
+            {
+                var yes = args.Has("yes");
+                if (!yes && !Console.IsInputRedirected)
+                {
+                    Console.Write("  Remove the inpoutx64 kernel driver service too? Other tools (ZenTimings, SMUDebugTool) use it. [y/N] ");
+                    yes = Console.ReadLine()?.Trim().ToLowerInvariant() is "y" or "yes";
+                }
+                if (yes) Installer.RemoveInpoutService(s => Console.WriteLine($"  {s}"));
+                else Console.WriteLine("  inpoutx64 service kept (sc stop inpoutx64 / sc delete inpoutx64 removes it by hand).");
+            }
             if (runningFromInstall)
                 Console.WriteLine($"  running from {AppPaths.Bin}: delete {AppPaths.Data} by hand after this console closes.");
             else if (Directory.Exists(AppPaths.Data))
