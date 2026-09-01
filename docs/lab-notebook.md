@@ -864,3 +864,37 @@ next battery session.
 Collateral fixed on the way: calibrate's freq tie-break picked a spurious
 scalar (offset 33, moved 0.5 GHz) over the real block (349, moved 2.4);
 the freq scan now requires the loaded core to move at least 1 GHz.
+
+## 2026-09-01 19:20 - The stuck-dGPU fix that needs no reboot: disable the device node
+
+Second wedge of the day, ~20 min after unplugging: battery profile applied
+fine (quiet, 60 Hz, DC settings, package at 2 W - the new PM-table source
+proving its worth), but the guard's own event had flagged the culprit at
+apply time: "dGPU did not leave within 25 s". The 5080 stayed on the bus
+in iGPU-only mode, and the machine drew a steady 50.4 W.
+
+What the 17:50 incident actually tried was a disable -> 3 s -> enable
+CYCLE, which reloads the driver and re-wakes the card - disable-and-HOLD
+was never tested. Tested now on the live wedge: disabling the device node
+(Win32_PnPEntity.Disable) completed the ejection the EC mode switch could
+not - the EC flipped to "dGPU off" within seconds and the discharge
+dropped 50.4 -> 38.4 W (the card was burning ~12 W). No reboot.
+
+Automated in PowerProfile: when the switch to iGPU-only leaves the card
+present after the 25 s wait, the battery profile disables the NVIDIA
+device node, re-checks the EC, and notifies it; `power ac` re-enables the
+node (unconditionally - idempotent, and it cleans up a manual disable)
+before restoring the GPU mode so the driver reloads with it. First
+AC-restore pass pending verification on the next plug-in.
+
+Collateral bug found by the same episode: Service.GuardProcess() counted
+ANY other rycolab.exe as the guard, so the user keeping `rycolab status`
+open blocked `on`/`install` ("a guard is running") and made `off` wait
+forever on the viewer. The guard/sweep/find owner is now identified by
+command line (viewers excluded), falling back to the state.json pid when
+the command line is unreadable; `off`'s Stop() waits only on the owner.
+Verified: install + on succeeded with the status viewer open.
+
+Remaining battery draw after the fix, ~38 W: screen at 100 % brightness
+(the profile keeps brightness by config), CPU ~2 W, platform. The panel
+share is the next obvious lever if lower figures are wanted.
