@@ -85,6 +85,8 @@ public static class StatusView
     /// <summary>The mode list only changes with the resolution; enumerate once per process.</summary>
     private static readonly Lazy<string> AvailableRates = new(() => string.Join(",", WindowsPower.AvailableRefreshRates()));
 
+    private static bool _loadPrimed;
+
     /// <summary>Design capacity and cycle count move daily at most; the live view repaints every 2 s.</summary>
     private static readonly Lazy<(double? DesignWh, int? Cycles)> HealthStatics = new(() =>
     {
@@ -101,6 +103,16 @@ public static class StatusView
         KV(g, "line", b.OnAc is { } ac
             ? (ac ? "[green]AC[/]" : $"[yellow]battery[/]  {b.DischargeW?.ToString("F1") ?? "-"} W  {b.Percent?.ToString("F0") ?? "-"} %  {b.RemainingWh?.ToString("F1") ?? "-"} Wh{(b.HoursLeft is { } h ? $"  [grey]~{h:F1} h at this rate[/]" : "")}")
             : "[grey]?[/]");
+
+        var top = ProcessLoad.Top(4);
+        var primed = _loadPrimed;
+        _loadPrimed = true;
+        // A single LibreHardwareMonitor sample occasionally returns garbage (373 W seen on 01/09); no attribution beyond the physical ceiling.
+        var pkg = state?.GuardPid is not null && state.PackagePower is > 0 and < 250 ? state.PackagePower : null;
+        KV(g, "cpu top", top.Count == 0
+            ? (primed ? "[grey]everything under 0.5 % CPU[/]" : "[grey]sampling...[/]")
+            : string.Join("   ", top.Select(t =>
+                $"{E(t.Name.Length > 16 ? t.Name[..16] : t.Name)} {t.CpuPct:F1}[grey]%[/]{(pkg is { } w ? $" [grey]~{t.BusyShare * w:F0} W[/]" : "")}")));
 
         var (design, cycles) = HealthStatics.Value;
         KV(g, "health", b.FullWh is { } fw

@@ -41,6 +41,9 @@ public static class StatusCommand
     /// <summary>The four sections, once. Shared with the bare `rycolab` command.</summary>
     public static void WritePanel(Profile? profile, State? state, System.Diagnostics.Process? guard)
     {
+        // The cpu-top row measures between two samples; give the one-shot render a real window.
+        ProcessLoad.Top(0);
+        Thread.Sleep(600);
         var elevated = Elevation.IsElevated();
         using var ec = elevated ? new LenovoEc() : null;
         using var energy = elevated ? new LenovoEnergy() : null;

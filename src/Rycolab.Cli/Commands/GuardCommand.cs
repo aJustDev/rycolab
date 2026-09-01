@@ -58,11 +58,11 @@ public static class GuardCommand
             code = c;
         }
 
-        // Some foreground thread survives Run's clean return and the process
-        // lingers holding the bin (seen twice on 2026-09-01, cause unknown).
-        // Everything is flushed and disposed by here; force the exit.
-        co.Dispose();
-        telemetry.Dispose();
+        // Exit immediately: journal, SQLite and the baseline are already
+        // handled inside Run's finally, and both a stray foreground thread
+        // and a hung LibreHardwareMonitor Dispose have kept this process
+        // alive after a clean stop (three times on 2026-09-01). The OS
+        // releases the handles; nothing here needs a polite dispose.
         Environment.Exit(code);
         return code;
     }
