@@ -45,8 +45,10 @@ public static class Topology
     /// Toolkit, SMUDebugTool and ZenStates.Core's own APU overload agree; read
     /// 8 of 8 on a Ryzen 7 5800H on 2026-08-28).
     /// </summary>
-    public static uint ReadMask(Cpu cpu, int coreIndex)
-        => IsApu(cpu) ? (uint)coreIndex : CcdMask(coreIndex);
+    public static uint ReadMask(Cpu cpu, int coreIndex) => ReadMask(IsApu(cpu), coreIndex);
+
+    public static uint ReadMask(bool apu, int coreIndex)
+        => apu ? (uint)coreIndex : CcdMask(coreIndex);
 
     /// <summary>
     /// Mask for SetDldoPsmMargin. ZenStates.Core packs the argument as
@@ -55,11 +57,13 @@ public static class Topology
     /// ryzenadj argument do. The plain index Legion Toolkit uses would be
     /// masked out and every write would land on core 0.
     /// </summary>
-    public static uint WriteMask(Cpu cpu, int coreIndex)
-        => IsApu(cpu) ? (uint)coreIndex << 20 : CcdMask(coreIndex);
+    public static uint WriteMask(Cpu cpu, int coreIndex) => WriteMask(IsApu(cpu), coreIndex);
+
+    public static uint WriteMask(bool apu, int coreIndex)
+        => apu ? (uint)coreIndex << 20 : CcdMask(coreIndex);
 
     /// <summary>Legion Toolkit's EncodeCoreMarginBitmask for CPUs with CCDs.</summary>
-    private static uint CcdMask(int coreIndex)
+    public static uint CcdMask(int coreIndex)
     {
         var ccd = coreIndex / CoresPerCcd;
         var local = coreIndex % CoresPerCcd;

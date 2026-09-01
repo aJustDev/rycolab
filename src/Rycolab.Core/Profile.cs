@@ -75,11 +75,12 @@ public sealed class Profile
     /// Why this profile must not be applied, or null if it may. Enforced by
     /// `on`; `dev apply --force` is the only way around it.
     /// </summary>
-    public string? RefusalReason(CoController co)
+    public string? RefusalReason(CoController co) => RefusalReason(CpuFingerprint.Of(co));
+
+    public string? RefusalReason(CpuFingerprint here)
     {
         if (Source is null) return "the profile has no source (it was not produced by a sweep). Use 'rycolab find', or import it with a source.";
         if (Fingerprint is null) return "the profile has no CPU fingerprint.";
-        var here = CpuFingerprint.Of(co);
         if (!Fingerprint.Matches(here))
             return $"the profile belongs to another CPU ({Fingerprint.CpuName}, {Fingerprint.Cores} cores); this one is {here.CpuName}, {here.Cores} cores.";
         for (var c = 0; c < Cores.Length; c++)

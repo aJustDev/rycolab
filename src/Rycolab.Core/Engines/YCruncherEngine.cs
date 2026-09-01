@@ -102,10 +102,13 @@ public sealed partial class YCruncherEngine : IStressEngine
         {
             _lines.Add(line);
             _out?.WriteLine(line);
-            if (_error is null && ErrorPattern().IsMatch(line) && !BenignPattern().IsMatch(line))
+            if (_error is null && IsErrorLine(line))
                 _error = line.Trim();
         }
     }
+
+    /// <summary>The compute-error criterion, on one output line.</summary>
+    internal static bool IsErrorLine(string line) => ErrorPattern().IsMatch(line) && !BenignPattern().IsMatch(line);
 
     private void SuspendLoop()
     {

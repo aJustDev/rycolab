@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Rycolab.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ZenStates-Core" Version="1.0.1" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.7-pre689" />
     <PackageReference Include="System.Diagnostics.EventLog" Version="9.0.0" />

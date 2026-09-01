@@ -254,7 +254,13 @@ and newer SDKs build it.
 
 ```
 dotnet build -c Release src/Rycolab.Cli
+dotnet test -c Release tests/Rycolab.Tests
 ```
+
+The tests cover the logic that does not need the hardware (mask encoding,
+the walk in steps, argument parsing, profile refusal rules, the y-cruncher
+error criterion against real outputs, the journal to SQLite rebuild). CI
+runs them on every push.
 
 `rycolab` is not on the PATH until `install` puts it there, and the
 installed copy does not update itself when you rebuild. `install.ps1` does

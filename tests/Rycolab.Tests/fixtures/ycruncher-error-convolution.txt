@@ -1,0 +1,83 @@
+Running from console...
+
+Checking processor/OS features...
+
+Required Features:
+    x64, ABM, BMI1, BMI2, ADX,
+    SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2,
+    AVX, FMA3, AVX2,
+    AVX512-(F/CD/VL/BW/DQ/IFMA/VBMI/VBMI2/GFNI)
+
+
+
+Reading Hardware Topology...
+
+Logical Cores:
+    0-31
+
+Physical Cores:
+    even{0-30}
+
+NUMA Node 0:
+    0-31
+
+Scheduling Group 0:
+    0-31
+
+
+
+Component Stress Tester
+
+  1   Logical Cores:      1
+  2   Memory:             1.00 GiB  ( 1.00 GiB per thread )
+  3   NUMA Mode:          Local - Memory allocated from local thread.
+  4/5 Time Limit:         60 seconds per test / Run Forever
+  6   Stop on Error:      Enabled
+
+ 7/8  Enable All Tests / Disable All Tests
+ 9/10 Load/Save Configuration File
+
+  #  Tag   Test Name                   Mem/Thread  Component      CPU------Mem
+ 11  BKT   Basecase + Karatsuba          27.8 KiB  Scalar Integer  -|--------
+ 12  BBP   BBP Digit Extraction            small   AVX512 Float    |---------
+ 13  SFTv4 Small In-Cache FFTv4           238 KiB  AVX512 Float    -|--------
+ 14  SNT   Small In-Cache N63            13.9 MiB  AVX512 Integer  --|-------
+ 15  SVT   Small In-Cache VT3            10.3 MiB  AVX512 Integer  --|-------
+ 16  FFTv4 Fast Fourier Transform (v4)    246 MiB  AVX512 Float    ---------|
+ 17  N63   Classic NTT (v2)              0.99 GiB  AVX512 Integer  ------|---
+ 18  VT3   Vector Transform (v3)          997 MiB  AVX512 Integer  -------|--
+
+  0   Start Stress-Testing!
+
+Allocating Memory...
+  Core   0:  0.99 GiB  node 0 (100%)
+
+Iteration: 0  Total Elapsed Time: 0.204 seconds  ( 0.003 minutes )
+Running BKT: Passed  Test Speed:  1.23 * 10^09  bits / sec
+Running BBP: Passed  Test Speed:  4.02 * 10^08  terms / sec
+Running SFTv4: Passed  Test Speed:  6.92 * 10^09  bits / sec
+Running SNT: Passed  Test Speed:  1.51 * 10^09  bits / sec
+
+
+Exception Encountered: ConvolutionFailedException
+
+Coefficient is too large.
+
+
+Error(s) encountered on logical core 0.
+
+
+Error encountered.  Total Elapsed Time: 0.204 seconds  ( 0.003 minutes )
+
+Stopping test...
+
+Running SVT: Failed  Test Speed:  3.38 * 10^09  bits / sec
+Test Finished. Waiting for threads to terminate...
+
+
+Exception Encountered: StressTestFailedException
+
+Stress test failed with 1 error.
+
+
+
