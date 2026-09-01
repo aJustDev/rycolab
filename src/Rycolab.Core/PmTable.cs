@@ -5,11 +5,15 @@ namespace Rycolab.Core;
 
 public readonly record struct PmCoreSample(double? Volt, double? Freq, double? Power, double? Temp);
 
-/// <summary>Where the four per-core blocks start in a given PM table version.</summary>
-public sealed record PmIndex(int Power, int Volt, int Temp, int Freq)
+/// <summary>Where the four per-core blocks start in a given PM table version, plus the package-power scalar.</summary>
+public sealed record PmIndex(int Power, int Volt, int Temp, int Freq, int? Pkg = null)
 {
-    /// <summary>Ryzen 9 9955HX3D, table version 0x621202 (613 floats), located empirically on 2026-08-27.</summary>
-    public static readonly PmIndex Known621202 = new(301, 317, 333, 349);
+    /// <summary>
+    /// Ryzen 9 9955HX3D, table version 0x621202 (613 floats), blocks located
+    /// empirically on 2026-08-27; package scalar (offset 20, mirrored at 51)
+    /// on 2026-09-01: idle 2-17 W, 16-core load 90-146 W, immediate decay.
+    /// </summary>
+    public static readonly PmIndex Known621202 = new(301, 317, 333, 349, 20);
 
     public static string File => Path.Combine(AppPaths.Data, "pm-index.json");
 
@@ -73,5 +77,19 @@ public sealed class PmTable
         if (!IsAvailable || core is < 0 or >= Topology.MaxCores) return default;
         var t = _cpu.powerTable.Table;
         return new PmCoreSample(t[_idx!.Volt + core], t[_idx.Freq + core], t[_idx.Power + core], t[_idx.Temp + core]);
+    }
+
+    /// <summary>
+    /// Package power in W, the float the SMU computes itself. The reliable
+    /// alternative to LibreHardwareMonitor's RAPL energy-counter delta, which
+    /// intermittently returns garbage (150-270 W at idle seen on 2026-09-01).
+    /// Null when the offset is unknown for this table version or the value is
+    /// implausible. The caller refreshes, like <see cref="Core"/>.
+    /// </summary>
+    public double? Package()
+    {
+        if (!HasTable || _idx?.Pkg is not { } p || p >= Length) return null;
+        double v = _cpu.powerTable.Table[p];
+        return v is > 0 and < 250 ? v : null;
     }
 }

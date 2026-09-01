@@ -31,6 +31,7 @@ public sealed class Guard
     private readonly Journal _journal;
     private readonly Store _store;
     private readonly Telemetry? _telemetry;
+    private readonly PmTable? _pm;
     private readonly Action<GuardTick> _onTick;
     private readonly Action<string> _onEvent;
 
@@ -66,12 +67,13 @@ public sealed class Guard
 
     private DateTime? _lastHealthAt;
 
-    public Guard(CoController co, Profile profile, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent)
+    public Guard(CoController co, Profile profile, GuardOptions options, Telemetry? telemetry, Action<GuardTick> onTick, Action<string> onEvent, PmTable? pm = null)
     {
         _co = co;
         _profile = profile;
         _o = options;
         _telemetry = telemetry;
+        _pm = pm;
         _onTick = onTick;
         _onEvent = onEvent;
         Directory.CreateDirectory(_o.RunsDir);
@@ -148,7 +150,7 @@ public sealed class Guard
                 var hardware = Whea.HardwareSince(_t0);
                 var el = (int)(DateTime.Now - _t0).TotalSeconds;
                 var cpu = _telemetry?.CpuLoad();
-                var pkg = _telemetry?.Read().PackagePower;
+                var pkg = PackagePower();
 
                 if (hardware.Count > wheaSeen)
                 {
@@ -300,6 +302,16 @@ public sealed class Guard
         _journal.Write(new { kind = "health", ts = s.Ts, fullWh = s.FullWh, designWh = s.DesignWh, cycles = s.Cycles });
         _store.AddHealth(s);
         _lastHealthAt = s.Ts;
+    }
+
+    /// <summary>
+    /// PM table first (the SMU's own float); LHM's RAPL-delta reading only as
+    /// a filtered fallback for machines whose table version is unknown.
+    /// </summary>
+    private double? PackagePower()
+    {
+        if (_pm?.Refresh() == true && _pm.Package() is { } w) return w;
+        return _telemetry?.PackageMedian3();
     }
 
     private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)

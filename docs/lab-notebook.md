@@ -833,3 +833,34 @@ CPU sampled between refreshes, with an estimated share of the package
 watts for processes above 5 % CPU (below that the "share" is the idle
 floor, not the process), and a sanity cap that ignores package readings
 over 250 W.
+
+## 2026-09-01 - Package power now comes from the SMU PM table, not LHM
+
+The garbage was systemic, not just the wedge: guard.jsonl this evening
+shows package readings of 9.6 -> 150.6 -> 25.8 -> 160.3 -> 28.9 -> 67.1
+-> 42.7 -> 9.7 -> 269.8 W with the CPU at ~1 %. LibreHardwareMonitor
+derives package power from a RAPL energy-counter delta (a 32-bit counter
+that wraps); the bursts are the method, not the machine. That number
+feeds guard ticks, status and the cpu-top attribution, so it had to go.
+
+Fix: the SMU computes package power itself as a float in the PM table
+(what HWiNFO and Ryzen Master read). `dev calibrate` now also scans for
+the scalar: idle a handful of watts, clearly up under a one-core load,
+never below the sum of the per-core power block, LHM's median as
+tie-break. On table 0x621202 it is offset 20 (mirrored at 51); baked
+into the built-in index next to the four per-core blocks.
+
+Validated live with `dev watch` on AC: idle 2-17 W tracking boost
+residency, a 25 s 16-thread spin load drove it 90-146 W, and it fell
+back to 3-11 W the second the load stopped. Physically coherent at both
+ends; nothing LHM's counter could fake.
+
+Wiring: Guard and Sampler prefer `PmTable.Package()`; find/sweep/watch/
+log inherit it. LHM package survives only as the fallback for unknown
+table versions, filtered to a median of 3 spaced reads inside (0, 250) W.
+The DC cross-check (discharge > package, plausible split) is pending the
+next battery session.
+
+Collateral fixed on the way: calibrate's freq tie-break picked a spurious
+scalar (offset 33, moved 0.5 GHz) over the real block (349, moved 2.4);
+the freq scan now requires the loaded core to move at least 1 GHz.

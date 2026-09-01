@@ -37,6 +37,7 @@ public static class CalibrateCommand
         engine.Start(core, work);
         float[] loaded;
         double? lhmPower = null, lhmClock = null, lhmTctl = null;
+        var lhmPkgs = new List<double>();
         try
         {
             Thread.Sleep(5000);
@@ -47,6 +48,8 @@ public static class CalibrateCommand
                 lhmPower = s.TargetPower ?? lhmPower;
                 lhmClock = s.TargetClock ?? lhmClock;
                 lhmTctl = s.Tctl ?? lhmTctl;
+                // The median across the run survives LHM's garbage bursts.
+                if (s.PackagePower is > 0 and < 250 and var pw) lhmPkgs.Add(pw);
             });
         }
         finally { engine.Stop(); }
@@ -61,8 +64,11 @@ public static class CalibrateCommand
         // does not work: the neighbours warm up and change clocks too.
         int? power = Scan(idle, loaded, core, n, "power", lhmPower, 0.3,
             v => v is >= 2 and <= 40, i => i < 1.0, o => o is >= 0 and <= 40, minMoved: 1.0);
+        // minMoved 1.0: an idle core to a fully loaded one always jumps more than
+        // 1 GHz; a scalar that happens to sit near the clock does not (offset 33
+        // moved 0.5 GHz on 2026-09-01 and beat the real block 349 on the tie-break).
         int? freq = Scan(idle, loaded, core, n, "freq", lhmClock / 1000.0, 0.06,
-            v => v is >= 2.5 and <= 6.5, i => i is >= 0 and <= 6.5, o => o is >= 0.5 and <= 6.5, minMoved: 0.3, othersMinFraction: 0.5);
+            v => v is >= 2.5 and <= 6.5, i => i is >= 0 and <= 6.5, o => o is >= 0.5 and <= 6.5, minMoved: 1.0, othersMinFraction: 0.5);
         int? temp = Scan(idle, loaded, core, n, "temp", lhmTctl, 0.15,
             v => v is >= 35 and <= 110, i => i is >= 20 and <= 100, o => o is >= 20 and <= 110, minMoved: 3);
         int? volt = Scan(idle, loaded, core, n, "volt", null, 0,
@@ -77,10 +83,38 @@ public static class CalibrateCommand
         var distinct = new[] { power.Value, volt.Value, temp.Value, freq.Value }.Distinct().Count();
         if (distinct < 4) { Console.Error.WriteLine("  Two blocks resolved to the same window; not saving."); return 1; }
 
-        var idx = new PmIndex(power.Value, volt.Value, temp.Value, freq.Value);
+        var lhmPkg = Sampler.Median(lhmPkgs);
+        var pkg = ScanPackage(idle, loaded, n, [power.Value, volt.Value, temp.Value, freq.Value], lhmPkg);
+        Console.WriteLine($"  package {pkg?.ToString() ?? "?"}{(lhmPkg is { } lp ? $"  (LHM median under load {lp:F1} W)" : "")}");
+
+        var idx = new PmIndex(power.Value, volt.Value, temp.Value, freq.Value, pkg);
         PmIndex.Save(pm.Version, idx);
         Console.WriteLine($"  Saved to {PmIndex.File} for version 0x{pm.Version:X}.");
         return 0;
+    }
+
+    /// <summary>
+    /// The package-power scalar: idle a handful of watts, clearly up with one
+    /// core loaded, and never below the sum of the per-core power block (the
+    /// package includes the uncore). LHM's median breaks ties.
+    /// </summary>
+    private static int? ScanPackage(float[] idle, float[] loaded, int n, int[] blocks, double? lhmPkg)
+    {
+        double sumIdle = 0, sumLoaded = 0;
+        for (var k = 0; k < Topology.MaxCores; k++) { sumIdle += idle[blocks[0] + k]; sumLoaded += loaded[blocks[0] + k]; }
+
+        var found = new List<(int Start, double Idle, double Loaded)>();
+        for (var j = 0; j < n; j++)
+        {
+            if (blocks.Any(b => j >= b && j < b + Topology.MaxCores)) continue;
+            double i = idle[j], v = loaded[j];
+            if (i is < 3 or > 30 || v is < 15 or > 90 || v - i < 8) continue;
+            if (v < sumLoaded || i < sumIdle) continue;
+            found.Add((j, i, v));
+        }
+        Console.WriteLine($"  package candidates: {(found.Count == 0 ? "none" : string.Join(", ", found.Select(f => $"{f.Start} ({f.Loaded:F3} vs {f.Idle:F3})")))}");
+        if (found.Count == 0) return null;
+        return lhmPkg is { } r ? found.OrderBy(f => Math.Abs(f.Loaded - r)).First().Start : found[0].Start;
     }
 
     private static float[] MedianTable(PmTable pm, int seconds, Action? each = null)

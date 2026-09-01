@@ -40,13 +40,15 @@ public sealed class Sampler
         var s = _tel?.Read(_core);
         var ok = _pm?.Refresh() ?? false;
         var c = ok ? _pm!.Core(_core) : default;
+        // The SMU's own package float; LHM's RAPL delta (garbage-prone) only without it.
+        var pkg = (ok ? _pm!.Package() : null) ?? s?.PackagePower;
 
         Add(_clocks, s?.TargetClock); Add(_effs, s?.TargetClockEffective);
         Add(_volts, c.Volt); Add(_freqs, c.Freq); Add(_powers, c.Power);
-        Add(_pkgs, s?.PackagePower); Add(_temps, c.Temp);
+        Add(_pkgs, pkg); Add(_temps, c.Temp);
 
         return new Sample(DateTime.Now, (int)(DateTime.Now - _t0).TotalSeconds,
-            s?.TargetClock, s?.TargetClockEffective, c.Volt, c.Freq, c.Power, c.Temp, s?.PackagePower, s?.Tctl);
+            s?.TargetClock, s?.TargetClockEffective, c.Volt, c.Freq, c.Power, c.Temp, pkg, s?.Tctl);
     }
 
     public SampleSummary Summary() => new(

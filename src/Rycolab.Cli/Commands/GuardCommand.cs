@@ -32,6 +32,7 @@ public static class GuardCommand
         }
 
         using var telemetry = new Telemetry();
+        var pm = new PmTable(co.Cpu);
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
@@ -40,7 +41,7 @@ public static class GuardCommand
         {
             var guard = new Guard(co, profile, options, telemetry.IsAvailable ? telemetry : null,
                 t => Console.WriteLine($"{t.Ts:HH:mm:ss}  {t.Elapsed / 60,4} min  {(t.Ok ? "ok" : "OFF PROFILE")}  WHEA {t.Whea}  CPU {t.CpuLoad?.ToString("F0") ?? "-"}%  {t.State}"),
-                Console.WriteLine);
+                Console.WriteLine, pm);
             code = guard.Run(cts.Token);
         }
         else
@@ -52,7 +53,7 @@ public static class GuardCommand
                 void Refresh() { ctx.UpdateTarget(view.Render()); ctx.Refresh(); }
                 var guard = new Guard(co, profile, options, telemetry.IsAvailable ? telemetry : null,
                     t => { view.OnTick(t); Refresh(); },
-                    e => { view.OnEvent(e); Refresh(); });
+                    e => { view.OnEvent(e); Refresh(); }, pm);
                 c = guard.Run(cts.Token);
             });
             code = c;
