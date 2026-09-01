@@ -136,6 +136,8 @@ public sealed class Guard
                     if (!ApplyProfile("resume")) { code = 1; break; }
                 }
 
+                ChargeFullTick();
+
                 var readings = _co.ReadAll();
                 var hw = readings.Select(x => x.Margin).ToArray();
                 var bad = _profile.Mismatches(readings);
@@ -272,6 +274,17 @@ public sealed class Guard
         _acApplied = target;
         _state.PowerProfile = target ? "ac" : "battery";
         Event("power", $"AC line {(target ? "back" : "off")} -> {(target ? "restored the snapshot" : $"battery profile ({plan.PowerAutoOptions})")}{(failed > 0 ? $", {failed} knob(s) FAILED" : "")}: {string.Join(" | ", lines)}");
+    }
+
+    /// <summary>Ends a `charge full`: once the battery hits the target, back to the previous mode.</summary>
+    private void ChargeFullTick()
+    {
+        if (!_o.PublishState || ChargeFull.Load() is not { } full) return;
+        if (BatteryInfo.Read().Percent is not { } p || p < full.Target) return;
+        using var energy = new LenovoEnergy();
+        var after = energy.IsAvailable ? energy.SetChargeMode(full.Restore) : null;
+        ChargeFull.Delete();
+        Event("charge", $"battery at {p:F0} % -> full charge done, mode back to {after ?? "?"}{(after == full.Restore ? "" : " (NOT CONFIRMED)")}");
     }
 
     private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)

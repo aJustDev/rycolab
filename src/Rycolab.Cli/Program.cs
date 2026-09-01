@@ -126,6 +126,7 @@ static void PrintHelp()
                                         brightness 40 %, DC scheme values; `ac` restores; `auto` lets the guard do it on AC line changes
                                         (battery: --gpu igpu|auto|keep --hz 60 --brightness 40 --no-windows --close-apps)
           rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery charge mode (conservation stops at ~80 %)
+          rycolab charge full [--target 98]   one-shot: rapid now, the guard restores the mode at the target
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
                                         calibrate, plan, toast, task, profile import, log   (`rycolab dev help`)
 

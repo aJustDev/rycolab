@@ -73,6 +73,8 @@ rycolab charge show|normal|conservation|rapid|night on|off   Lenovo battery char
                               driver (\\.\EnergyDrv, what Legion Toolkit's battery section talks to): conservation
                               stops at ~80 % (firmware threshold), rapid charges fastest; night charge is a separate
                               slow-overnight toggle. Every write is read back; the Vantage registry key is kept in sync
+rycolab charge full [--target 98]   one-shot full charge: rapid now, and the running guard restores the
+                              previous mode when the battery reaches the target (a manual mode change cancels it)
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 

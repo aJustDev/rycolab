@@ -136,7 +136,7 @@ public static class StatusView
         {
             var mode = energy.ChargeMode();
             var night = energy.NightCharge();
-            KV(g, "charge", $"{E(mode)}{(mode == LenovoEnergy.Conservation ? "  [grey](stops at ~80 %)[/]" : "")}   night charge {(night is { } n ? (n ? "on" : "off") : "n/a")}");
+            KV(g, "charge", $"{E(mode)}{(mode == LenovoEnergy.Conservation ? "  [grey](stops at ~80 %)[/]" : "")}{(ChargeFull.Load() is { } cf ? $"  [yellow]full charge -> {cf.Restore} at {cf.Target} %[/]" : "")}   night charge {(night is { } n ? (n ? "on" : "off") : "n/a")}");
         }
         return Section("Lenovo EC", g);
     }

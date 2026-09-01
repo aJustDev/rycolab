@@ -22,6 +22,7 @@ public static class AppPaths
     public static string Guard => Path.Combine(Data, "guard");
     public static string Campaigns => Path.Combine(Data, "campaigns");
     public static string CurrentCampaign => Path.Combine(Data, "current-campaign");
+    public static string ChargeFull => Path.Combine(Data, "charge-full.json");
 
     public static string Campaign(string name)
         => Path.IsPathRooted(name) ? name : Path.Combine(Campaigns, name);
