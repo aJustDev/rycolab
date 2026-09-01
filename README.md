@@ -201,10 +201,17 @@ Curve Optimizer; see `docs/legion.md`.
 ## Supported hardware
 
 - Tested: Ryzen 9 9955HX3D (Legion Pro 7 16AFR10H), 16 cores, two CCDs of
-  eight, SMT on. **The core map is this one's**: 8 cores per CCD, no disabled
-  cores, core N on logical processor 2N. A 6-core CCD (7600X, 7900X, 9900X),
-  a part with fused-off cores or SMT off is not handled yet.
-- Expected to work with that topology: any Ryzen whose SMU exposes
+  eight, SMT on; read path on a Ryzen 7 5800H (one CCD, APU).
+- The core map (which physical slot of which CCD each core is, which
+  logical processor runs it) is derived from the fuses as ZenStates reads
+  them, the way SMUDebugTool does, so a 6-core CCD (7600X, 7900X, 9900X) or
+  SMT off gets the right mask; `install` and `dev probe` print it and refuse
+  when the fuses and CPUID disagree or a mapped core does not answer. Not yet
+  seen on real hardware with fused-off cores: if you have one, `rycolab dev
+  probe` and an issue would settle it. More than 16 cores is not handled.
+- The margin floor follows the generation: -30 on Zen 3 (Ryzen 5000,
+  6000), -50 on Zen 4 and 5; `install` raises the sweep start accordingly.
+- Expected to work: any Ryzen whose SMU exposes
   `SetDldoPsmMargin` in ZenStates.Core (Zen 3 desktop, Cezanne, Phoenix /
   Hawk Point, Raphael / Dragon Range, Granite Ridge / Fire Range). The core
   mask is the one Legion Toolkit uses (plain core index on APUs); `install`

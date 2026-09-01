@@ -157,16 +157,15 @@ public static class ApplyCommand
 
         if (args.GetInt("ccd") is { } ccd)
         {
-            if (ccd is not (0 or 1))
+            if (ccd < 0 || ccd >= co.Map.Ccds)
             {
-                Console.Error.WriteLine("--ccd must be 0 or 1.");
+                Console.Error.WriteLine($"--ccd must be 0..{co.Map.Ccds - 1} on this CPU.");
                 return null;
             }
-            var first = Topology.FirstCoreOfCcd(ccd);
-            return Enumerable.Range(first, Topology.CoresPerCcd)
-                             .Where(c => c < co.CoreCount)
-                             .Select(c => (c, margin))
-                             .ToList();
+            return co.Map.CoresOfCcd(ccd)
+                     .Where(c => c.Index < co.CoreCount)
+                     .Select(c => (c.Index, margin))
+                     .ToList();
         }
 
         return Enumerable.Range(0, co.CoreCount).Select(c => (c, margin)).ToList();

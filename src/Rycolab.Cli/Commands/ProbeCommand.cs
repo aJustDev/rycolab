@@ -46,6 +46,11 @@ public static class ProbeCommand
         Console.WriteLine();
         Console.WriteLine($"  CPU                {co.CpuName}");
         Console.WriteLine($"  Physical cores     {co.PhysicalCores}");
+        Console.WriteLine($"  Topology           {co.Map.Describe()}");
+        if (co.TopologyWarning is { } tw) Console.WriteLine($"  !! {tw}");
+        var (mapProblems, mapNotes) = co.CheckMap();
+        foreach (var p in mapProblems) Console.WriteLine($"  !! {p}");
+        foreach (var n in mapNotes) Console.WriteLine($"  note: {n}");
         Console.WriteLine($"  SMU type           {co.SmuType}");
         Console.WriteLine($"  SetDldoPsmMargin   {(co.IsPsmSupported ? $"supported (writes via {co.WriteMailbox})" : "NOT SUPPORTED - Curve Optimizer cannot be applied")}");
         if (co.IsPsmSupported && co.LikelyLocked)

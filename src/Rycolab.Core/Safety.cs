@@ -13,9 +13,20 @@ public static class Safety
     /// <summary>
     /// Nothing more aggressive than this, no matter what. -50 is the minimum
     /// the SMU accepts on Ryzen 7000 and later (CoreCycler default.config.ini:760);
-    /// Ryzen 5000 stops at -30.
+    /// Ryzen 5000 (Zen 3) stops at -30.
     /// </summary>
     public const int AbsoluteMinMargin = -50;
+    public const int Zen3MinMargin = -30;
+
+    /// <summary>The floor for the CPU at hand: set by <see cref="CoController"/> from the code name; the absolute one without hardware.</summary>
+    public static int MinMargin { get; set; } = AbsoluteMinMargin;
+
+    public static int MinMarginFor(ZenStates.Core.Cpu.CodeName codeName) => codeName switch
+    {
+        ZenStates.Core.Cpu.CodeName.Vermeer or ZenStates.Core.Cpu.CodeName.Chagall or ZenStates.Core.Cpu.CodeName.Milan
+            or ZenStates.Core.Cpu.CodeName.Cezanne or ZenStates.Core.Cpu.CodeName.Rembrandt => Zen3MinMargin,
+        _ => AbsoluteMinMargin,
+    };
 
     /// <summary>A positive margin RAISES the voltage. Never what we want.</summary>
     public const int AbsoluteMaxMargin = 0;
@@ -29,9 +40,9 @@ public static class Safety
             throw new SafetyViolationException(
                 $"{what} {margin:+#;-#;0} is positive: that RAISES the voltage. Rejected.");
 
-        if (margin < AbsoluteMinMargin)
+        if (margin < MinMargin)
             throw new SafetyViolationException(
-                $"{what} {margin} is below the absolute limit ({AbsoluteMinMargin}). Rejected.");
+                $"{what} {margin} is below the limit for this CPU ({MinMargin}). Rejected.");
     }
 
     public static void ValidateMargins(IReadOnlyList<int> margins)

@@ -49,11 +49,34 @@ public class SafetyTests
 
     [Fact]
     public void StepAboveLimitIsRejected() => Assert.Throws<SafetyViolationException>(() => Safety.ValidateStep(-5, -9));
+
+    [Theory]
+    [InlineData(ZenStates.Core.Cpu.CodeName.Cezanne, -30)]
+    [InlineData(ZenStates.Core.Cpu.CodeName.Vermeer, -30)]
+    [InlineData(ZenStates.Core.Cpu.CodeName.Rembrandt, -30)]
+    [InlineData(ZenStates.Core.Cpu.CodeName.Raphael, -50)]
+    [InlineData(ZenStates.Core.Cpu.CodeName.DragonRange, -50)]
+    [InlineData(ZenStates.Core.Cpu.CodeName.GraniteRidge, -50)]
+    [InlineData(ZenStates.Core.Cpu.CodeName.StrixPoint, -50)]
+    public void FloorFollowsTheGeneration(ZenStates.Core.Cpu.CodeName codeName, int floor) => Assert.Equal(floor, Safety.MinMarginFor(codeName));
+
+    [Fact]
+    public void FloorIsEnforcedWhenSet()
+    {
+        var before = Safety.MinMargin;
+        try
+        {
+            Safety.MinMargin = -30;
+            Assert.Throws<SafetyViolationException>(() => Safety.ValidateMargin(-31));
+            Safety.ValidateMargin(-30);
+        }
+        finally { Safety.MinMargin = before; }
+    }
 }
 
-public class TopologyTests
+public class CoreMapTests
 {
-    // Legion Toolkit's EncodeCoreMarginBitmask: ((ccd << 8) | core) << 20.
+    // Legion Toolkit's EncodeCoreMarginBitmask and ZenStates' MakeCoreMask: ((ccd << 8) | slot) << 20.
     [Theory]
     [InlineData(0, 0x00000000u)]
     [InlineData(3, 0x00300000u)]
@@ -61,29 +84,100 @@ public class TopologyTests
     [InlineData(8, 0x10000000u)]
     [InlineData(11, 0x10300000u)]
     [InlineData(15, 0x10700000u)]
-    public void CcdMaskMatchesLegionToolkit(int core, uint mask)
+    public void ReferenceMachineMasksMatchLegionToolkit(int core, uint mask)
     {
-        Assert.Equal(mask, Topology.CcdMask(core));
-        Assert.Equal(mask, Topology.ReadMask(apu: false, core));
-        Assert.Equal(mask, Topology.WriteMask(apu: false, core));
+        // 9955HX3D as the fuses describe it: two CCDs, nothing off, SMT on, 16 cores.
+        var map = CoreMap.From(2, 8, [0u, 0u], 2, apu: false, enabledCores: 16);
+        Assert.Null(map.Warning);
+        Assert.Equal(mask, map.ReadMask(core));
+        Assert.Equal(mask, map.WriteMask(core));
+        Assert.Equal(mask, CoreMap.Uniform(16).ReadMask(core));
+        Assert.Equal(core * 2, map.OsLogical(core));
+        Assert.Equal(core / 8, map.Ccd(core));
     }
 
     [Fact]
     public void ApuReadsFlatIndexAndWritesAtBit20()
     {
-        Assert.Equal(5u, Topology.ReadMask(apu: true, 5));
-        Assert.Equal(0x00500000u, Topology.WriteMask(apu: true, 5));
+        // Ryzen 7 5800H: one CCD of eight, APU.
+        var map = CoreMap.From(1, 8, [0u], 2, apu: true, enabledCores: 8);
+        Assert.Null(map.Warning);
+        Assert.Equal(8, map.Count);
+        Assert.Equal(5u, map.ReadMask(5));
+        Assert.Equal(0x00500000u, map.WriteMask(5));
+        Assert.Equal("1 CCD, 8 cores, SMT on, APU", map.Describe());
     }
 
     [Fact]
-    public void LogicalProcessorAndNames()
+    public void SixCoreCcdSkipsTheFusedSlots()
+    {
+        // 7600X-like: one CCD, slots 6 and 7 off.
+        var map = CoreMap.From(1, 8, [0b1100_0000u], 2, apu: false, enabledCores: 6);
+        Assert.Null(map.Warning);
+        Assert.Equal(6, map.Count);
+        Assert.Equal(0x00500000u, map.WriteMask(5));
+        Assert.Equal([(0, 6), (0, 7)], map.DisabledSlots());
+        Assert.Equal("1 CCD, 6 cores (off: CCD0 6,7), SMT on", map.Describe());
+    }
+
+    [Fact]
+    public void TwoSixCoreCcdsUseThePhysicalSlotNotTheIndex()
+    {
+        // 7900X-like: CCD0 without slots 6,7; CCD1 without slots 0,1. Core 6 is CCD1 slot 2.
+        var map = CoreMap.From(2, 8, [0b1100_0000u, 0b0000_0011u], 2, apu: false, enabledCores: 12);
+        Assert.Null(map.Warning);
+        Assert.Equal(12, map.Count);
+        Assert.Equal(1, map.Ccd(6));
+        Assert.Equal(2, map.Physical(6));
+        Assert.Equal(0x10200000u, map.WriteMask(6));
+        Assert.Equal(12, map.OsLogical(6));
+        Assert.Equal(0x10700000u, map.WriteMask(11));
+        Assert.Equal("2 CCDs, 6+6 cores (off: CCD0 6,7; CCD1 0,1), SMT on", map.Describe());
+        Assert.Equal(6, map.CoresOfCcd(1).Count());
+    }
+
+    [Fact]
+    public void SmtOffPutsCoreNOnLogicalN()
+    {
+        var map = CoreMap.From(2, 8, [0u, 0u], 1, apu: false, enabledCores: 16);
+        Assert.Equal(9, map.OsLogical(9));
+        Assert.Contains("SMT off", map.Describe());
+    }
+
+    [Fact]
+    public void FusesAndCpuidDisagreeIsNotTrusted()
+    {
+        var map = CoreMap.From(2, 8, [0u, 0u], 2, apu: false, enabledCores: 12);
+        Assert.NotNull(map.Warning);
+        Assert.Contains("16 cores", map.Warning);
+        Assert.Equal(12, map.Count);   // the uniform fallback, for reading only
+    }
+
+    [Fact]
+    public void UnreadableTopologyFallsBackToUniformWithAWarning()
+    {
+        var map = CoreMap.From(0, 0, [], 2, apu: false, enabledCores: 8);
+        Assert.NotNull(map.Warning);
+        Assert.Equal(8, map.Count);
+        Assert.Equal(0x00300000u, map.WriteMask(3));
+    }
+
+    [Fact]
+    public void IndicesPastTheMapFallBackToTheUniformLayout()
+    {
+        var map = CoreMap.From(1, 8, [0u], 2, apu: true, enabledCores: 8);
+        Assert.Equal(1, map.Ccd(9));
+        Assert.Equal(18, map.OsLogical(9));
+    }
+
+    [Fact]
+    public void TopologyHelpersFollowTheDefaultMap()
     {
         Assert.Equal(6, Topology.LogicalProcessor(3));
         Assert.Equal(1L << 6, Topology.AffinityMask(3));
         Assert.Equal("CCD0", Topology.CcdName(7));
         Assert.Equal("CCD1", Topology.CcdName(8));
         Assert.Equal("CCD1 (Tdie)", Topology.CcdTempSensor(0));   // LHM numbers from 1
-        Assert.Equal(8, Topology.FirstCoreOfCcd(1));
     }
 }
 

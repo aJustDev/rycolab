@@ -60,7 +60,10 @@ public sealed class Plan
     public void Validate()
     {
         Safety.ValidateMargin(Base, "baseline");
-        Safety.ValidateMargin(Start, "start");
+        // The absolute range, not the CPU's floor: a config written before the floor was known must still load
+        // (install raises Start; a write below the floor is refused at the SMU side anyway).
+        if (Start < Safety.AbsoluteMinMargin || Start > Safety.AbsoluteMaxMargin)
+            throw new SafetyViolationException($"start {Start} is outside {Safety.AbsoluteMinMargin}..{Safety.AbsoluteMaxMargin}.");
         Safety.ValidateMargin(Top, "top");
         if (Step <= 0) throw new SafetyViolationException("step must be positive.");
         if (Start > Top) throw new SafetyViolationException($"start {Start} is above top {Top}.");

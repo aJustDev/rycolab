@@ -33,6 +33,7 @@ public static class FindCommand
         // ---- checks ----
         var problems = new List<string>();
         if (!co.IsPsmSupported) problems.Add($"this CPU's SMU ({co.SmuType}) does not expose per-core Curve Optimizer.");
+        if (co.TopologyWarning is { } tw) problems.Add($"{tw} (`rycolab dev probe` shows the details).");
         if (!Installer.HasYCruncher(config.YCruncherDir, config.Engines)) problems.Add($"y-cruncher binaries missing in {config.YCruncherDir} ({string.Join(", ", config.Engines)}): run `rycolab install`.");
         if (!Safety.IsOnAcPower()) problems.Add("not on AC power: plug the charger in.");
         if (problems.Count > 0)

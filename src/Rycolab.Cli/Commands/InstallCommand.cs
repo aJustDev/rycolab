@@ -46,15 +46,32 @@ public static class InstallCommand
         using (var co = new CoController())
         {
             Log($"CPU {co.CpuName}, {co.CoreCount} cores, SMU {co.SmuType}, per-core Curve Optimizer: {(co.IsPsmSupported ? "supported" : "NOT SUPPORTED")}");
+            Log($"topology {co.Map.Describe()}");
             if (!co.IsPsmSupported)
             {
                 Console.Error.WriteLine("  This CPU's SMU does not expose SetDldoPsmMargin: per-core Curve Optimizer is not available here.");
+                return 1;
+            }
+            // The map is what every mask is built from: when it cannot be trusted, nothing is written on this CPU.
+            if (co.TopologyWarning is { } tw)
+            {
+                Console.Error.WriteLine($"  !! {tw}. Not installing: `rycolab dev probe` shows the details; please report the CPU.");
+                return 1;
+            }
+            var (mapProblems, mapNotes) = co.CheckMap();
+            foreach (var n in mapNotes) Log($"note: {n}");
+            if (mapProblems.Count > 0)
+            {
+                foreach (var p in mapProblems) Console.Error.WriteLine($"  !! {p}");
+                Console.Error.WriteLine("  Not installing: the core map does not match what the SMU answers. Please report the CPU.");
                 return 1;
             }
             if (co.LikelyLocked)
                 Log("!! this looks like a mobile APU below Ryzen 9: AMD lets those read the margins but refuses every write (RyzenAdj issue #233). `rycolab dev probe --write-test` confirms it before you spend hours on `find`.");
             var baseline = args.GetInt("base") ?? (File.Exists(AppPaths.Config) ? config.Base : Installer.ReadBaseline(co, Log));
             config.Base = baseline;
+            // Zen 3 stops at -30: a sweep from -50 would be refused at the first write.
+            if (config.Start < Safety.MinMargin) { Log($"sweep start {config.Start} raised to {Safety.MinMargin}, the floor for this CPU ({co.CodeName})"); config.Start = Safety.MinMargin; }
             config.Save();
             Log($"config {AppPaths.Config}: baseline {baseline}, engines {string.Join(" | ", config.Engines)}, tests {string.Join(",", config.Tests)}, {config.Seconds} s per run");
         }

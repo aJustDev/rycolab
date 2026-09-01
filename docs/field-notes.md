@@ -16,8 +16,11 @@ not assumed. The raw numbers are in `lab-notebook.md`; the Lenovo-only ones
 - CCDs are numbered **from 0**, like Legion Toolkit and the SMU mask. HWiNFO
   and LibreHardwareMonitor number from 1: our CCD0 is their `CCD1 (Tdie)`. The
   translation lives in `Topology.CcdTempSensor` and nowhere else.
-- Each physical core owns two logical processors: core N is logical 2N (SMT
-  on, no disabled cores; other topologies are not handled yet).
+- Each physical core owns two logical processors: core N is logical 2N with
+  SMT on. ZenStates describes the 9955HX3D as "2 CCDs, 8+8 cores, SMT on"
+  (`ccds`, `coresPerCcx`, `coreDisableMap`, `threadsPerCore`); the map is
+  built from those, and the 16 masks come out identical to the hand-coded
+  ones (2026-09-01).
 - On this laptop every sustained torture is capped at ~14 W per core; only
   y-cruncher `04-P4P` (SSE3) reaches fMax (5.45 GHz). `24-ZN5` (AVX-512) is
   the engine that finds the errors: the definitive campaign's 26 positives

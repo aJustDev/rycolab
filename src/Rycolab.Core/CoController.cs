@@ -22,6 +22,8 @@ public sealed class CoController : IDisposable
     public CoController()
     {
         _cpu = new Cpu();
+        Topology.Map = CoreMap.From(_cpu);
+        Safety.MinMargin = Safety.MinMarginFor(_cpu.info.codeName);
         ApplyMailboxOverrides();
         if (WriteMailbox == "") WriteMailbox = $"RSMU 0x{_cpu.smu.Rsmu.SMU_MSG_SetDldoPsmMargin:X}";
     }
@@ -68,10 +70,10 @@ public sealed class CoController : IDisposable
     {
         var now = ReadCore(coreIndex);
         if (now is null) return $"core {coreIndex} is not readable";
-        var status = SendSet(Topology.WriteMask(_cpu, coreIndex), now.Value, _marginBits, out var where, out var arg);
+        var status = SendSet(Map.WriteMask(coreIndex), now.Value, _marginBits, out var where, out var arg);
         if (status == SMU.Status.FAILED && Topology.IsApu(_cpu) && _marginBits == 16)
         {
-            var status20 = SendSet(Topology.WriteMask(_cpu, coreIndex), now.Value, 20, out _, out var arg20);
+            var status20 = SendSet(Map.WriteMask(coreIndex), now.Value, 20, out _, out var arg20);
             if (status20 == SMU.Status.OK) { _marginBits = 20; return $"OK ({where}, 20-bit margin, arg 0x{arg20:X8})"; }
             return $"{status} ({where}, arg 0x{arg:X8}; 20-bit arg 0x{arg20:X8}: {status20}) - writes are LOCKED on this CPU";
         }
@@ -81,13 +83,42 @@ public sealed class CoController : IDisposable
     public Cpu Cpu => _cpu;
 
     public string CpuName => _cpu.info.cpuName?.Trim() ?? "unknown";
+    public string CodeName => _cpu.info.codeName.ToString();
     public int PhysicalCores => (int)_cpu.info.topology.physicalCores;
     public string SmuType => _cpu.smu.SMU_TYPE.ToString();
 
     /// <summary>If the SMU does not expose this message, Curve Optimizer cannot be applied.</summary>
     public bool IsPsmSupported => _cpu.smu.Rsmu.SMU_MSG_SetDldoPsmMargin != 0;
 
-    public int CoreCount => Math.Min(PhysicalCores, Topology.MaxCores);
+    /// <summary>The core map read from the fuses (see <see cref="CoreMap"/>); also the process-wide <see cref="Topology.Map"/>.</summary>
+    public CoreMap Map => Topology.Map;
+
+    public int CoreCount => Math.Min(Map.Count, Topology.MaxCores);
+
+    /// <summary>Why the map is not trusted, or null. install and find refuse on it.</summary>
+    public string? TopologyWarning => Map.Warning;
+
+    /// <summary>
+    /// The map against the hardware: every mapped core must answer a margin
+    /// read, and a slot the fuses call off should not. The first is a hard
+    /// problem; the second only a note, since what the SMU does with a
+    /// fused-off slot has not been seen on any machine yet.
+    /// </summary>
+    public (List<string> Problems, List<string> Notes) CheckMap()
+    {
+        var problems = new List<string>();
+        var notes = new List<string>();
+        var unreadable = ReadAll().Where(r => !r.IsReadable).Select(r => r.Index).ToList();
+        if (unreadable.Count > 0) problems.Add($"cores {string.Join(",", unreadable)} are in the map but the SMU does not answer a margin read for them");
+        if (!Map.Apu)
+            foreach (var (ccd, slot) in Map.DisabledSlots().Take(4))
+            {
+                uint? v;
+                try { v = _cpu.GetPsmMarginSingleCore(CoreMap.CcdMask(ccd, slot)); } catch { v = null; }
+                if (v is not null) notes.Add($"CCD{ccd} slot {slot} is fused off by the map but the SMU answers {(int)v.Value} for it");
+            }
+        return (problems, notes);
+    }
 
     public uint? TryGetFMax()
     {
@@ -99,7 +130,7 @@ public sealed class CoController : IDisposable
 
     public int? ReadCore(int coreIndex)
     {
-        var raw = _cpu.GetPsmMarginSingleCore(Topology.ReadMask(_cpu, coreIndex));
+        var raw = _cpu.GetPsmMarginSingleCore(Map.ReadMask(coreIndex));
         return raw.HasValue ? (int)raw.Value : null;   // same cast Legion Toolkit does
     }
 
@@ -108,7 +139,7 @@ public sealed class CoController : IDisposable
         var list = new List<CoreReading>(CoreCount);
         for (var i = 0; i < CoreCount; i++)
         {
-            var mask = Topology.ReadMask(_cpu, i);
+            var mask = Map.ReadMask(i);
             int? margin;
             try { margin = ReadCore(i); }
             catch { margin = null; }
@@ -137,7 +168,7 @@ public sealed class CoController : IDisposable
         if (!IsPsmSupported)
             throw new CoWriteFailedException("this SMU does not support SetDldoPsmMargin.");
 
-        var mask = Topology.WriteMask(_cpu, coreIndex);
+        var mask = Map.WriteMask(coreIndex);
 
         var status = SendSet(mask, margin, _marginBits, out var where, out var arg);
         if (status == SMU.Status.FAILED && _marginBits == 16 && Topology.IsApu(_cpu))
@@ -193,7 +224,7 @@ public sealed class CoController : IDisposable
     public void WriteCoreUnchecked(int coreIndex, int margin)
     {
         Safety.ValidateMargin(margin, $"core {coreIndex}: margin");
-        _cpu.SetPsmMarginSingleCore(Topology.WriteMask(_cpu, coreIndex), margin);
+        _cpu.SetPsmMarginSingleCore(Map.WriteMask(coreIndex), margin);
     }
 
     /// <summary>Writes every core and returns the verification read.</summary>
@@ -224,7 +255,7 @@ public sealed class CoController : IDisposable
             try
             {
                 if (!IsCoreActive(i)) continue;
-                if (_cpu.SetPsmMarginSingleCore(Topology.WriteMask(_cpu, i), baselineMargin))
+                if (_cpu.SetPsmMarginSingleCore(Map.WriteMask(i), baselineMargin))
                     ok++;
             }
             catch { /* in panic mode, keep going with the next core */ }

@@ -99,17 +99,17 @@ public static class StatusView
 
         var off = 0;
         var rows = new List<string>();
-        for (var first = 0; first < hw.Length; first += Topology.CoresPerCcd)
+        foreach (var ccd in Enumerable.Range(0, hw.Length).GroupBy(Topology.CcdOf).OrderBy(g => g.Key))
         {
             var cells = new List<string>();
-            for (var c = first; c < Math.Min(hw.Length, first + Topology.CoresPerCcd); c++)
+            foreach (var c in ccd)
             {
                 var want = profile is not null && c < profile.Cores.Length ? profile.Cores[c] : (int?)null;
                 var color = hw[c] is null ? "grey" : want is null || hw[c] == want ? "default" : "red";
                 if (hw[c] is not null && want is not null && hw[c] != want) off++;
                 cells.Add($"[{color}]{(hw[c]?.ToString() ?? "-"),4}[/]");
             }
-            rows.Add($"[grey]{Topology.CcdNameFromIndex(first / Topology.CoresPerCcd)}[/] {string.Join(" ", cells)}");
+            rows.Add($"[grey]{Topology.CcdNameFromIndex(ccd.Key)}[/] {string.Join(" ", cells)}");
         }
 
         if (off == 0 && guard is not null && state.Applied)

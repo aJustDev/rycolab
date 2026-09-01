@@ -2,23 +2,22 @@ using Rycolab.Core;
 
 namespace Rycolab.Cli.Ui;
 
-/// <summary>One text line per CCD present: "CCD0  0:x  1:y ..." and "CCD1 ..." only if there are more than 8 cores.</summary>
+/// <summary>One text line per CCD present in the first <paramref name="coreCount"/> cores of the map: "CCD0  0:x  1:y ..." then "CCD1 ...".</summary>
 public static class CoreRows
 {
     public static IEnumerable<string> Lines(int coreCount, Func<int, string> cell, string separator = "  ")
     {
         var count = Math.Clamp(coreCount, 1, Topology.MaxCores);
-        for (var first = 0; first < count; first += Topology.CoresPerCcd)
-        {
-            var last = Math.Min(count, first + Topology.CoresPerCcd);
-            yield return $"{Topology.CcdNameFromIndex(first / Topology.CoresPerCcd)}{separator}{string.Join(separator, Enumerable.Range(first, last - first).Select(cell))}";
-        }
+        foreach (var g in Enumerable.Range(0, count).GroupBy(Topology.CcdOf).OrderBy(g => g.Key))
+            yield return $"{Topology.CcdNameFromIndex(g.Key)}{separator}{string.Join(separator, g.Select(cell))}";
     }
 
-    /// <summary>Core count implied by a set of core indices, rounded up to whole CCDs.</summary>
+    /// <summary>Core count implied by a set of core indices, rounded up to whole CCDs of the map.</summary>
     public static int CountFor(IEnumerable<int> cores)
     {
         var max = cores.DefaultIfEmpty(0).Max();
-        return Math.Min(Topology.MaxCores, (max / Topology.CoresPerCcd + 1) * Topology.CoresPerCcd);
+        var lastCcd = Topology.CcdOf(max);
+        var whole = Enumerable.Range(0, Topology.MaxCores).Count(i => Topology.CcdOf(i) <= lastCcd);
+        return Math.Min(Topology.MaxCores, Math.Max(whole, max + 1));
     }
 }
