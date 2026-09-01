@@ -112,7 +112,8 @@ public static class StatusView
         KV(g, "cpu top", top.Count == 0
             ? (primed ? "[grey]everything under 0.5 % CPU[/]" : "[grey]sampling...[/]")
             : string.Join("   ", top.Select(t =>
-                $"{E(t.Name.Length > 16 ? t.Name[..16] : t.Name)} {t.CpuPct:F1}[grey]%[/]{(pkg is { } w ? $" [grey]~{t.BusyShare * w:F0} W[/]" : "")}")));
+                // Below ~5 % CPU the "share" is mostly the idle/uncore floor, not the process; no watt figure there.
+                $"{E(t.Name.Length > 16 ? t.Name[..16] : t.Name)} {t.CpuPct:F1}[grey]%[/]{(pkg is { } w && t.CpuPct >= 5 ? $" [grey]~{t.BusyShare * w:F0} W[/]" : "")}")));
 
         var (design, cycles) = HealthStatics.Value;
         KV(g, "health", b.FullWh is { } fw
