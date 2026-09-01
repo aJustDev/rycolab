@@ -98,6 +98,12 @@ rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
    reboot it; `rycolab find` again resumes). Accept the proposal at the end,
    then `rycolab on`.
 
+A profile belongs to one die. Never copy `profile.json` from another machine,
+not even the same model: the fingerprint (CPU name, core count, SMU type)
+cannot tell two chips apart, and the limits are the silicon lottery.
+`docs/profile.reference.json` is the reference machine's, kept as an example
+of the format only.
+
 `on` refuses a profile without a source, from another CPU, or with any core
 below its measured limit. The guard writes `state.json` on every sample (what
 `status` reads), re-applies after resume (the BIOS restores the baseline on
