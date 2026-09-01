@@ -75,7 +75,7 @@ public static class ReportCommand
             {
                 var lim = limits.TryGetValue(c.ToString(), out var l) ? l : null;
                 var hist = string.Join("; ", runs.Where(r => r.Core == c).GroupBy(r => r.Margin).OrderBy(g => g.Key)
-                    .Select(g => $"{g.Key}: " + string.Join(", ", g.Select(r => $"{Short(r.Engine)} {Mark(r.Verdict)} {r.Seconds}s"))));
+                    .Select(g => $"{g.Key}: " + string.Join(", ", g.Select(r => $"{Short(r.Engine)}{(r.Stage == "sweep" ? "" : " " + r.Stage)} {Mark(r.Verdict)} {r.Seconds}s"))));
                 var at = runs.FirstOrDefault(r => r.Core == c && r.Margin == lim && r.Verdict == "clean" && r.Telemetry?.VoltMedian is not null && r.Engine.StartsWith("04"))
                          ?? runs.FirstOrDefault(r => r.Core == c && r.Margin == lim && r.Verdict == "clean" && r.Telemetry?.VoltMedian is not null);
                 var tele = at?.Telemetry is { } t ? $"{t.VoltMedian:F3} / {t.FreqMedian:F3} / {t.PowerMedian:F1}" : "-";
@@ -93,10 +93,10 @@ public static class ReportCommand
         sb.AppendLine();
         if (positives.Count > 0)
         {
-            sb.AppendLine("| Time | Core | Margin | Engine | Signal | After | Detail |");
-            sb.AppendLine("|---|---|---|---|---|---|---|");
+            sb.AppendLine("| Time | Core | Margin | Engine | Stage | Signal | After | Detail |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|");
             foreach (var p in positives)
-                sb.AppendLine($"| {p.Started:HH:mm:ss} | {p.Core} | {p.Margin} | {p.Engine} | {p.Verdict}{(p.ExitCode is { } x ? $" (exit {x})" : "")} | {p.Seconds} s | {Escape(Trunc(p.Error ?? "", 120))} |");
+                sb.AppendLine($"| {p.Started:HH:mm:ss} | {p.Core} | {p.Margin} | {p.Engine} | {p.Stage} | {p.Verdict}{(p.ExitCode is { } x ? $" (exit {x})" : "")} | {p.Seconds} s | {Escape(Trunc(p.Error ?? "", 120))} |");
             sb.AppendLine();
         }
 

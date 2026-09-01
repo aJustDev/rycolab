@@ -19,7 +19,7 @@ public static class CalibrateCommand
         var core = args.GetInt("core") ?? 3;
         var seconds = args.GetInt("seconds") ?? 40;
         var config = Plan.LoadOrDefault();
-        if (!Installer.HasYCruncher(config.YCruncherDir, config.Engines)) { Console.Error.WriteLine("y-cruncher missing; run `rycolab install`."); return 1; }
+        if (!Installer.HasYCruncher(config.YCruncherDir, config.AllEngines)) { Console.Error.WriteLine("y-cruncher missing; run `rycolab install`."); return 1; }
 
         using var co = new CoController();
         var pm = new PmTable(co.Cpu);

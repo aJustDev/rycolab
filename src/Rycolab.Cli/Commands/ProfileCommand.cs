@@ -55,6 +55,7 @@ public static class ProfileCommand
                     {
                         Campaign = campaign, Date = DateTime.Now, SafetyMargin = config.SafetyMargin,
                         Engines = config.Engines, Tests = config.Tests, Seconds = config.Seconds,
+                        ConfirmSeconds = config.ConfirmSeconds, SoakSeconds = config.SoakSeconds, SoakEngine = config.SoakSeconds > 0 ? config.SoakEngine : null,
                         Limits = limits ?? new int?[Topology.MaxCores], Note = args.Get("note"),
                     },
                 };
@@ -84,7 +85,8 @@ public static class ProfileCommand
         Console.WriteLine($"  baseline {p.Base}   CPU {p.Fingerprint?.CpuName ?? "?"} ({p.Fingerprint?.Cores.ToString() ?? "?"} cores)");
         if (p.Source is { } s)
         {
-            Console.WriteLine($"  source   {s.Campaign}, {s.Date:yyyy-MM-dd HH:mm}, limit + {s.SafetyMargin}, engines {string.Join(" | ", s.Engines)}, tests {string.Join(",", s.Tests)}, {s.Seconds} s");
+            Console.WriteLine($"  source   {s.Campaign}, {s.Date:yyyy-MM-dd HH:mm}, limit + {s.SafetyMargin}, engines {string.Join(" | ", s.Engines)}, tests {string.Join(",", s.Tests)}, {s.Seconds} s" +
+                              (s.ConfirmSeconds > 0 ? $", confirmed {s.ConfirmSeconds} s" : "") + (s.SoakSeconds > 0 ? $", soaked {s.SoakSeconds} s with {s.SoakEngine}" : ""));
             Console.WriteLine($"  limits   {string.Join("   ", Ui.CoreRows.Lines(count, c => c < s.Limits.Length ? s.Limits[c]?.ToString() ?? "-" : "-", " "))}");
             if (s.Note is not null) Console.WriteLine($"  note     {s.Note}");
         }

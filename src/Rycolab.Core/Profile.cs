@@ -12,6 +12,10 @@ public sealed class ProfileSource
     public string[] Engines { get; set; } = [];
     public string[] Tests { get; set; } = [];
     public int Seconds { get; set; }
+    /// <summary>The confirmation and soak stages the limits went through (0: none, as before 0.3.0).</summary>
+    public int ConfirmSeconds { get; set; }
+    public int SoakSeconds { get; set; }
+    public string? SoakEngine { get; set; }
     public string? Note { get; set; }
 }
 
@@ -110,6 +114,7 @@ public sealed class Profile
             {
                 Campaign = campaign, Date = DateTime.Now, SafetyMargin = m,
                 Engines = config.Engines, Tests = config.Tests, Seconds = config.Seconds,
+                ConfirmSeconds = config.ConfirmSeconds, SoakSeconds = config.SoakSeconds, SoakEngine = config.SoakSeconds > 0 ? config.SoakEngine : null,
                 Limits = Enumerable.Range(0, Topology.MaxCores).Select(c => limits.TryGetValue(c, out var l) ? l : null).ToArray(),
             },
         };

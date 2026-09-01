@@ -20,10 +20,11 @@ mailbox writes use.
 
 House rules (`Safety.cs`, `CoController.cs`, `Stepper.cs`, `SafetySession.cs`):
 
-- Allowed range -50..0. -50 is the SMU minimum on Ryzen 7000+; a positive
-  value raises the voltage and is always rejected.
-- A move is walked in stops of at most 3 counts; every stop is read back.
-- Every write is read back; a mismatch is a hard failure.
+- Allowed range -50..0 (-30..0 on Zen 3). -50 is the SMU minimum on Ryzen
+  7000+; a positive value raises the voltage and is always rejected.
+- Every write is read back; a mismatch is a hard failure. (Until 0.3.0 a
+  move was also walked in stops of 3 counts; the SMU applies a margin
+  atomically, so the stops only cost time.)
 - AC power is required.
 - A block that writes runs under `SafetySession`: if the process dies (Ctrl+C,
   exception, console closed) before committing, the cores go back to what
@@ -48,17 +49,30 @@ full duration with none of the above.
 
 ## The sweep
 
-Per core, from the start margin (-50) upwards in steps of 5; per margin, every
-engine in the plan; the **limit** is the first margin clean on all engines.
-Any positive moves one step up. Every run writes the margin, verifies it,
-drops `in-progress.json`, runs the engine pinned to the core with periodic
-suspension, samples telemetry at 1 Hz, kills the engine, restores the
-baseline, and records the result (JSONL write-through plus SQLite). Resumable:
-cores with a limit are skipped.
+Per core, four stages, each run at a verified margin and each run restoring
+the baseline:
 
-Time to error grows as the margin rises (reference machine, CCD0, `24-ZN5`:
--50 fails in 9-39 s, -45 in 79-99 s), which is why 6 minutes per run is the
-minimum and the last point deserves longer.
+| Stage | What | Default |
+|---|---|---|
+| sweep | from the start margin (-50) upwards in coarse steps with the sweep engine; the first clean margin ends it | coarse 10, 360 s |
+| fine | the step below that margin, when the coarse step skipped it | fine 5, 360 s |
+| confirm | a long run at the limit; a positive moves the limit one step up and confirms again | 1800 s |
+| soak | light load (`04-P4P`, the engine that reaches fMax) at limit + safety margin, where the profile will actually run; a positive moves the limit one step up and soaks again | 600 s |
+
+The **limit** written to `limits.json` is the one that survived confirm and
+soak; the profile is limit + safety margin (5). Every run writes the margin,
+verifies it, drops `in-progress.json`, runs the engine pinned to the core
+with periodic suspension, samples telemetry at 1 Hz, kills the engine,
+restores the baseline, and records the result with its stage (JSONL
+write-through plus SQLite). Resumable: cores with a limit are skipped.
+
+Why the stages: time to error grows as the margin rises (reference machine,
+CCD0, `24-ZN5`: -50 fails in 9-39 s, -45 in 79-99 s), so 6 minutes per run
+is the minimum for the search and the limit itself deserves far longer; and
+the first campaign passed core 7 clean at -45 in 180 s when its real limit
+was -30, which is the in-house proof that one short clean run is not a
+limit. Every source agrees that a too-deep Curve Optimizer fails at idle and
+light load, not under an all-core torture, hence the soak at fMax.
 
 ## Engines
 
@@ -68,10 +82,10 @@ redirected (otherwise it waits for a key press on any invalid parameter), and
 periodic suspension of all its threads (1 s every 10 s, `SuspendThread` /
 `ResumeThread`) to force idle-to-boost transitions.
 
-Two binaries, both needed. `install` picks the second one for the CPU
+Two binaries, both needed. `install` picks the sweep engine for the CPU
 (`YCruncherBinaries.Recommended`): `24-ZN5 ~ Komari` when AVX-512 is
-available, otherwise `19-ZN2 ~ Kagari` (AVX2, Zen 2/3). `config.json`
-keeps the choice; on the reference machine:
+available, otherwise `19-ZN2 ~ Kagari` (AVX2, Zen 2/3); `04-P4P` is the soak
+engine. `config.json` keeps the choice; on the reference machine:
 
 | Binary | ISA | What it does on the reference machine |
 |---|---|---|

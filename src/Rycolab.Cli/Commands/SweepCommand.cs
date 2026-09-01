@@ -20,7 +20,7 @@ public static class SweepCommand
         if (args.Get("cores") is not null && cores is null) { Console.Error.WriteLine("--cores: use 0-15, 0,3,8-11 ..."); return 2; }
         if (FindCommand.ParseEngines(args, config) is { } engineError) { Console.Error.WriteLine(engineError); return 2; }
 
-        if (!Installer.HasYCruncher(config.YCruncherDir, config.Engines))
+        if (!Installer.HasYCruncher(config.YCruncherDir, config.AllEngines))
         {
             Console.Error.WriteLine($"y-cruncher binaries not found in {config.YCruncherDir}. Run `rycolab install`.");
             return 1;

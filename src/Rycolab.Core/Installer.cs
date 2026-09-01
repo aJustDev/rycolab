@@ -57,9 +57,9 @@ public static class Installer
         Environment.SetEnvironmentVariable("Path", string.Join(";", parts), EnvironmentVariableTarget.User);
     }
 
-    /// <summary>All the configured engines (default: the ones recommended for this CPU) are present.</summary>
+    /// <summary>All the configured engines (default: the sweep engine for this CPU plus the soak one) are present.</summary>
     public static bool HasYCruncher(string? dir = null, IEnumerable<string>? engines = null)
-        => YCruncherBinaries.Missing(dir ?? AppPaths.YCruncher, engines ?? YCruncherBinaries.Recommended()).Count == 0;
+        => YCruncherBinaries.Missing(dir ?? AppPaths.YCruncher, engines ?? YCruncherBinaries.Recommended().Append(YCruncherBinaries.Sse3)).Count == 0;
 
     /// <summary>Copies the binaries from a directory the user already has (e.g. CoreCycler's test_programs).</summary>
     public static void CopyYCruncher(string fromDir, Action<string> log, IEnumerable<string>? engines = null)

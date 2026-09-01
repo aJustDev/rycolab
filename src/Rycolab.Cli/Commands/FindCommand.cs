@@ -13,14 +13,19 @@ namespace Rycolab.Cli.Commands;
 public static class FindCommand
 {
     private static readonly string[] QuickTests = ["SFTv4", "FFTv4", "N63"];
-    private const int QuickSeconds = 180;
+    private const int QuickSeconds = 180, QuickConfirmSeconds = 300, QuickSoakSeconds = 120;
 
     public static int Run(Args args)
     {
         Console.WriteLine();
         var config = Plan.LoadOrDefault();
         var quick = args.Has("quick");
-        if (quick) { config.Tests = QuickTests; config.Seconds = QuickSeconds; }
+        if (quick)
+        {
+            config.Tests = QuickTests; config.Seconds = QuickSeconds;
+            config.ConfirmSeconds = Math.Min(config.ConfirmSeconds, QuickConfirmSeconds);
+            config.SoakSeconds = Math.Min(config.SoakSeconds, QuickSoakSeconds);
+        }
         if (ParseEngines(args, config) is { } engineError) { Console.Error.WriteLine(engineError); return 2; }
 
         // The controller only reads here; the core universe is what this CPU has.
@@ -34,7 +39,7 @@ public static class FindCommand
         var problems = new List<string>();
         if (!co.IsPsmSupported) problems.Add($"this CPU's SMU ({co.SmuType}) does not expose per-core Curve Optimizer.");
         if (co.TopologyWarning is { } tw) problems.Add($"{tw} (`rycolab dev probe` shows the details).");
-        if (!Installer.HasYCruncher(config.YCruncherDir, config.Engines)) problems.Add($"y-cruncher binaries missing in {config.YCruncherDir} ({string.Join(", ", config.Engines)}): run `rycolab install`.");
+        if (!Installer.HasYCruncher(config.YCruncherDir, config.AllEngines)) problems.Add($"y-cruncher binaries missing in {config.YCruncherDir} ({string.Join(", ", config.Engines)}): run `rycolab install`.");
         if (!Safety.IsOnAcPower()) problems.Add("not on AC power: plug the charger in.");
         if (problems.Count > 0)
         {
@@ -80,15 +85,19 @@ public static class FindCommand
         var pending = cores.Where(c => !known.ContainsKey(c)).ToArray();
 
         // ---- estimate ----
-        var margins = (config.Top - config.Start) / config.Step + 1;
-        var perRun = config.Seconds + 20;
-        var typical = TimeSpan.FromSeconds((double)pending.Length * 2 * config.Engines.Length * perRun);
-        var worst = TimeSpan.FromSeconds((double)pending.Length * margins * config.Engines.Length * perRun);
+        var coarse = config.CoarseStep > 0 ? Math.Max(config.Step, config.CoarseStep) : config.Step;
+        var coarseMargins = (config.Top - config.Start) / coarse + 1;
+        var fineRuns = coarse / config.Step - 1;
+        var perRun = (config.Seconds + 20) * config.Engines.Length;
+        var extras = config.ConfirmSeconds * config.Engines.Length + config.SoakSeconds + 40;   // one confirmation, one soak
+        var typical = TimeSpan.FromSeconds((double)pending.Length * ((2 + fineRuns) * perRun + extras));
+        var worst = TimeSpan.FromSeconds((double)pending.Length * ((coarseMargins + fineRuns) * perRun + 2 * extras));
         Console.WriteLine($"  Campaign   {dir}");
         Console.WriteLine($"  Cores      {pending.Length} pending of {cores.Length} ({string.Join(",", pending)})");
         Console.WriteLine($"  Per run    {config.Seconds} s, engines {string.Join(" | ", config.Engines)}, tests {string.Join(",", config.Tests)}{(quick ? "  (quick)" : "")}");
-        Console.WriteLine($"  Margins    {config.Start} -> {config.Top} step {config.Step}, baseline {config.Base}");
-        Console.WriteLine($"  Estimate   ~{typical.TotalHours:F1} h if most cores settle within two margins; up to {worst.TotalHours:F0} h worst case");
+        Console.WriteLine($"  Margins    {config.Start} -> {config.Top} coarse {coarse} fine {config.Step}, baseline {config.Base}");
+        Console.WriteLine($"  Then       {config.ConfirmSeconds} s confirmation at the limit, {config.SoakSeconds} s soak with {config.SoakEngine} at limit + {config.SafetyMargin}");
+        Console.WriteLine($"  Estimate   ~{typical.TotalHours:F1} h if most cores settle within two coarse margins; up to {worst.TotalHours:F0} h worst case");
         Console.WriteLine();
         Console.WriteLine("  While it runs: leave the machine plugged in and alone. A too-deep margin can");
         Console.WriteLine("  reboot it; the campaign resumes by itself at the next logon.");

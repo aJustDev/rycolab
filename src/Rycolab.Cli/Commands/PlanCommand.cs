@@ -27,7 +27,7 @@ public static class PlanCommand
                 return Show(Plan.LoadOrDefault(path));
             case "set":
             {
-                if (args.Positional.Count < 3) { Console.Error.WriteLine("Usage: rycolab plan set <key> <value>   keys: base engines tests seconds step start top safetyMargin ycruncher notify"); return 1; }
+                if (args.Positional.Count < 3) { Console.Error.WriteLine("Usage: rycolab plan set <key> <value>   keys: base engines tests seconds step coarseStep start top safetyMargin confirmSeconds soakSeconds soakEngine ycruncher notify"); return 1; }
                 var plan = Plan.LoadOrDefault(path);
                 var key = args.Positional[1].ToLowerInvariant();
                 var value = args.Positional[2];
@@ -41,6 +41,10 @@ public static class PlanCommand
                     case "start": plan.Start = int.Parse(value); break;
                     case "top": plan.Top = int.Parse(value); break;
                     case "safetymargin": plan.SafetyMargin = int.Parse(value); break;
+                    case "coarsestep": plan.CoarseStep = int.Parse(value); break;
+                    case "confirmseconds": plan.ConfirmSeconds = int.Parse(value); break;
+                    case "soakseconds": plan.SoakSeconds = int.Parse(value); break;
+                    case "soakengine": plan.SoakEngine = Rycolab.Core.Engines.YCruncherBinaries.Resolve(value); break;
                     case "ycruncher": plan.YCruncher = value; break;
                     case "notify": plan.Notify = bool.Parse(value); break;
                     default: Console.Error.WriteLine($"Unknown key {key}"); return 1;
@@ -59,10 +63,12 @@ public static class PlanCommand
         Console.WriteLine();
         Console.WriteLine($"  config     {Plan.DefaultPath}{(File.Exists(Plan.DefaultPath) ? "" : "  (defaults; not written yet)")}");
         Console.WriteLine($"  baseline   {plan.Base}");
-        Console.WriteLine($"  sweep      {plan.Start} -> {plan.Top} step {plan.Step}, {plan.Seconds} s per run, safety margin {plan.SafetyMargin}");
+        Console.WriteLine($"  sweep      {plan.Start} -> {plan.Top} coarse {(plan.CoarseStep > 0 ? plan.CoarseStep : plan.Step)} fine {plan.Step}, {plan.Seconds} s per run, safety margin {plan.SafetyMargin}");
+        Console.WriteLine($"  confirm    {plan.ConfirmSeconds} s at the limit with the sweep engines{(plan.ConfirmSeconds > 0 ? "" : "  (off)")}");
+        Console.WriteLine($"  soak       {plan.SoakSeconds} s at limit + {plan.SafetyMargin} with {plan.SoakEngine}{(plan.SoakSeconds > 0 ? "" : "  (off)")}");
         Console.WriteLine($"  engines    {string.Join(" | ", plan.Engines)}");
         Console.WriteLine($"  tests      {string.Join(",", plan.Tests)}");
-        Console.WriteLine($"  y-cruncher {plan.YCruncherDir}{(Installer.HasYCruncher(plan.YCruncherDir, plan.Engines) ? "" : "   (NOT FOUND)")}");
+        Console.WriteLine($"  y-cruncher {plan.YCruncherDir}{(Installer.HasYCruncher(plan.YCruncherDir, plan.AllEngines) ? "" : "   (NOT FOUND)")}");
         Console.WriteLine($"  notify     {(plan.Notify ? "on" : "off")}  (toast + chime on WHEA / reset / margin lost / giveup)");
         Console.WriteLine();
         return 0;

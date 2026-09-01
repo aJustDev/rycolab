@@ -169,12 +169,14 @@ example of the format only.
 
 ## How it works
 
-Per core, from -50 upwards in steps of 5; per margin, every engine in the
-plan (y-cruncher `04-P4P` and the widest vector binary the CPU can run),
-pinned to the core with periodic thread suspension, 360 s per run, telemetry
-at 1 Hz from the SMU power table; the limit is the first margin clean on all
-engines, and the proposed profile is the limit plus a safety margin (5).
-Positives: y-cruncher compute error, dead process, WHEA (18-20, 46, 47; id 17
+Per core, four stages: a coarse search from -50 upwards in steps of 10 with
+the widest vector y-cruncher binary the CPU runs (the engine that finds the
+errors), pinned to the core with periodic thread suspension, 360 s per run;
+the step of 5 below the first clean margin; a 30 min confirmation at the
+limit (a positive moves it one step up); and a 10 min soak with `04-P4P`,
+the load that reaches fMax, at limit + 5, where the profile will actually
+run. The proposed profile is the limit that survived all four plus the
+safety margin (5). Telemetry at 1 Hz from the SMU power table. Positives: y-cruncher compute error, dead process, WHEA (18-20, 46, 47; id 17
 is PCIe, logged but not counted) or Kernel-Power 41 during the run, and
 machine hang (a run left in progress across a reboot; in the same boot
 session it is a killed process and the run repeats). Every run restores the

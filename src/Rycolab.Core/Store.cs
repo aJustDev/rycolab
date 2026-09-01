@@ -39,6 +39,8 @@ public sealed class Store : IDisposable
             CREATE INDEX IF NOT EXISTS ix_runs_core ON runs(core, margin);
             CREATE INDEX IF NOT EXISTS ix_samples_run ON samples(core, margin, engine);
             """);
+        // Databases from before 0.3.0 have no stage column; add it once.
+        try { Exec("ALTER TABLE runs ADD COLUMN stage TEXT"); } catch (SqliteException) { /* already there */ }
     }
 
     public void AddRun(RunResult r)
@@ -46,15 +48,15 @@ public sealed class Store : IDisposable
         var t = r.Telemetry;
         Exec("""
             INSERT INTO runs (core, margin, engine, verdict, seconds, error, exit_code, whea, lines, suspensions,
-                              volt, ghz, watts, temp, pkg_w, clock, clock_eff, started, ended)
+                              volt, ghz, watts, temp, pkg_w, clock, clock_eff, started, ended, stage)
             VALUES ($core, $margin, $engine, $verdict, $seconds, $error, $exit, $whea, $lines, $susp,
-                    $volt, $ghz, $watts, $temp, $pkg, $clock, $eff, $started, $ended)
+                    $volt, $ghz, $watts, $temp, $pkg, $clock, $eff, $started, $ended, $stage)
             """,
             ("$core", r.Core), ("$margin", r.Margin), ("$engine", r.Engine), ("$verdict", r.Verdict), ("$seconds", r.Seconds),
             ("$error", r.Error), ("$exit", r.ExitCode), ("$whea", r.Whea), ("$lines", r.Lines), ("$susp", r.Suspensions),
             ("$volt", t?.VoltMedian), ("$ghz", t?.FreqMedian), ("$watts", t?.PowerMedian), ("$temp", t?.TempMedian),
             ("$pkg", t?.PackagePowerMedian), ("$clock", t?.ClockMedian), ("$eff", t?.ClockEffectiveMedian),
-            ("$started", r.Started.ToString("o")), ("$ended", r.Ended.ToString("o")));
+            ("$started", r.Started.ToString("o")), ("$ended", r.Ended.ToString("o")), ("$stage", r.Stage));
     }
 
     public void AddSamples(int core, int margin, string engine, IEnumerable<Sample> samples)
@@ -104,7 +106,7 @@ public sealed class Store : IDisposable
     {
         var list = new List<RunResult>();
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT core, margin, engine, verdict, seconds, error, exit_code, whea, lines, suspensions, volt, ghz, watts, temp, pkg_w, clock, clock_eff, started, ended FROM runs ORDER BY id";
+        cmd.CommandText = "SELECT core, margin, engine, verdict, seconds, error, exit_code, whea, lines, suspensions, volt, ghz, watts, temp, pkg_w, clock, clock_eff, started, ended, stage FROM runs ORDER BY id";
         using var r = cmd.ExecuteReader();
         while (r.Read())
         {
@@ -112,7 +114,7 @@ public sealed class Store : IDisposable
                 : new SampleSummary(0, D(r, 15), D(r, 16), null, D(r, 10), null, D(r, 11), D(r, 12), D(r, 14), D(r, 13), null);
             list.Add(new RunResult(r.GetInt32(0), r.GetInt32(1), r.GetString(2), r.GetString(3), r.GetInt32(4),
                 r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetInt32(6), r.GetInt32(7), r.GetInt32(8), r.GetInt32(9),
-                tele, DateTime.Parse(r.GetString(17)), DateTime.Parse(r.GetString(18))));
+                tele, DateTime.Parse(r.GetString(17)), DateTime.Parse(r.GetString(18)), r.IsDBNull(19) ? "sweep" : r.GetString(19)));
         }
         return list;
     }

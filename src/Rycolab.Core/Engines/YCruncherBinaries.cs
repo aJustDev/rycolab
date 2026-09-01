@@ -3,10 +3,13 @@ using System.Runtime.Intrinsics.X86;
 namespace Rycolab.Core.Engines;
 
 /// <summary>
-/// Which y-cruncher binaries to use on this CPU. `04-P4P` (SSE3) is the load
-/// that reaches fMax on every Zen; the second engine is the widest vector
-/// binary the CPU can run: `24-ZN5 ~ Komari` (AVX-512) on Zen 4/5,
-/// `19-ZN2 ~ Kagari` (AVX2) on Zen 2/3. Names are the official 0.8.7 ones.
+/// Which y-cruncher binaries to use on this CPU. The sweep engine is the
+/// widest vector binary the CPU can run: `24-ZN5 ~ Komari` (AVX-512) on
+/// Zen 4/5, `19-ZN2 ~ Kagari` (AVX2) on Zen 2/3; on the reference machine
+/// every positive came from it. `04-P4P` (SSE3) is the load that reaches
+/// fMax on every Zen and never failed a sweep run there: it is the soak
+/// engine, where the profile will actually run. Names are the official
+/// 0.8.7 ones.
 /// </summary>
 public static class YCruncherBinaries
 {
@@ -16,7 +19,8 @@ public static class YCruncherBinaries
 
     public static bool HasAvx512 => Avx512F.IsSupported;
 
-    public static string[] Recommended() => [Sse3, HasAvx512 ? Avx512 : Avx2];
+    /// <summary>The sweep engine(s) for this CPU.</summary>
+    public static string[] Recommended() => [HasAvx512 ? Avx512 : Avx2];
 
     /// <summary>
     /// CLI shorthand ("p4p", "zn5", "zn2") or an exact binary name. On the
@@ -31,7 +35,7 @@ public static class YCruncherBinaries
         _ => spec,
     };
 
-    public static string Why() => HasAvx512 ? $"AVX-512 available -> {Avx512}" : $"no AVX-512 -> {Avx2}";
+    public static string Why() => HasAvx512 ? $"AVX-512 available -> {Avx512}; soak with {Sse3}" : $"no AVX-512 -> {Avx2}; soak with {Sse3}";
 
     /// <summary>Engines whose exe is not in the directory.</summary>
     public static List<string> Missing(string dir, IEnumerable<string> engines)

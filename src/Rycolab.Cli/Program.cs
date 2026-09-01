@@ -168,15 +168,16 @@ static void PrintHelp()
                                         calibrate, plan, toast, task, profile import, log   (`rycolab dev help`)
 
         find
-          --quick        three tests and 180 s per run instead of eight and 360 s
+          --quick        three tests, 180 s per run, 5 min confirmation and 2 min soak (instead of
+                         eight, 360 s, 30 min and 10 min)
           --cores <spec> 0-15, 0,3,8-11 ...      --resume   continue the unfinished campaign
           --engines <l>  zn5,p4p,zn2 or binary names; overrides the config for this run
           --yes          no questions            --accept   save the proposed profile
 
         SAFETY
-          Allowed margin -50..0; positive values are rejected. Every write is read back.
-          Moves are walked in steps of 3. `on` refuses a profile without a source, from
-          another CPU, or more aggressive than its measured limits. A reboot or a sleep
+          Allowed margin -50..0 (-30..0 on Zen 3); positive values are rejected. Every write
+          is read back. `on` refuses a profile without a source, from another CPU, or more
+          aggressive than its measured limits. A reboot or a sleep
           returns the cores to the BIOS baseline; the guard re-applies the profile and,
           on any WHEA event, restores the baseline and stops.
 

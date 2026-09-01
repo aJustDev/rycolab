@@ -2,36 +2,26 @@ using Rycolab.Core;
 
 namespace Rycolab.Tests;
 
-public class StepperTests
+public class SearchPlanTests
 {
     [Fact]
-    public void PathDownWalksInStopsOfAtMostThree()
-    {
-        var path = Stepper.BuildPath(-5, -50);
-        Assert.Equal(15, path.Length);
-        Assert.Equal(-50, path[^1]);
-        var prev = -5;
-        foreach (var stop in path)
-        {
-            Assert.InRange(prev - stop, 1, Safety.MaxStepBetweenLevels);
-            prev = stop;
-        }
-    }
+    public void CoarseMarginsClimbFromTheStartToTheTop()
+        => Assert.Equal([-50, -40, -30, -20, -10], Sweep.CoarseMargins(-50, -5, 10));
 
     [Fact]
-    public void PathUpEndsAtTarget()
-    {
-        var path = Stepper.BuildPath(-50, -5);
-        Assert.Equal(-5, path[^1]);
-        Assert.All(path.Zip(path.Skip(1)), p => Assert.InRange(p.Second - p.First, 1, Safety.MaxStepBetweenLevels));
-    }
+    public void CoarseWithTheFineStepIsTheLinearSearch()
+        => Assert.Equal(10, Sweep.CoarseMargins(-50, -5, 5).Count());
 
-    [Theory]
-    [InlineData(-5, -5, new int[0])]
-    [InlineData(-5, -7, new[] { -7 })]
-    [InlineData(-5, -9, new[] { -8, -9 })]
-    [InlineData(-10, -6, new[] { -7, -6 })]
-    public void SmallPaths(int from, int to, int[] expected) => Assert.Equal(expected, Stepper.BuildPath(from, to));
+    [Fact]
+    public void FineMarginsFillTheGapBelowTheFirstClean()
+    {
+        // -50 positive, -40 clean: the only margin in between is -45.
+        Assert.Equal([-45], Sweep.FineMargins(-40, -50, 5));
+        // First coarse margin already clean: nothing below the start to try.
+        Assert.Empty(Sweep.FineMargins(-50, -55, 5));
+        // Coarse step of 15 with fine 5: two candidates, tested downwards.
+        Assert.Equal([-40, -45], Sweep.FineMargins(-35, -50, 5));
+    }
 }
 
 public class SafetyTests
@@ -46,9 +36,6 @@ public class SafetyTests
     [InlineData(-50)]
     [InlineData(-25)]
     public void InRangeMarginPasses(int margin) => Safety.ValidateMargin(margin);
-
-    [Fact]
-    public void StepAboveLimitIsRejected() => Assert.Throws<SafetyViolationException>(() => Safety.ValidateStep(-5, -9));
 
     [Theory]
     [InlineData(ZenStates.Core.Cpu.CodeName.Cezanne, -30)]

@@ -7,9 +7,9 @@ namespace Rycolab.Cli.Commands;
 /// profile file (the installed one by default) and honours its refusal
 /// rules unless --force.
 ///
-/// Never in one jump: the move is walked in stops of at most
-/// <see cref="Safety.MaxStepBetweenLevels"/> counts, reading back at every
-/// stop, so the max-step rule holds without chaining commands by hand.
+/// One write per core, each read back, then an independent read of every
+/// core; a mismatch fails the command and the safety session restores what
+/// was there.
 /// </summary>
 public static class ApplyCommand
 {
@@ -45,12 +45,10 @@ public static class ApplyCommand
 
         // ---- plan ----
         Console.WriteLine();
-        Console.WriteLine("  Core    CCD   now     ->  target     path");
+        Console.WriteLine("  Core    CCD   now     ->  target");
         Console.WriteLine("  ------  ----  -----      --------   ------------------");
 
-        var plans = new List<(int Core, int[] Path)>();
-        var changing = 0;
-
+        var changes = new List<(int Core, int Margin)>();
         foreach (var (core, target) in targets.OrderBy(t => t.Core))
         {
             if (!current.TryGetValue(core, out var from))
@@ -58,22 +56,18 @@ public static class ApplyCommand
                 Console.WriteLine($"  {core,6}  {Topology.CcdName(core),-4}      -      {target,8}   no reading, skipped");
                 continue;
             }
-
-            var path = Stepper.BuildPath(from, target);
-            if (path.Length == 0)
+            if (from == target)
             {
                 Console.WriteLine($"  {core,6}  {Topology.CcdName(core),-4}  {from,5}      {target,8}   already there");
                 continue;
             }
-
-            changing++;
-            plans.Add((core, path));
-            Console.WriteLine($"  {core,6}  {Topology.CcdName(core),-4}  {from,5}      {target,8}   {string.Join(" -> ", path)}");
+            changes.Add((core, target));
+            Console.WriteLine($"  {core,6}  {Topology.CcdName(core),-4}  {from,5}      {target,8}");
         }
 
         Console.WriteLine();
 
-        if (changing == 0)
+        if (changes.Count == 0)
         {
             Console.WriteLine("  Nothing to change.");
             Console.WriteLine();
@@ -89,21 +83,9 @@ public static class ApplyCommand
 
         // ---- write, under the safety net ----
         using var session = new SafetySession(co);
-
-        var maxLen = plans.Max(p => p.Path.Length);
-        for (var stop = 0; stop < maxLen; stop++)
-        {
-            foreach (var (core, path) in plans)
-            {
-                if (stop >= path.Length) continue;
-                co.WriteCore(core, path[stop]);   // WriteCore reads back and throws on mismatch
-            }
-
-            if (maxLen > 1)
-                Console.WriteLine($"  stop {stop + 1}/{maxLen} verified");
-        }
-
+        foreach (var (core, margin) in changes) co.WriteCore(core, margin);   // WriteCore reads back and throws on mismatch
         session.Commit();
+        var changing = changes.Count;
 
         // ---- independent final verification ----
         var after = co.ReadAll();

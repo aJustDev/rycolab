@@ -31,9 +31,6 @@ public static class Safety
     /// <summary>A positive margin RAISES the voltage. Never what we want.</summary>
     public const int AbsoluteMaxMargin = 0;
 
-    /// <summary>Largest jump between two consecutive levels of a walk.</summary>
-    public const int MaxStepBetweenLevels = 3;
-
     public static void ValidateMargin(int margin, string what = "margin")
     {
         if (margin > AbsoluteMaxMargin)
@@ -49,14 +46,6 @@ public static class Safety
     {
         for (var i = 0; i < margins.Count; i++)
             ValidateMargin(margins[i], $"core {i}: margin");
-    }
-
-    public static void ValidateStep(int from, int to)
-    {
-        var delta = Math.Abs(to - from);
-        if (delta > MaxStepBetweenLevels)
-            throw new SafetyViolationException(
-                $"jump from {from} to {to} is {delta} counts; the maximum is {MaxStepBetweenLevels}.");
     }
 
     // ---- AC power ----

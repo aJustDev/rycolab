@@ -9,7 +9,7 @@ public static class RootCommand
     {
         var installed = File.Exists(AppPaths.Exe);
         var config = Plan.LoadOrDefault();
-        var hasYc = Installer.HasYCruncher(config.YCruncherDir, config.Engines);
+        var hasYc = Installer.HasYCruncher(config.YCruncherDir, config.AllEngines);
         var profile = Rycolab.Core.Profile.Exists() ? Rycolab.Core.Profile.Load() : null;
         var state = State.Load();
         var guard = Service.GuardProcess();

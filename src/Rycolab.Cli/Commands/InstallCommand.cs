@@ -29,8 +29,8 @@ public static class InstallCommand
         var config = Plan.LoadOrDefault();
         Log($"y-cruncher engines for this CPU: {string.Join(" | ", config.Engines)} ({YCruncherBinaries.Why()})");
         if (args.Get("ycruncher") is { } dir)
-            Installer.CopyYCruncher(Environment.ExpandEnvironmentVariables(dir), Log, config.Engines);
-        else if (Installer.HasYCruncher(engines: config.Engines))
+            Installer.CopyYCruncher(Environment.ExpandEnvironmentVariables(dir), Log, config.AllEngines);
+        else if (Installer.HasYCruncher(engines: config.AllEngines))
             Log("y-cruncher already present");
         else
         {
@@ -73,7 +73,7 @@ public static class InstallCommand
             // Zen 3 stops at -30: a sweep from -50 would be refused at the first write.
             if (config.Start < Safety.MinMargin) { Log($"sweep start {config.Start} raised to {Safety.MinMargin}, the floor for this CPU ({co.CodeName})"); config.Start = Safety.MinMargin; }
             config.Save();
-            Log($"config {AppPaths.Config}: baseline {baseline}, engines {string.Join(" | ", config.Engines)}, tests {string.Join(",", config.Tests)}, {config.Seconds} s per run");
+            Log($"config {AppPaths.Config}: baseline {baseline}, engines {string.Join(" | ", config.Engines)}, tests {string.Join(",", config.Tests)}, {config.Seconds} s per run, confirm {config.ConfirmSeconds} s, soak {config.SoakSeconds} s with {config.SoakEngine}");
         }
 
         if (!args.Has("no-task"))
