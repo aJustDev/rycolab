@@ -604,3 +604,46 @@ Two fixes and a relaunch after the afternoon's incidents:
 - Remaining gap, accepted: the ONLOGON task waits at the lock screen unless
   auto-logon is enabled (netplwiz) while campaigns run; the user does that
   by hand - the tool never stores the Windows password.
+
+## 2026-09-01 00:07 - Step 5 closed: definitive limits on all 16 cores
+
+Campaign `find-20260828-1232` finished: 86 runs, 26 positives, 3 machine
+hangs, 0 WHEA. It spanned four days because of the incidents above plus an
+evening pause on 31/08 (the machine was needed: task instance ended,
+`in-progress.json` deleted by hand - a manual stop is not a hang - and the
+phase-1 profile re-applied meanwhile). Relaunched 22:23 through the resume
+task; the last five cores took 104 min with no reboots.
+
+Definitive limits (2 engines x 360 s x 8 tests per margin):
+
+```
+CCD0  0:-40  1:-40  2:-35  3:-40  4:-40  5:-45  6:-50  7:-30
+CCD1  8:-50  9:-35  10:-45  11:-35  12:-45  13:-50  14:-50  15:-50
+```
+
+Versus phase 1 (3 tests x 180 s): six cores stricter (2, 3, 4, 9, 10, 11),
+two deeper (6, 8), five equal, and the headline: **the phase-1 profile
+carried cores 7 and 11 above their real limits** (-40 applied vs limits -30
+and -35). Core 7 is now the prime suspect for the unexplained 28/08 reset;
+phase 1 had passed it clean at -45, a 15-count overestimate - the shorter
+battery simply does not see it. Every one of the 26 positives came from
+24-ZN5 (Komari); 04-P4P never failed once: on this CPU, ZN5 is the
+discriminating engine and P4P adds nothing but time.
+
+Machine hangs, all recovered without a human: core 4 at -50 (14:00, before
+the auto-resume fix), core 9 at -50 and -45 (18:30, 18:38) - resume task
+plus temporary auto-logon brought the campaign back in under a minute each.
+
+The proposed profile (limit + 5) saved itself (`--yes`) and was applied on
+01/09 11:10: `-35,-35,-30,-35,-35,-40,-45,-25,-45,-30,-40,-30,-40,-45,-45,-45`.
+Validation restarted from zero. The +5 margin stays after discussion: each
+limit sits one 5-count step above a measured failure, CO instability lives
+in idle and light load where the sweep never looks, and phase 1's core-7
+overestimate is the in-house proof that "passed the test" is not "stable".
+
+Housekeeping reverted: AC standby back to 1 h, auto-logon off and the
+PasswordLess build version restored, auto-resume task removed itself on
+completion. Still open: the +1-on-all-cores probe reading after some
+reboots, and invalidating runs that span a wall-clock gap.
+
+Full detail: `rycolab report` over the campaign dir.
