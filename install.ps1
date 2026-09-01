@@ -10,7 +10,9 @@ param(
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $proj = Join-Path $root "src\Rycolab.Cli\Rycolab.Cli.csproj"
-$exe = Join-Path $root "src\Rycolab.Cli\bin\Release\net9.0-windows\win-x64\rycolab.exe"
+# The output folder is named after the TargetFramework in Directory.Build.props; read it instead of hard-coding it.
+$tfm = ([xml](Get-Content (Join-Path $root "Directory.Build.props"))).Project.PropertyGroup.TargetFramework
+$exe = Join-Path $root "src\Rycolab.Cli\bin\Release\$tfm\win-x64\rycolab.exe"
 
 if (-not $NoBuild) {
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {

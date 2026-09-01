@@ -245,7 +245,8 @@ Measured on the reference machine, not assumed:
 
 ## Build
 
-Needs a **.NET SDK 9 or newer** (x64); the project targets `net9.0-windows`
+Needs a **.NET SDK 9 or newer** (x64); the project targets
+`net9.0-windows10.0.17763.0` (Windows 10 1809 or newer, for the toast API)
 and newer SDKs build it.
 
 ```
@@ -267,7 +268,7 @@ data); it runs `rycolab uninstall` from the build so the installed folder
 can be removed completely. By hand it is the same thing, from an elevated console:
 
 ```
-.\src\Rycolab.Cli\bin\Release\net9.0-windows\win-x64\rycolab.exe install
+.\src\Rycolab.Cli\bin\Release\net9.0-windows10.0.17763.0\win-x64\rycolab.exe install
 ```
 
 Then open a new console (the PATH change does not reach the current one)
