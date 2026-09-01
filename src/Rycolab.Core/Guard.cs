@@ -142,9 +142,9 @@ public sealed class Guard
                     if (!ApplyProfile("resume")) { code = 1; break; }
                 }
 
-                ChargeFullTick();
-                HealthTick();
-                DgpuEjectTick();
+                Safe("charge-full", ChargeFullTick);
+                Safe("health", HealthTick);
+                Safe("dgpu-eject", DgpuEjectTick);
 
                 var readings = _co.ReadAll();
                 var hw = readings.Select(x => x.Margin).ToArray();
@@ -253,10 +253,21 @@ public sealed class Guard
                 return false;
             }
             if (_resumeAt is not null) return true;   // do not wait the whole interval after waking
-            PowerAutoTick();
+            Safe("power-auto", PowerAutoTick);
             Thread.Sleep(250);
         }
         return true;
+    }
+
+    /// <summary>
+    /// The battery/EC conveniences run in the guard's loop but are not what
+    /// it guards: a WMI or driver hiccup in one of them is an event, never
+    /// an exit that would leave the undervolt unwatched.
+    /// </summary>
+    private void Safe(string what, Action tick)
+    {
+        try { tick(); }
+        catch (Exception ex) { Event("tick-failed", $"{what}: {ex.Message}"); }
     }
 
     /// <summary>Applies the battery/AC profile once the line has been stable for the debounce, if `power auto` is on.</summary>
