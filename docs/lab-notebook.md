@@ -787,3 +787,21 @@ sweep stays CLEAN (no false invalids), and freezing the sweep process
 "INVALID after 71 s  wall-clock gap of 41 s (sleep?)" followed by an
 automatic repeat that closed CLEAN in 92 s - the limit came from the
 valid run only.
+
+## 2026-09-01 - Published: the repo is public, v0.1.0 released (step 6)
+
+github.com/aJustDev/rycolab is public, with the v0.1.0 release carrying
+the win-x64 framework-dependent zip (10 MB; .NET 9 runtime required,
+y-cruncher downloaded by `install`). Before flipping the switch: license
+verified end to end (GPL-3.0 is mandatory anyway - Legion Toolkit and
+ZenStates-Core are both GPL-3.0), NOTICE updated (owner, inpoutx64 now
+redistributed in third_party with its MIT-style license), the notebook
+scrubbed of references to local documents, all 90 revisions scanned for
+product keys and passwords (none), and an explicit use-at-your-own-risk
+disclaimer added to the README and the release notes on top of GPL-3.0's
+sections 15-16. Assembly version now matches the tag (0.1.0).
+
+Roadmap state: items 1-5 done (notifications, charge full, battery
+health, step-5 campaign, publish). Left: the tray icon when it is worth
+it, the validation gate review on 15/09, and the two open mysteries
+(+1 probe readings, the guard's stray foreground thread - worked around).
