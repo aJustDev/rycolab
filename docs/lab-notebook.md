@@ -898,3 +898,31 @@ Verified: install + on succeeded with the status viewer open.
 Remaining battery draw after the fix, ~38 W: screen at 100 % brightness
 (the profile keeps brightness by config), CPU ~2 W, platform. The panel
 share is the next obvious lever if lower figures are wanted.
+
+## 2026-09-01 19:45 - DC cross-check: the package scalar was the core domain; moved to offset 3
+
+The pending DC validation caught it. On battery, with the dGPU off and
+the machine drawing a slope-verified 40 W, offset 20 read ~1.6 W while
+LHM's RAPL read 18 W - a 16 W gap that is the IO die. Offset 20 is the
+CORE-DOMAIN power (near zero with all cores parked), which is why it
+validated beautifully under load (cores dominate there) and underread
+idle.
+
+Hunted across the two raw dumps (AC idle + 16-core load, DC idle):
+- offset 3 (mirror 26): DC idle 9.8 W, AC load 111.5 W = core domain
+  95.9 + SoC ~15. The true package, and it matches the sane 9-12 W band
+  LHM showed between garbage bursts. Now the built-in Pkg.
+- offset 390 (mirror 393): a slow STAPM-like average (18 W after
+  activity, 95 W after 25 s of load - lagging the 111 W steady state).
+- offset 413: remaining budget, drops under load; excluded from the
+  scan by a new invariant (package minus core-sum must hold steady
+  under a one-core load).
+
+Guard reinstalled: 9.9 W package at 1.5 % CPU on DC. The 40 W drain
+question this answered: ~10-18 W CPU package (average with activity),
+screen, platform and ethernet - no phantom consumer. The 15-18 W seen
+this afternoon was battery saver territory (<=20 %: dimmed panel,
+frozen background) plus a genuinely quiet machine. Also measured: at
+100 % brightness with dark content the brightness slider barely moves
+the draw (39.7 W at 100 % vs 41.3 W at 40 % - mini-LED zone dimming
+does the work); brightness matters on bright content.

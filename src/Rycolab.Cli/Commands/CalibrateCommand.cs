@@ -94,9 +94,12 @@ public static class CalibrateCommand
     }
 
     /// <summary>
-    /// The package-power scalar: idle a handful of watts, clearly up with one
-    /// core loaded, and never below the sum of the per-core power block (the
-    /// package includes the uncore). LHM's median breaks ties.
+    /// The package-power scalar: idle a handful of watts, up with one core
+    /// loaded, never below the sum of the per-core power block. Of the
+    /// plausible candidates the LARGEST loaded value wins: the package is the
+    /// superset, so the core-domain scalar (offset 20 on 0x621202, near zero
+    /// at a parked idle) always reads below the true package (offset 3,
+    /// which carries the ~15 W IO-die floor).
     /// </summary>
     private static int? ScanPackage(float[] idle, float[] loaded, int n, int[] blocks, double? lhmPkg)
     {
@@ -108,13 +111,16 @@ public static class CalibrateCommand
         {
             if (blocks.Any(b => j >= b && j < b + Topology.MaxCores)) continue;
             double i = idle[j], v = loaded[j];
-            if (i is < 3 or > 30 || v is < 15 or > 90 || v - i < 8) continue;
+            if (i is < 3 or > 30 || v is < 15 or > 90 || v - i < 5) continue;
             if (v < sumLoaded || i < sumIdle) continue;
+            // The SoC floor (package minus cores) barely moves under a one-core
+            // load; a budget/percentage field (offset 413 on 0x621202) does not
+            // keep that invariant and is rejected here.
+            if (Math.Abs((v - sumLoaded) - (i - sumIdle)) > 6) continue;
             found.Add((j, i, v));
         }
-        Console.WriteLine($"  package candidates: {(found.Count == 0 ? "none" : string.Join(", ", found.Select(f => $"{f.Start} ({f.Loaded:F3} vs {f.Idle:F3})")))}");
-        if (found.Count == 0) return null;
-        return lhmPkg is { } r ? found.OrderBy(f => Math.Abs(f.Loaded - r)).First().Start : found[0].Start;
+        Console.WriteLine($"  package candidates: {(found.Count == 0 ? "none" : string.Join(", ", found.Select(f => $"{f.Start} ({f.Loaded:F3} vs {f.Idle:F3})")))}{(lhmPkg is { } r ? $"  (LHM median {r:F1} W)" : "")}");
+        return found.Count == 0 ? null : found.OrderByDescending(f => f.Loaded).First().Start;
     }
 
     private static float[] MedianTable(PmTable pm, int seconds, Action? each = null)

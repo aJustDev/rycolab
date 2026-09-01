@@ -10,10 +10,12 @@ public sealed record PmIndex(int Power, int Volt, int Temp, int Freq, int? Pkg =
 {
     /// <summary>
     /// Ryzen 9 9955HX3D, table version 0x621202 (613 floats), blocks located
-    /// empirically on 2026-08-27; package scalar (offset 20, mirrored at 51)
-    /// on 2026-09-01: idle 2-17 W, 16-core load 90-146 W, immediate decay.
+    /// empirically on 2026-08-27; package scalar (offset 3, mirrored at 26)
+    /// on 2026-09-01: the true package incl. the IO die (DC idle ~10 W,
+    /// 16-core load ~111 W = core domain 96 + SoC 15). Offset 20 is the core
+    /// domain only (near zero at idle) and 390 a slow STAPM-like average.
     /// </summary>
-    public static readonly PmIndex Known621202 = new(301, 317, 333, 349, 20);
+    public static readonly PmIndex Known621202 = new(301, 317, 333, 349, 3);
 
     public static string File => Path.Combine(AppPaths.Data, "pm-index.json");
 
