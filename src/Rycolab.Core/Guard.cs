@@ -108,6 +108,8 @@ public sealed class Guard
         try
         {
             if (!ApplyProfile("start")) return 1;
+            // A sample right away: `on` waits for a tick, and the first interval is a minute.
+            Tick(0, true, _co.ReadAll().Select(x => x.Margin).ToArray(), 0, null, PackagePower(), "ok");
 
             using var power = new PowerWatch();
             power.Suspending += () => { _suspendSeen = true; Event("suspend", "the system is going to sleep"); };
