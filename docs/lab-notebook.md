@@ -703,3 +703,28 @@ journal cleanly (restore code 0) but the guard *process* stayed alive
 afterwards, holding the bin DLLs; killed by hand (safe: baseline already
 written). First time seen; some non-background thread survives Run's
 return. Open item, to reproduce on the next off.
+
+## 2026-09-01 15:24 - rycolab charge full (roadmap item 2), and the lingering guard again
+
+`charge full [--target 98]`: switches to rapid, drops `charge-full.json`
+(target + the mode to restore; rapid-before defaults to conservation) and
+the guard closes it - one battery check per tick, at the target it restores
+the mode, deletes the marker and writes a `charge` journal event (no toast:
+not bad news). Manual `charge normal|conservation|rapid` cancels a pending
+one; `charge show` and the status panel display it; without a running guard
+the command warns that nothing will restore the mode.
+
+Verified end to end on the real path: 79 % in conservation ->
+`charge full --target 81` (minimal real test) -> rapid confirmed, marker
+on, and at 15:24:04, two ticks later, the guard's event: "battery at 81 %
+-> full charge done, mode back to conservation". `charge show` clean,
+marker gone. The already-at-target branch refuses politely.
+
+The lingering guard process reproduced on this reinstall with better data:
+the stop file was seen instantly, the loop exited and restored cleanly,
+and the process stayed alive with 6 threads anyway - a foreground thread
+survives Run's return. Workaround shipped in GuardCommand: explicit
+disposes and `Environment.Exit(code)` after the ordered shutdown (journal
+and SQLite are closed by then). Root cause still open; candidates
+(SystemEvents' pump, a LibreHardwareMonitor thread) unconfirmed - do not
+guess, measure with a thread dump if it matters later.

@@ -35,24 +35,35 @@ public static class GuardCommand
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
+        int code;
         if (args.Has("plain"))
         {
             var guard = new Guard(co, profile, options, telemetry.IsAvailable ? telemetry : null,
                 t => Console.WriteLine($"{t.Ts:HH:mm:ss}  {t.Elapsed / 60,4} min  {(t.Ok ? "ok" : "OFF PROFILE")}  WHEA {t.Whea}  CPU {t.CpuLoad?.ToString("F0") ?? "-"}%  {t.State}"),
                 Console.WriteLine);
-            return guard.Run(cts.Token);
+            code = guard.Run(cts.Token);
+        }
+        else
+        {
+            var view = new GuardView(profile);
+            var c = 0;
+            AnsiConsole.Live(view.Render()).AutoClear(false).Start(ctx =>
+            {
+                void Refresh() { ctx.UpdateTarget(view.Render()); ctx.Refresh(); }
+                var guard = new Guard(co, profile, options, telemetry.IsAvailable ? telemetry : null,
+                    t => { view.OnTick(t); Refresh(); },
+                    e => { view.OnEvent(e); Refresh(); });
+                c = guard.Run(cts.Token);
+            });
+            code = c;
         }
 
-        var view = new GuardView(profile);
-        var code = 0;
-        AnsiConsole.Live(view.Render()).AutoClear(false).Start(ctx =>
-        {
-            void Refresh() { ctx.UpdateTarget(view.Render()); ctx.Refresh(); }
-            var guard = new Guard(co, profile, options, telemetry.IsAvailable ? telemetry : null,
-                t => { view.OnTick(t); Refresh(); },
-                e => { view.OnEvent(e); Refresh(); });
-            code = guard.Run(cts.Token);
-        });
+        // Some foreground thread survives Run's clean return and the process
+        // lingers holding the bin (seen twice on 2026-09-01, cause unknown).
+        // Everything is flushed and disposed by here; force the exit.
+        co.Dispose();
+        telemetry.Dispose();
+        Environment.Exit(code);
         return code;
     }
 }
