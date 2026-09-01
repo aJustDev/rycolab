@@ -117,6 +117,7 @@ public sealed class Guard
                 lock (_acLock) { _acPending = line; _acSince = DateTime.Now; }
 
             var wheaSeen = 0;
+            var ignoredSeen = 0;
             var lastLoop = DateTime.Now;
             while (!ct.IsCancellationRequested)
             {
@@ -150,6 +151,9 @@ public sealed class Guard
                 var hw = readings.Select(x => x.Margin).ToArray();
                 var bad = _profile.Mismatches(readings);
                 var hardware = Whea.HardwareSince(_t0);
+                var ignored = Whea.IgnoredSince(_t0);
+                for (; ignoredSeen < ignored.Count; ignoredSeen++)
+                    Event("whea-info", $"{ignored[ignoredSeen].Time:HH:mm:ss} WHEA id {ignored[ignoredSeen].Id} not counted (PCIe, not a core): {ignored[ignoredSeen].Message}");
                 var el = (int)(DateTime.Now - _t0).TotalSeconds;
                 var cpu = _telemetry?.CpuLoad();
                 var pkg = PackagePower();
@@ -164,6 +168,7 @@ public sealed class Guard
                         new { profile = _profile, hardware = hw, events = hardware });
                     if (_validation is not null) _validation.Whea += fresh;
                     Tick(el, bad.Count == 0, hw, hardware.Count, cpu, pkg, "WHEA");
+                    _state.Positive = "whea";
                     code = 10;
                     break;
                 }
@@ -176,6 +181,7 @@ public sealed class Guard
                     {
                         Event("giveup", $"{_reapplies.Count} re-applies within an hour; leaving the baseline");
                         Tick(el, false, hw, hardware.Count, cpu, pkg, "lost");
+                        _state.Positive = "lost";
                         code = 10;
                         break;
                     }

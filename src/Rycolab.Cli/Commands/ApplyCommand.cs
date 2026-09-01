@@ -15,6 +15,13 @@ public static class ApplyCommand
 {
     public static int Run(Args args)
     {
+        // The guard would read this as "margin lost" and re-apply the profile over it (and give up after three).
+        if (!args.Has("dry-run") && Service.GuardProcess() is { } owner)
+        {
+            Console.Error.WriteLine($"  A guard, sweep or find is running (pid {owner.Id}) and owns the margins. Run `rycolab off` first.");
+            return 2;
+        }
+
         using var co = new CoController();
 
         if (!co.IsPsmSupported)

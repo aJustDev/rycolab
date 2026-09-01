@@ -48,6 +48,8 @@ public sealed class Validation
 public sealed class State
 {
     public string Phase { get; set; } = "off";          // off | validating | steady | positive
+    /// <summary>Why the phase is `positive`: "whea" (hardware error) or "lost" (the margins kept being overwritten and the guard gave up).</summary>
+    public string? Positive { get; set; }
     public int? GuardPid { get; set; }
     public DateTime? Since { get; set; }
     public int[]? Profile { get; set; }

@@ -102,7 +102,9 @@ public static class StatusCommand
         {
             "validating" => $"profile in validation: {state.GuardedSeconds / 3600.0:F1} h guarded, {state.Resumes} resumes, {state.Whea} WHEA, {state.Resets} unexplained resets. Use the machine normally.",
             "steady" => "profile validated and applied. `rycolab off` returns to the baseline.",
-            "positive" => "the guard stopped on a positive (WHEA). The baseline is applied; check the events above.",
+            "positive" => state.Positive == "lost"
+                ? "the guard gave up: something else kept overwriting the margins (Legion Toolkit's Curve Optimizer?). The baseline is applied; close the other writer, then `rycolab on`."
+                : "the guard stopped on a positive (WHEA). The baseline is applied; check the events above.",
             _ => "all good; `rycolab status --follow` watches the guard live.",
         };
     }

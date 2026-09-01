@@ -117,9 +117,11 @@ Data lives in `%LOCALAPPDATA%\rycolab` (`RYCOLAB_HOME` overrides): `bin\`,
 positives) and `campaigns\<name>\` (`runs.jsonl`, `samples.jsonl`,
 `rycolab.db`, `limits.json`, `in-progress.json`, `positives\`).
 
-Sweep signals: y-cruncher compute error, dead process, WHEA (17-20, 46, 47) or
-Kernel-Power 41 during the run, and machine hang (`in-progress.json` still
-there when the sweep starts again).
+Sweep signals: y-cruncher compute error, dead process, WHEA (18-20, 46, 47;
+id 17 is PCIe, logged but not counted) or Kernel-Power 41 during the run, and
+machine hang (`in-progress.json` still there when the sweep starts again in a
+later boot session; in the same session it is a killed process and the run
+repeats).
 
 Low-level commands for diagnostics (elevated): `probe`, `apply`, `reset`,
 `guard`, `sweep`, `watch`, `sensors`, `calibrate`, `plan` (config.json), `task`,
