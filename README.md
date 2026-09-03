@@ -99,6 +99,7 @@ rycolab report --power        hours guarded and on battery, Wh per battery sessi
 rycolab report --campaigns    every campaign and the limit per core side by side
 rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
 rycolab db stats|sql "<select>"|export <table>   the database: the history of everything (also path, import)
+rycolab gpu probe|import|set|show|apply|on|off   the NVIDIA V/F curve, kept by the guard (docs/gpu.md)
 rycolab legion <command>      Lenovo Legion only: fan, power (battery profile), charge (docs/legion.md)
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
@@ -171,7 +172,8 @@ SQLite database with the history of everything: campaigns, runs, samples,
 limits, guard sessions, ticks (margins, WHEA, load, package W, battery, EC
 temperatures and fans, power and GPU mode, panel, hottest core and core
 V/GHz, user idle, charging, dGPU on the bus, Windows overlay, SMU read
-latency), events, battery health, `dev log` rows. `rycolab report` reads it; `rycolab db sql "select ..."`
+latency, GPU clock / W / C / utilisation and whether the GPU curve is on),
+events, battery health, `dev log` rows. `rycolab report` reads it; `rycolab db sql "select ..."`
 runs any read-only query, `rycolab db export <table>` dumps one as CSV or
 JSONL, and `rycolab db import` brings the JSONL files of 0.2 in once.
 `guard\positives\` and `campaigns\<name>\positives\` keep the raw output of
@@ -217,6 +219,15 @@ how much of it the machine was in use, package power on AC and on battery,
 the split by power mode, GPU mode and Windows overlay, EC and core
 temperatures, fans, charging, the dGPU on the bus, the SMU's read latency,
 the panel on battery, the events.
+
+## The NVIDIA GPU curve
+
+`rycolab gpu import <Afterburner profile>` (or `gpu set --lock 2655@875`)
+and `rycolab gpu apply` put an undervolt V/F curve on an NVIDIA GPU and the
+guard keeps it there: at logon, after sleep, when the dGPU comes back on the
+bus; a driver reset withdraws it and sets a safety lock. The curve is yours;
+rycolab does not search for the GPU's limit. Ported from Green Curve (MIT),
+verified on an RTX 5080 Laptop (Blackwell); see `docs/gpu.md`.
 
 ## Lenovo Legion extras
 
