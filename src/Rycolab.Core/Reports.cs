@@ -80,6 +80,19 @@ public static class PowerReport
         sb.AppendLine($"| core GHz max p95 | {P95(ac, t => t.Tick.Extras?.CoreGhzMax)} | {P95(bat, t => t.Tick.Extras?.CoreGhzMax)} |");
         sb.AppendLine($"| battery W mean in use / idle | - | {Mean(bat.Where(t => InUse(t) == true).ToList(), t => t.Tick.Extras?.BatW)} / {Mean(bat.Where(t => InUse(t) == false).ToList(), t => t.Tick.Extras?.BatW)} |");
         sb.AppendLine($"| SMU read ms mean / p95 / max | {IntStats(ac, t => t.Tick.Extras?.SmuMs)} | {IntStats(bat, t => t.Tick.Extras?.SmuMs)} |");
+        var gpuAc = ac.Where(t => t.Tick.Extras?.GpuMhz is not null).ToList();
+        var gpuBat = bat.Where(t => t.Tick.Extras?.GpuMhz is not null).ToList();
+        if (gpuAc.Count + gpuBat.Count > 0)
+        {
+            sb.AppendLine($"| GPU hours on the bus | {gpuAc.Sum(Hours):F1} | {gpuBat.Sum(Hours):F1} |");
+            sb.AppendLine($"| GPU MHz p50 / p95 | {P50P95(gpuAc, t => t.Tick.Extras?.GpuMhz)} | {P50P95(gpuBat, t => t.Tick.Extras?.GpuMhz)} |");
+            sb.AppendLine($"| GPU W mean / p95 | {MeanP95(gpuAc, t => t.Tick.Extras?.GpuW)} | {MeanP95(gpuBat, t => t.Tick.Extras?.GpuW)} |");
+            sb.AppendLine($"| GPU C mean / max | {MeanMax(gpuAc, t => t.Tick.Extras?.GpuC)} | {MeanMax(gpuBat, t => t.Tick.Extras?.GpuC)} |");
+            sb.AppendLine($"| GPU util % mean / p95 | {MeanP95(gpuAc, t => (double?)t.Tick.Extras?.GpuUtil)} | {MeanP95(gpuBat, t => (double?)t.Tick.Extras?.GpuUtil)} |");
+            var curveTicks = ticks.Where(t => t.Tick.Extras?.GpuCurve is not null).ToList();
+            if (curveTicks.Count > 0)
+                sb.AppendLine($"| GPU curve profile on | {curveTicks.Where(t => t.Tick.Extras?.Ac == true).Sum(t => t.Tick.Extras!.GpuCurve == true ? Hours(t) : 0):F1} h of {gpuAc.Sum(Hours):F1} | {curveTicks.Where(t => t.Tick.Extras?.Ac == false).Sum(t => t.Tick.Extras!.GpuCurve == true ? Hours(t) : 0):F1} h of {gpuBat.Sum(Hours):F1} |");
+        }
         sb.AppendLine();
 
         if (batSessions.Count > 0)
@@ -127,7 +140,8 @@ public static class PowerReport
 
         var inWindow = events.Where(e => e.Ts >= since && e.Ts < until).ToList();
         int Count(string kind) => inWindow.Count(e => e.Kind == kind);
-        sb.AppendLine($"Events: {Count("whea")} WHEA, {Count("reset")} resets, {Count("changed")} margin lost, {Count("resume")} resumes, {Count("apply-failed")} failed applies, {Count("tick-failed")} tick failures.");
+        sb.AppendLine($"Events: {Count("whea")} WHEA, {Count("reset")} resets, {Count("changed")} margin lost, {Count("resume")} resumes, {Count("apply-failed")} failed applies, {Count("tick-failed")} tick failures" +
+                      (inWindow.Any(e => e.Kind.StartsWith("gpu-")) ? $"; GPU: {Count("gpu-tdr")} driver resets, {Count("gpu-apply")} curve applies, {Count("gpu-changed")} curve lost, {Count("gpu-lock")} safety locks" : "") + ".");
         return sb.ToString();
     }
 
@@ -171,6 +185,12 @@ public static class PowerReport
         foreach (var g in groups)
             sb.AppendLine($"| {g.Key} | {g.Sum(hours):F1} | {g.Where(t => t.Tick.Extras?.Ac == false).Sum(hours):F1} | {Mean(g.ToList(), t => t.Tick.PackagePower)} | {Mean(g.ToList(), t => t.Tick.Extras?.EcCpuC)} |");
         sb.AppendLine();
+    }
+
+    private static string P50P95(List<TickRow> ticks, Func<TickRow, int?> f)
+    {
+        var xs = ticks.Select(f).Where(x => x is not null).Select(x => (double)x!.Value).ToList();
+        return xs.Count == 0 ? "-" : $"{Sampler.Percentile(xs, 0.5):F0} / {Sampler.Percentile(xs, 0.95):F0}";
     }
 
     private static string P95(List<TickRow> ticks, Func<TickRow, double?> f)

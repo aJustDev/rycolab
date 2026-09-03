@@ -8,10 +8,12 @@ public class PowerReportTests
     private static readonly DateTime T0 = new(2026, 9, 1, 10, 0, 0);
 
     private static TickRow Tick(int minute, bool ac, double? pkg, double? batW = null, double? batWh = null, double? pct = null, int? mode = null, int? gpu = null, int? hz = null, int? ecCpu = null,
-        double? coreTemp = null, int? coreHot = null, double? ghz = null, int? idle = null, double? chargeW = null, string? chargeMode = null, bool? dgpu = null, string? overlay = null, int? smu = null)
+        double? coreTemp = null, int? coreHot = null, double? ghz = null, int? idle = null, double? chargeW = null, string? chargeMode = null, bool? dgpu = null, string? overlay = null, int? smu = null,
+        int? gpuMhz = null, double? gpuW = null, int? gpuC = null, int? gpuUtil = null, bool? gpuCurve = null)
         => new(minute, 1, new GuardTick(T0.AddMinutes(minute), minute * 60, true, [-40], 0, 5.0, pkg, "ok",
             new TickExtras(ac, batW, pct, batWh, 80.0, ecCpu, null, null, 2000, null, null, mode, gpu, hz, 40,
-                coreTemp, coreHot, null, ghz, idle, chargeW, chargeMode, dgpu, overlay, smu)));
+                coreTemp, coreHot, null, ghz, idle, chargeW, chargeMode, dgpu, overlay, smu,
+                gpuMhz, gpuMhz is null ? null : 14001, gpuW, gpuC, gpuUtil, gpuCurve, gpuCurve is null ? null : 0)));
 
     private static readonly List<SessionRow> Sessions = [new(1, T0, null, 1, "-40", 60, false, null)];
 
@@ -66,9 +68,9 @@ public class PowerReportTests
     {
         List<TickRow> ticks =
         [
-            Tick(0, true, 10, mode: 3, ecCpu: 50, coreTemp: 60, coreHot: 3, ghz: 5.2, idle: 10, chargeW: 45, chargeMode: "conservation", dgpu: true, overlay: "balanced", smu: 30),
-            Tick(1, true, 20, mode: 3, ecCpu: 60, coreTemp: 70, coreHot: 3, ghz: 5.4, idle: 400, chargeW: 45, chargeMode: "conservation", dgpu: true, overlay: "balanced", smu: 40),
-            Tick(2, true, 30, mode: 3, ecCpu: 70, coreTemp: 80, coreHot: 5, ghz: 5.45, idle: 5, chargeMode: "conservation", dgpu: true, overlay: "balanced", smu: 50),
+            Tick(0, true, 10, mode: 3, ecCpu: 50, coreTemp: 60, coreHot: 3, ghz: 5.2, idle: 10, chargeW: 45, chargeMode: "conservation", dgpu: true, overlay: "balanced", smu: 30, gpuMhz: 210, gpuW: 12.0, gpuC: 40, gpuUtil: 0, gpuCurve: true),
+            Tick(1, true, 20, mode: 3, ecCpu: 60, coreTemp: 70, coreHot: 3, ghz: 5.4, idle: 400, chargeW: 45, chargeMode: "conservation", dgpu: true, overlay: "balanced", smu: 40, gpuMhz: 2655, gpuW: 120.0, gpuC: 70, gpuUtil: 98, gpuCurve: true),
+            Tick(2, true, 30, mode: 3, ecCpu: 70, coreTemp: 80, coreHot: 5, ghz: 5.45, idle: 5, chargeMode: "conservation", dgpu: true, overlay: "balanced", smu: 50, gpuMhz: 2640, gpuW: 118.0, gpuC: 72, gpuUtil: 99, gpuCurve: false),
             Tick(3, false, 8, batW: 10, batWh: 60, pct: 75, mode: 1, gpu: 1, hz: 60, ecCpu: 45, coreTemp: 50, coreHot: 0, ghz: 4.0, idle: 20, chargeMode: "conservation", dgpu: false, overlay: "best power efficiency", smu: 35),
             Tick(4, false, 6, batW: 12, batWh: 59.8, pct: 74.8, mode: 1, gpu: 1, hz: 60, ecCpu: 41, coreTemp: 52, coreHot: 0, ghz: 4.4, idle: 900, chargeMode: "conservation", dgpu: false, overlay: "best power efficiency", smu: 45),
         ];
@@ -89,6 +91,11 @@ public class PowerReportTests
         Assert.Contains("| core GHz max p95 | 5.45 | 4.40 |", md);
         Assert.Contains("| battery W mean in use / idle | - | 10.0 / 12.0 |", md);
         Assert.Contains("| SMU read ms mean / p95 / max | 40 / 50 / 50 | 40 / 45 / 45 |", md);
+        Assert.Contains("| GPU hours on the bus | 0.1 | 0.0 |", md);
+        Assert.Contains("| GPU MHz p50 / p95 | 2640 / 2655 | - |", md);
+        Assert.Contains("| GPU W mean / p95 | 83.3 / 120.0 | - |", md);
+        Assert.Contains("| GPU C mean / max | 61 / 72 | - |", md);
+        Assert.Contains("| GPU curve profile on | 0.0 h of 0.1 | 0.0 h of 0.0 |", md);
         Assert.Contains("### By Windows overlay", md);
         Assert.Contains("| best power efficiency | 0.0 | 0.0 | 7.0 | 43 |", md);
         Assert.Contains("Charging: 0.0 h at 45.0 W mean; charge mode: conservation 0.1 h.", md);
