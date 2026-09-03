@@ -79,8 +79,15 @@ profile was on; `rycolab db sql` has the rest.
   driver; rycolab writes only through NvAPI and reads only through NVML.
   Running Afterburner or Green Curve at the same time is a fight over the
   same curve, like Legion Toolkit over the CO margins.
-- Read on the reference machine 2026-09-03 (128 points), a single-point
-  write verified (-15 MHz on point 70: 2160 -> 2145 MHz and back).
+- Verified on the reference machine 2026-09-03: the 128 points read; a
+  single-point write (-15 MHz on point 70: 2160 -> 2145 MHz and back); the
+  Blackwell flatten (47 points in one write, the driver reports the whole
+  tail at the lock point's 2617 MHz, reset to 0 clean).
+- The base curve moves. Minutes apart the same point read 2355 and 2617
+  MHz with no offset on it (temperature, power mode). The offsets ride on
+  the base, so a lock's clock drifts with it, exactly as Afterburner's
+  does; the guard therefore checks the shape (flat from the lock voltage)
+  and not the MHz, which is verified once at apply and shown by `probe`.
 
 ## Sources
 

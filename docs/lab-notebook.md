@@ -1064,3 +1064,29 @@ LLT or HWiNFO are open. `charge_w` is null because the pack sits at 80 %
 under conservation. `report --power --since 3h` shows the new rows and
 the `In use %` / `dGPU h` columns; the battery session of 11:46 predates
 the columns, hence its dashes.
+
+## 2026-09-03 21:10 - The RTX 5080's V/F curve: read, written, flattened
+
+Private NvAPI through `nvapi_QueryInterface`, layouts from Green Curve
+(status entries at 0x48 stride 0x1C; control mask at +4, entries at 0x44
+stride 0x24, delta at +0x14: the control layout in LACT #936 reads garbage
+here). RTX 5080 Laptop, Blackwell 0x1B0, driver r616, 128 points all
+editable, point 127 the low-power one (525 mV / 405 MHz).
+
+- Single point: -15 MHz on point 70 (890 mV): 2160 -> 2145 MHz, offset
+  read back -15, restored to 0 -> 2160. SetControl status 0 both ways.
+- Flatten at point 80 (950 mV) to its own 2617 MHz: one SetControl with
+  47 mask bits (lock +262, tail -1000), zero unconverged, and the driver
+  reports the entire tail at 2617 (points 90-126 all 2617, offsets -1000):
+  it clamps the tail to the lock point rather than showing base - 1000.
+  Reset of the 47 points: status 0, nothing left, [80] back to 2355.
+- The base curve drifts by ~260 MHz between reads minutes apart with no
+  offsets on it (2355 / 2617 at 950 mV, 2827 / 3172 at the top). The
+  Afterburner profile's saved bases (2355 at 875 mV) match the elevated
+  state. Consequence for the guard: verify the shape (flat from the lock
+  voltage), not the clock; re-computing offsets on every drift would
+  thrash into the safety lock.
+- The user's Afterburner curve decoded: 127 triplets (offset MHz, mV,
+  base MHz); +300 MHz up to ~865 mV, then offsets tapering so that
+  base + offset = 2655 from 875-900 mV to the top: a 2655 MHz lock at
+  875 mV with +300 below.
