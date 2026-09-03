@@ -1114,3 +1114,25 @@ counts as a reset; a curve lost within 10 min of a reset locks instead of
 re-applying; NVML values outside plausible ranges close the handle. Lesson
 for the field notes: a laptop's GPU base curve is two curves, and anything
 derived against one of them must be checked against the other.
+
+## 2026-09-04 00:30 - Time Spy A-B-C: the tail does not matter, the undervolt gives +2 %
+
+Same machine, same hour, `dev log --interval 2` (now with NVML columns)
+during Time Spy, samples with GPU utilisation >= 90 %:
+
+| Curve | Time Spy | GPU MHz mean (p10-p90) | GPU W | GPU C | Tctl max |
+|---|---|---|---|---|---|
+| stock (offsets 0) | 20069 | 2337 (2287-2385) | 171.3 | 73.3 | 100.9 |
+| +300@875, tail floored (-1000, Green Curve) | 20449 | 2464 (2415-2535) | 164.5 | 70.6 | 101.0 |
+| +300@875, tail per point (Afterburner's offsets) | 20342 | 2492 (2437-2542) | 168.7 | 70.4 | 101.5 |
+
+The GPU is at its power limit (165-175 W) in every run; the lock at 2655
+is never reached in Time Spy, so the two tail shapes are equivalent (the
+driver honoured the per-point tail deltas exactly, readback identical to
+the Afterburner blob). The undervolt buys ~130 MHz at the same power, 3-4
+C less on the GPU, and +1.5-2 % of score. The 21160 of 2026-08-25 with
+Afterburner is 3.5 % above tonight's undervolt runs: another day (the CPU
+sits at 100 C in all three runs, and the CPU test is part of the score),
+not another curve. The 16312 of 00:20 was the run 3DMark made while its
+SystemInfo updated and crashed. Default tail from now on: per point
+(exactly what Afterburner writes); the floor stays as an option.

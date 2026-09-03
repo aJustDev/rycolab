@@ -32,12 +32,17 @@ profile, the clock it yields moves with the base, and `gpu probe` shows
 both.
 
 Applying it means writing a frequency offset per point through the private
-NvAPI calls the overclocking tools use. On Blackwell (RTX 50) the driver
-ignores individual offsets on the points above the lock, so every tail
-point gets the driver's minimum offset (-1000 MHz) and the lock point alone
-sets the ceiling: the mechanism Green Curve found and rycolab ports. Every
-write is read back; a curve that does not land is reset to the driver's
-own (`FlattenTargets`, `Apply`, `IsFlatAt` in `VfCurve.cs`).
+NvAPI calls the overclocking tools use. The points above the lock can be
+written two ways (`gpu tail`): each with the offset that puts it at the
+lock's clock, which is what Afterburner writes and the default, or all at
+the driver's minimum offset (-1000 MHz) with the lock point alone setting
+the ceiling, Green Curve's Blackwell way. On the reference machine the
+driver honoured both, reported both as flat, and Time Spy could not tell
+them apart (2026-09-04: the GPU sits at its power limit well under the
+lock). Every write is read back; a curve that does not land is reset to
+the driver's own (`FlattenTargets`, `Apply` in `VfCurve.cs`), and an apply
+always starts from offsets 0 because the base cannot be read off a curve
+that carries them.
 
 ## Commands
 
@@ -45,6 +50,7 @@ own (`FlattenTargets`, `Apply`, `IsFlatAt` in `VfCurve.cs`).
 rycolab gpu probe [--all]                  the GPU, its family, the curve and the offsets on it
 rycolab gpu import <file> [--profile 1]    an Afterburner profile (Profiles\VEN_10DE...cfg) or a Green Curve config.ini
 rycolab gpu set --offset +300@875 [--below 300]   (or --lock 2655@875: derived against the base read now)
+rycolab gpu tail points|floor                 how the points above the lock are written (default points)
 rycolab gpu show                           the saved profile and whether it is on the curve
 rycolab gpu apply | on | off               put it on the curve (the guard keeps it) | clear a safety lock and apply | offsets to 0
 ```
