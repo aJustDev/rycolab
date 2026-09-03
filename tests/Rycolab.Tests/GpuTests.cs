@@ -206,8 +206,17 @@ public class GpuProfileTests
         pts[127] = new VfPoint(127, 405000, 525000, 0);
         var p = new GpuProfile { LockMv = 887, LockMhz = 2400 };   // point 70 = 887.5 mV = 2400 MHz, flat after
         Assert.True(CurveApply.IsApplied(pts, p));
-        Assert.False(CurveApply.IsApplied(pts, new GpuProfile { LockMv = 887, LockMhz = 2300 }));
+        Assert.Equal(2400, CurveApply.LockMhzNow(pts, p));
+        // The base drifted: the same shape 260 MHz higher is still the profile.
+        var drifted = pts.Select(q => q.Index == 127 ? q : q with { Khz = q.Khz + 260000 }).ToArray();
+        Assert.True(CurveApply.IsApplied(drifted, p));
+        Assert.Equal(2660, CurveApply.LockMhzNow(drifted, p));
+        // Flat from a different voltage, or not flat at all: not the profile.
+        Assert.False(CurveApply.IsApplied(pts, new GpuProfile { LockMv = 950, LockMhz = 2400 }));
         Assert.False(CurveApply.IsApplied(pts, new GpuProfile { LockMv = 1300, LockMhz = 2400 }));
+        var rising = pts.Select(q => q.Index == 127 ? q : q with { Khz = 1000000 + q.Index * 20000 }).ToArray();
+        Assert.False(CurveApply.IsApplied(rising, p));
+        Assert.Null(CurveApply.LockMhzNow(rising, p));
         Assert.Equal("2400 MHz from 887 mV", p.Describe);
     }
 }

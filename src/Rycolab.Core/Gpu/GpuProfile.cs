@@ -162,7 +162,18 @@ public static class CurveApply
         return new Result(false, $"the curve did not flatten (lock point {after[lockIndex].Mhz} MHz, top {top} MHz); offsets reset to 0", lockIndex, after);
     }
 
-    /// <summary>Is the profile on the curve right now: the lock point at its MHz and nothing above.</summary>
+    /// <summary>
+    /// Is the profile on the curve right now: flat from the lock voltage on.
+    /// The shape, not the MHz: the driver's base curve moves by hundreds of
+    /// MHz between reads (temperature, power mode; seen on the reference
+    /// machine 2026-09-03, 2355 and 2617 MHz at 950 mV minutes apart) and
+    /// the offsets ride on it, so the lock point's clock drifts while the
+    /// profile is perfectly in place. The MHz is verified once, at apply.
+    /// </summary>
     public static bool IsApplied(VfPoint[] curve, GpuProfile profile)
-        => VfCurve.IndexForMv(curve, profile.LockMv) is { } i && VfCurve.IsFlatAt(curve, i, profile.LockMhz);
+        => VfCurve.IndexForMv(curve, profile.LockMv) is { } i && VfCurve.DetectLock(curve, VfCurve.VerifyToleranceMhz) == i;
+
+    /// <summary>The clock the lock point reads right now, null when the profile is not on the curve.</summary>
+    public static int? LockMhzNow(VfPoint[] curve, GpuProfile profile)
+        => IsApplied(curve, profile) && VfCurve.IndexForMv(curve, profile.LockMv) is { } i ? curve[i].Mhz : null;
 }
