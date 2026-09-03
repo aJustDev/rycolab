@@ -77,6 +77,11 @@ battery). Each knob was measured on the reference machine before going in
 in the default profile.
 
 
+Whether the profile pays off is in the database: every guard tick records
+the line, the battery's W, % and Wh, the EC's temperatures and fans and the
+power and GPU mode, and `rycolab report --power --since 7d` turns that into
+hours on battery, Wh per battery session and package W by mode.
+
 ## The dGPU and the switch to iGPU-only
 
 Probes wake the dGPU: nvidia-smi, NVML and `Win32_VideoController` all reset

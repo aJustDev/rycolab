@@ -1000,3 +1000,24 @@ needs seconds, not minutes, once nothing touches its driver. The
 notify-retry round, the marker and the guard's nudges stay as a safety
 net that has not been needed since the probe fix. Comments and README
 corrected.
+
+## 2026-09-03 - One database for everything; the JSONL era imported
+
+Phase 7a of the audit: `rycolab.db` at the data root is the history of
+everything, WAL + `synchronous=FULL`, and the JSONL journals are gone
+(`Journal` keeps only the whole-file JSON helpers). The guard's tick now
+carries the battery (line, W, %, Wh), the Lenovo EC (three temperatures,
+three fans, power mode, GPU mode) and the panel (Hz, brightness); the
+sweep inserts a `running` row per run (that row replaces
+`in-progress.json`) and a sample row per second; limits and campaigns
+live in tables; `dev log` rows go to `bench_samples` as well as the CSV.
+
+Import on the reference machine (1.6 s): guard.jsonl -> 58 sessions,
+2559 ticks, 324 events, 3 health samples; find-20260828-1232 -> 86 runs,
+24781 samples, 16 limits, identical to limits.json. `report --campaigns`
+and `report find-20260828-1232` reproduce the campaign report; `report
+--power --since 30d` on the imported ticks shows 42.6 h guarded and no
+line state (the old tick had none). `db sql "delete ..."` fails with
+"attempt to write a readonly database". The import is incremental for
+the guard journal because the installed 0.2 guard keeps appending until
+it is reinstalled.

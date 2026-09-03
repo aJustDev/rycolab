@@ -42,7 +42,7 @@ Four signals count as a positive, all validated on the reference machine:
 | Compute error | y-cruncher output line matching `error|fail|mismatch|invalid|exception|crash` (minus `0 errors`, `no errors`, `passed`, `Stop on Error`); exit 1 with `StopOnError` | `SFTv4 Failed`, `Bottom word mismatch`, `Checksum Mismatch` |
 | Process crash | the engine process ends on its own | exit `0xc0000005`, mini-dump |
 | Hardware error | Windows System log, `WHEA-Logger` ids 17-20, 46, 47 or `Kernel-Power` 41 since the run started | id 47, corrected, memory component |
-| Machine hang | `in-progress.json` still present when the sweep starts again (the BIOS restored the baseline by itself) | cold reboot, Kernel-Power 41 |
+| Machine hang | a run still `running` in the database when the sweep starts again after a reboot (the BIOS restored the baseline by itself) | cold reboot, Kernel-Power 41 |
 
 A run is **clean** only when the engine is killed by the harness after the
 full duration with none of the above.
@@ -59,12 +59,14 @@ the baseline:
 | confirm | a long run at the limit; a positive moves the limit one step up and confirms again | 1800 s |
 | soak | light load (`04-P4P`, the engine that reaches fMax) at limit + safety margin, where the profile will actually run; a positive moves the limit one step up and soaks again | 600 s |
 
-The **limit** written to `limits.json` is the one that survived confirm and
+The **limit** recorded for the core is the one that survived confirm and
 soak; the profile is limit + safety margin (5). Every run writes the margin,
-verifies it, drops `in-progress.json`, runs the engine pinned to the core
-with periodic suspension, samples telemetry at 1 Hz, kills the engine,
-restores the baseline, and records the result with its stage (JSONL
-write-through plus SQLite). Resumable: cores with a limit are skipped.
+verifies it, inserts a `running` row in the database, runs the engine
+pinned to the core with periodic suspension, samples telemetry at 1 Hz (a
+row per sample), kills the engine, restores the baseline, and fills in the
+verdict with its stage. Resumable: cores with a limit are skipped, and a
+row still `running` at the next start is a machine hang (positive) or, in
+the same boot session, a killed process (the run repeats).
 
 Why the stages: time to error grows as the margin rises (reference machine,
 CCD0, `24-ZN5`: -50 fails in 9-39 s, -45 in 79-99 s), so 6 minutes per run
@@ -135,7 +137,8 @@ If the margin is lost without a resume it re-applies (at most three times an
 hour). Any WHEA event: restore the baseline, exit with code 10. On exit,
 always the baseline.
 
-The scheduled task runs it hidden at logon; `status` reads its journal.
+The scheduled task runs it hidden at logon; `status` reads the state file it
+publishes every tick, `report` the database (see Data below).
 
 ## What the literature says, and what it means here
 
@@ -145,3 +148,34 @@ load**, not under an all-core stress test (Kernel-Power 41 at the desktop,
 finds the point where the core computes wrong; the guard, the idle soak and
 days of real use with sleep are the validation. Guides recommend staying one
 or two steps above the first instability; the default safety margin is +5.
+
+## Data
+
+One SQLite database, `%LOCALAPPDATA%\rycolab\rycolab.db`, holds the history
+of everything (`Store.cs`). WAL, so the unelevated `report` and `db` read
+while the guard writes; `synchronous=FULL`, so a row is on disk when the
+call returns and a hang keeps the last seconds (the reason the JSONL
+journal of 0.1/0.2 was write-through; the database replaced it in 0.3.0,
+`rycolab db import` brings the old files in once, incrementally for a
+guard journal that is still being written).
+
+| Table | One row per | Written by |
+|---|---|---|
+| `campaigns` | `find` / `dev sweep` campaign (name, plan as JSON, cores, quick) | Sweep |
+| `runs` | engine run: core, margin, engine, stage, verdict, seconds, error, WHEA, the telemetry medians and maxima, `boot` | Sweep (`running` first, the verdict at the end) |
+| `samples` | second of a run: clock, effective clock, V, GHz, W, temperature, package W, Tctl | Sweep |
+| `limits` | core closed by a campaign (null: nothing up to the top survived) | Sweep |
+| `sessions` | guard start (profile, interval, ad hoc or installed, exit code) | Guard |
+| `ticks` | guard interval: margins read back, WHEA, CPU load, package W, state, AC line, battery W / % / Wh, EC temperatures and fans, power and GPU mode, panel Hz and brightness | Guard |
+| `events` | guard or sweep event (`source`, kind, detail) | Guard, Sweep |
+| `health` | day: full-charge Wh, design Wh, cycles | Guard |
+| `bench`, `bench_samples` | `dev log` session and its rows (the CSV is the export) | `dev log` |
+
+`report` reads it (`<campaign>`, `guard`, `--power`, `--campaigns`,
+`--health`); `rycolab db sql "..."` runs any read-only statement and
+`rycolab db export <table>` dumps one as CSV or JSONL. Schema changes are
+additive (`Store.Migrate`); the rule for new data is in `CLAUDE.md`. What
+stays in files: `profile.json`, `config.json`, `state.json`,
+`validation.json` (state and configuration), the raw engine output of a
+positive (`campaigns\<name>\positives\`) and the WHEA snapshots
+(`guard\positives\`).

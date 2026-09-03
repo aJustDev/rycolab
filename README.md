@@ -93,7 +93,11 @@ rycolab status [--once]       is the profile on the cores, in what phase, last s
                               machine, the Lenovo EC (needs sudo) and the Windows scheme; --follow is
                               the per-core guard view
 rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md writes markdown
+rycolab report --power        hours guarded and on battery, Wh per battery session, package W, EC temps and
+                              fans, by power mode, health (--since 30d|7d|24h or --month 2026-08)
+rycolab report --campaigns    every campaign and the limit per core side by side
 rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
+rycolab db stats|sql "<select>"|export <table>   the database: the history of everything (also path, import)
 rycolab legion <command>      Lenovo Legion only: fan, power (battery profile), charge (docs/legion.md)
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
@@ -161,11 +165,17 @@ values, and `rycolab off` does the same without rebooting.
 
 Data lives in `%LOCALAPPDATA%\rycolab` (`RYCOLAB_HOME` overrides): `bin\`,
 `tools\y-cruncher\`, `config.json` (baseline, engines, tests, seconds),
-`profile.json`, `state.json`, `validation.json`, `guard\` (journal, SQLite,
-positives) and `campaigns\<name>\` (`runs.jsonl`, `samples.jsonl`,
-`rycolab.db`, `limits.json`, `in-progress.json`, `positives\`).
-`docs/profile.reference.json` is the reference machine's profile, kept as an
-example of the format only.
+`profile.json`, `state.json`, `validation.json`, and `rycolab.db`, one
+SQLite database with the history of everything: campaigns, runs, samples,
+limits, guard sessions, ticks (margins, WHEA, load, package W, battery, EC
+temperatures and fans, power and GPU mode, panel), events, battery health,
+`dev log` rows. `rycolab report` reads it; `rycolab db sql "select ..."`
+runs any read-only query, `rycolab db export <table>` dumps one as CSV or
+JSONL, and `rycolab db import` brings the JSONL files of 0.2 in once.
+`guard\positives\` and `campaigns\<name>\positives\` keep the raw output of
+a positive. `docs/profile.reference.json` is the reference machine's
+profile, kept as an example of the format only; `docs/how-it-works.md`
+lists the tables.
 
 ## How it works
 
@@ -199,7 +209,10 @@ rate. The summary uses the samples above 100 W of package power
 (`--min-power`); with `--battery` it uses the samples on battery instead and
 adds the runtime a full charge would give at the mean discharge.
 `rycolab report --health` is the battery capacity history the guard samples
-once a day.
+once a day, and `rycolab report --power` what its ticks say about a period:
+hours guarded and on battery, each battery session with the Wh it used,
+package power on AC and on battery, the split by power and GPU mode, EC
+temperatures and fans, the panel on battery, the events.
 
 ## Lenovo Legion extras
 
@@ -256,7 +269,8 @@ dotnet test -c Release tests/Rycolab.Tests
 
 The tests cover the logic that does not need the hardware (mask encoding,
 the walk in steps, argument parsing, profile refusal rules, the y-cruncher
-error criterion against real outputs, the journal to SQLite rebuild). CI
+error criterion against real outputs, the database round trips and the
+import of the 0.2 journals, the power and campaign reports). CI
 runs them on every push.
 
 `rycolab` is not on the PATH until `install` puts it there, and the
