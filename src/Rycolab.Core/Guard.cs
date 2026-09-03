@@ -377,7 +377,8 @@ public sealed class Guard
         if (_ec is { IsAvailable: true } ec)
             Source("ec", () =>
             {
-                ecCpu = ec.CpuTempC; ecGpu = ec.GpuTempC; ecPch = ec.PchTempC;
+                // The EC reports 0 C for a dGPU that is off the bus (iGPU-only, or ejected): not a temperature.
+                ecCpu = ec.CpuTempC; ecGpu = ec.GpuTempC is > 0 and var g ? g : null; ecPch = ec.PchTempC;
                 fanCpu = ec.CpuFanRpm; fanGpu = ec.GpuFanRpm; fanPch = ec.PchFanRpm;
                 mode = ec.SmartFanMode; gpu = ec.IGpuMode;
             });
