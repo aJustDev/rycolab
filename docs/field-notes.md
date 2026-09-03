@@ -47,3 +47,9 @@ not assumed. The raw numbers are in `lab-notebook.md`; the Lenovo-only ones
   per-core Curve Optimizer on mode change, AC events, resume and start. The
   guard re-applies the profile within one interval and gives up after three
   times in an hour; close one of the two.
+- The RTX 5080 Laptop's V/F base curve is not one curve: it reads ~260 MHz
+  higher awake than idle (2617 vs 2355 MHz at 950 mV), and per-point
+  offsets ride on whichever state the driver is in. A clock target derived
+  against the idle base overshoots by that much when the card wakes and
+  the driver resets in a loop (`nvlddmkm` 153). Store offsets, as
+  Afterburner does, never clocks (2026-09-03).

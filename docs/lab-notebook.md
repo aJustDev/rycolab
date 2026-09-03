@@ -1090,3 +1090,27 @@ editable, point 127 the low-power one (525 mV / 405 MHz).
   base MHz); +300 MHz up to ~865 mV, then offsets tapering so that
   base + offset = 2655 from 875-900 mV to the top: a 2655 MHz lock at
   875 mV with +300 below.
+
+## 2026-09-03 23:44 - The first GPU profile, and a TDR loop: offsets, not clocks
+
+`gpu apply` of the imported Afterburner profile, expressed then as a clock
+(2655 MHz at 875 mV): the base at point 68 read 2122 MHz, so the lock got
++533 MHz. Verified flat, `probe` read 2655 at the lock. Ten minutes later
+the same lock read 2887, then 2647, then 2895: the base curve sits in two
+states ~260 MHz apart and the offset rides it. Opening 3DMark (the MUX
+switch wakes the card into the high state) gave twenty `nvlddmkm` 153
+"Restarting TDR occurred on GPUID:100" in two minutes (23:44:15 to
+23:45:39), the screen flipping in and out of the direct dGPU output. The
+guard, watching only `Display` 4101 and `nvlddmkm` 14, saw no reset; it
+saw the curve lose the profile (23:45:47, 23:46:48) and re-applied twice.
+NVML answered success with garbage after the resets (2332033 MHz,
+2336538 W, util -97491968), a stale handle.
+
+Afterburner's own offset on that point was +300 against the awake base
+(2355): 2655 awake, 2422 idle, never above 2655. Fixes: the profile stores
+the offset (`LockOffsetMhz`), the import keeps Afterburner's, `set --lock`
+warns that it derives against the base of the moment; `nvlddmkm` 153
+counts as a reset; a curve lost within 10 min of a reset locks instead of
+re-applying; NVML values outside plausible ranges close the handle. Lesson
+for the field notes: a laptop's GPU base curve is two curves, and anything
+derived against one of them must be checked against the other.

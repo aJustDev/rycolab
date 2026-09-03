@@ -12,10 +12,24 @@ hand; rycolab measures what it does and keeps it in place.
 The driver exposes a voltage/frequency curve of 128 points (on the
 reference machine's RTX 5080 Laptop: 450 mV / 180 MHz at the bottom, 1240 mV
 / 2827 MHz at the top; point 127 is the low-power point). An undervolt is
-"flat at F MHz from V mV up": the GPU never asks for more than V to run at
-F, and never runs faster than F. rycolab stores exactly that
-(`gpu-profile.json`: `LockMhz`, `LockMv`, and `LowOffsetMhz`, a uniform
-offset for the points below the lock, capped so none of them rises above it).
+"flat from V mV up": the GPU never asks for more than V, and never runs
+faster than the lock point. rycolab stores it the way Afterburner does
+(`gpu-profile.json`): `LockOffsetMhz`, the offset on the lock point at
+`LockMv`, and `LowOffsetMhz`, a uniform offset for the points below,
+capped so none of them rises above the lock. `LockMhz` and `LockBaseMhz`
+only record what the offset meant where it was derived.
+
+Why offsets and not a clock: the driver's base curve is not one curve. On
+the reference machine it sits in two states about 260 MHz apart (idle and
+awake; 2355 and 2617 MHz at 950 mV minutes apart, no offset on either),
+and the offsets ride on it. A lock expressed as a clock and derived
+against the idle base (+533 MHz for 2655 at 875 mV) became 2895 MHz when
+the card woke for 3DMark: twenty driver resets in two minutes
+(`nvlddmkm` 153, "Restarting TDR occurred on GPUID:100") on 2026-09-03.
+Afterburner's own offset on that point was +300 against the awake base,
+which yields 2655 awake and a harmless 2422 idle. So: the offset is the
+profile, the clock it yields moves with the base, and `gpu probe` shows
+both.
 
 Applying it means writing a frequency offset per point through the private
 NvAPI calls the overclocking tools use. On Blackwell (RTX 50) the driver
@@ -30,17 +44,16 @@ own (`FlattenTargets`, `Apply`, `IsFlatAt` in `VfCurve.cs`).
 ```
 rycolab gpu probe [--all]                  the GPU, its family, the curve and the offsets on it
 rycolab gpu import <file> [--profile 1]    an Afterburner profile (Profiles\VEN_10DE...cfg) or a Green Curve config.ini
-rycolab gpu set --lock 2655@875 [--below 300]
+rycolab gpu set --offset +300@875 [--below 300]   (or --lock 2655@875: derived against the base read now)
 rycolab gpu show                           the saved profile and whether it is on the curve
 rycolab gpu apply | on | off               put it on the curve (the guard keeps it) | clear a safety lock and apply | offsets to 0
 ```
 
 `import` from Afterburner decodes the `VFCurve=` blob of the profile
 (format 2: per point an offset, a voltage and the base clock at save time)
-and takes the plateau as the lock: on the reference machine's profile,
-2655 MHz from 875 mV with +300 MHz below. The base clocks Afterburner saved
-drift with temperature; rycolab computes its offsets against the live curve
-when it applies, so the lock lands where the profile says regardless.
+and takes the plateau as the lock, keeping Afterburner's offset on its
+first point: on the reference machine's profile, +300 MHz at 875 mV (2655
+MHz on the 2355 base Afterburner saw) with +300 MHz below.
 
 `apply` writes, verifies and marks the profile enabled. From then on the
 guard re-applies it at logon, after sleep and when the dGPU comes back on
@@ -50,11 +63,13 @@ at most three times an hour.
 
 ## The safety lock
 
-A driver reset (System log: `Display` 4101, or `nvlddmkm` 14) is the GPU's
-WHEA. The guard logs it (`gpu-tdr`), resets the offsets to 0, disables the
-profile and writes a safety lock into it. The same happens when an apply
-does not verify, or when the curve keeps losing the profile. Nothing is
-re-applied until you run `rycolab gpu on`. `rycolab status` shows the lock
+A driver reset (System log: `nvlddmkm` 153 "Restarting TDR occurred",
+`Display` 4101, or `nvlddmkm` 14) is the GPU's WHEA. The guard logs it
+(`gpu-tdr`), resets the offsets to 0, disables the profile and writes a
+safety lock into it. The same happens when an apply does not verify, when
+the curve loses the profile within ten minutes of a reset, or when it keeps
+losing it (three re-applies in an hour). Nothing is re-applied until you
+run `rycolab gpu on`. `rycolab status` shows the lock
 on the `gpu curve` row; `rycolab report --power` counts the resets.
 
 ## What the guard records
