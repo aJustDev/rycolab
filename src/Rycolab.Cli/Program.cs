@@ -38,6 +38,16 @@ if (command == "legion")
     if (command is null or "help" or "-h") { PrintLegionHelp(); return 0; }
     argv.RemoveAt(0);
 }
+// `gpu <sub>`: the NVIDIA V/F curve.
+var gpu = false;
+if (command == "gpu")
+{
+    gpu = true;
+    command = argv.Count > 0 && !argv[0].StartsWith("--", StringComparison.Ordinal) ? argv[0].ToLowerInvariant() : "probe";
+    if (command is "help" or "-h") { PrintGpuHelp(); return 0; }
+    if (argv.Count > 0 && !argv[0].StartsWith("--", StringComparison.Ordinal)) argv.RemoveAt(0);
+    argv.Insert(0, command);
+}
 var opts = new Args(argv);
 
 if (command is "help" or "-h" or "--help")
@@ -47,7 +57,7 @@ if (command is "help" or "-h" or "--help")
 }
 
 // Commands that only read files never need elevation.
-var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast");
+var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast") || (gpu && command is "probe" or "show");
 if (!unelevated && !Elevation.IsElevated())
 {
     Console.Error.WriteLine($"'rycolab {(dev ? "dev " : legion ? "legion " : "")}{command}' needs administrator privileges to talk to the {(legion ? "EC" : "SMU")}.");
@@ -75,6 +85,8 @@ try
             "log" => LogCommand.Run(opts),
             _ => UnknownDev(command!),
         };
+
+    if (gpu) return GpuCommand.Run(opts);
 
     if (legion)
         return command switch
@@ -191,6 +203,17 @@ static void PrintHelp()
         EXIT CODES
           0 ok   1 error   2 mismatch / refused   3 needs elevation   4 blocked by safety
           10 positive (WHEA or margin lost)
+        """);
+}
+
+static void PrintGpuHelp()
+{
+    Console.WriteLine("""
+        rycolab gpu <command>   (NVIDIA only)
+
+          probe [--all]                 the GPU, its family, the V/F curve (every 8th point; --all every point) and the offsets on it
+
+        Details: docs/gpu.md
         """);
 }
 
