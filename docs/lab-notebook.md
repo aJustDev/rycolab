@@ -1021,3 +1021,25 @@ line state (the old tick had none). `db sql "delete ..."` fails with
 "attempt to write a readonly database". The import is incremental for
 the guard journal because the installed 0.2 guard keeps appending until
 it is reinstalled.
+
+## 2026-09-03 12:08 - Quick campaign on core 0: the four stages, persisted
+
+`find --quick --cores 0 --yes` (three tests, 180 s, 300 s confirm, 120 s
+soak with 04-P4P), campaign find-20260903-1208, 14 min:
+
+| Stage | Margin | Engine | Verdict | s | samples | V | GHz | W | Tmax |
+|---|---|---|---|---|---|---|---|---|---|
+| sweep | -50 | 24-ZN5 | error 67 s (AlgorithmFailedException) | 67 | 64 | 1.006 | 5.13 | 11.0 | 68 |
+| sweep | -40 | 24-ZN5 | clean | 182 | 175 | 1.033 | 5.15 | 7.9 | 76 |
+| fine | -45 | 24-ZN5 | clean | 182 | 176 | 1.019 | 5.15 | 7.5 | 69 |
+| confirm | -45 | 24-ZN5 | clean | 302 | 293 | 1.021 | 5.15 | 7.6 | 69 |
+| soak | -40 | 04-P4P | clean | 122 | 117 | 1.031 | 5.15 | 5.8 | 65 |
+
+Limit -45. The August campaign gave core 0 -40 (its -45 run failed at
+299 s, this one held 302 s in the confirmation): the two are one step
+apart and the quick confirmation is a sixth of the real one, so -40 stays
+the number of record. What the run was for: every row above came out of
+`rycolab db sql` with its stage, samples and telemetry, the `running`
+row was visible with 29 samples 30 s in, the limit and the campaign's
+`ended` were there at the end, and the guard restarted afterwards on the
+same database.
