@@ -4,11 +4,19 @@ using Microsoft.Data.Sqlite;
 
 namespace Rycolab.Core;
 
-/// <summary>What a guard tick knows beyond the margins: battery, Lenovo EC, power and GPU mode, panel. Null where the machine has no such thing.</summary>
+/// <summary>
+/// What a guard tick knows beyond the margins: battery, Lenovo EC, power and
+/// GPU mode, panel; and since 0.4.0 the cores from the PM table (hottest
+/// core, mean voltage, highest clock), the user's idle time, charging (W and
+/// mode), the dGPU on the bus, the Windows overlay and the SMU read latency.
+/// Null where the machine has no such thing.
+/// </summary>
 public sealed record TickExtras(
     bool? Ac, double? BatW, double? BatPct, double? BatWh, double? BatFullWh,
     int? EcCpuC, int? EcGpuC, int? EcPchC, int? FanCpu, int? FanGpu, int? FanPch,
-    int? PowerMode, int? GpuMode, int? Hz, int? Brightness)
+    int? PowerMode, int? GpuMode, int? Hz, int? Brightness,
+    double? CoreTempMax = null, int? CoreHot = null, double? CoreVoltMean = null, double? CoreGhzMax = null,
+    int? IdleS = null, double? ChargeW = null, string? ChargeMode = null, bool? Dgpu = null, string? Overlay = null, int? SmuMs = null)
 {
     public static readonly TickExtras Empty = new(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 }
@@ -30,7 +38,7 @@ public sealed record LimitRow(long CampaignId, string Campaign, int Core, int? M
 /// </summary>
 public sealed class Store : IDisposable
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
 
     public static readonly string[] Tables =
         ["campaigns", "runs", "samples", "limits", "sessions", "ticks", "events", "health", "bench", "bench_samples"];
@@ -68,7 +76,9 @@ public sealed class Store : IDisposable
                 id INTEGER PRIMARY KEY, session_id INT, ts TEXT, elapsed INT, ok INT, hardware TEXT, whea INT, cpu REAL, pkg_w REAL, state TEXT,
                 ac INT, bat_w REAL, bat_pct REAL, bat_wh REAL, bat_full_wh REAL,
                 ec_cpu_c INT, ec_gpu_c INT, ec_pch_c INT, fan_cpu INT, fan_gpu INT, fan_pch INT,
-                power_mode INT, gpu_mode INT, hz INT, brightness INT);
+                power_mode INT, gpu_mode INT, hz INT, brightness INT,
+                core_temp_max REAL, core_hot INT, core_volt_mean REAL, core_ghz_max REAL,
+                idle_s INT, charge_w REAL, charge_mode TEXT, dgpu INT, overlay TEXT, smu_ms INT);
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY, ts TEXT, source TEXT, session_id INT, campaign_id INT, kind TEXT, detail TEXT);
             CREATE TABLE IF NOT EXISTS health (
@@ -110,6 +120,9 @@ public sealed class Store : IDisposable
             ("ticks", "bat_full_wh REAL"), ("ticks", "ec_cpu_c INT"), ("ticks", "ec_gpu_c INT"), ("ticks", "ec_pch_c INT"),
             ("ticks", "fan_cpu INT"), ("ticks", "fan_gpu INT"), ("ticks", "fan_pch INT"), ("ticks", "power_mode INT"),
             ("ticks", "gpu_mode INT"), ("ticks", "hz INT"), ("ticks", "brightness INT"),
+            // 0.4.0
+            ("ticks", "core_temp_max REAL"), ("ticks", "core_hot INT"), ("ticks", "core_volt_mean REAL"), ("ticks", "core_ghz_max REAL"),
+            ("ticks", "idle_s INT"), ("ticks", "charge_w REAL"), ("ticks", "charge_mode TEXT"), ("ticks", "dgpu INT"), ("ticks", "overlay TEXT"), ("ticks", "smu_ms INT"),
             ("events", "source TEXT"), ("events", "session_id INT"), ("events", "campaign_id INT"),
         ];
         foreach (var (table, column) in added)
@@ -250,27 +263,33 @@ public sealed class Store : IDisposable
         var x = t.Extras ?? TickExtras.Empty;
         Exec("""
             INSERT INTO ticks (session_id, ts, elapsed, ok, hardware, whea, cpu, pkg_w, state,
-                ac, bat_w, bat_pct, bat_wh, bat_full_wh, ec_cpu_c, ec_gpu_c, ec_pch_c, fan_cpu, fan_gpu, fan_pch, power_mode, gpu_mode, hz, brightness)
+                ac, bat_w, bat_pct, bat_wh, bat_full_wh, ec_cpu_c, ec_gpu_c, ec_pch_c, fan_cpu, fan_gpu, fan_pch, power_mode, gpu_mode, hz, brightness,
+                core_temp_max, core_hot, core_volt_mean, core_ghz_max, idle_s, charge_w, charge_mode, dgpu, overlay, smu_ms)
             VALUES ($sid, $ts, $el, $ok, $hw, $whea, $cpu, $pkg, $state,
-                $ac, $batw, $batpct, $batwh, $batfull, $eccpu, $ecgpu, $ecpch, $fancpu, $fangpu, $fanpch, $pmode, $gmode, $hz, $bright)
+                $ac, $batw, $batpct, $batwh, $batfull, $eccpu, $ecgpu, $ecpch, $fancpu, $fangpu, $fanpch, $pmode, $gmode, $hz, $bright,
+                $ctmax, $chot, $cvolt, $cghz, $idle, $chargew, $chargemode, $dgpu, $overlay, $smu)
             """,
             ("$sid", sessionId), ("$ts", Iso(t.Ts)), ("$el", t.Elapsed), ("$ok", t.Ok ? 1 : 0), ("$hw", string.Join(",", t.Hardware.Select(h => h?.ToString() ?? "-"))),
             ("$whea", t.Whea), ("$cpu", t.CpuLoad), ("$pkg", t.PackagePower), ("$state", t.State),
             ("$ac", x.Ac is { } ac ? (ac ? 1 : 0) : null), ("$batw", x.BatW), ("$batpct", x.BatPct), ("$batwh", x.BatWh), ("$batfull", x.BatFullWh),
             ("$eccpu", x.EcCpuC), ("$ecgpu", x.EcGpuC), ("$ecpch", x.EcPchC), ("$fancpu", x.FanCpu), ("$fangpu", x.FanGpu), ("$fanpch", x.FanPch),
-            ("$pmode", x.PowerMode), ("$gmode", x.GpuMode), ("$hz", x.Hz), ("$bright", x.Brightness));
+            ("$pmode", x.PowerMode), ("$gmode", x.GpuMode), ("$hz", x.Hz), ("$bright", x.Brightness),
+            ("$ctmax", x.CoreTempMax), ("$chot", x.CoreHot), ("$cvolt", x.CoreVoltMean), ("$cghz", x.CoreGhzMax), ("$idle", x.IdleS),
+            ("$chargew", x.ChargeW), ("$chargemode", x.ChargeMode), ("$dgpu", x.Dgpu is { } d ? (d ? 1 : 0) : null), ("$overlay", x.Overlay), ("$smu", x.SmuMs));
     }
 
     public List<TickRow> Ticks(DateTime since, DateTime? until = null)
         => Read("""
             SELECT id, session_id, ts, elapsed, ok, hardware, whea, cpu, pkg_w, state,
-                   ac, bat_w, bat_pct, bat_wh, bat_full_wh, ec_cpu_c, ec_gpu_c, ec_pch_c, fan_cpu, fan_gpu, fan_pch, power_mode, gpu_mode, hz, brightness
+                   ac, bat_w, bat_pct, bat_wh, bat_full_wh, ec_cpu_c, ec_gpu_c, ec_pch_c, fan_cpu, fan_gpu, fan_pch, power_mode, gpu_mode, hz, brightness,
+                   core_temp_max, core_hot, core_volt_mean, core_ghz_max, idle_s, charge_w, charge_mode, dgpu, overlay, smu_ms
             FROM ticks WHERE ts >= $since AND ($until IS NULL OR ts < $until) ORDER BY id
             """, r =>
             {
                 var hw = (S(r, 5) ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(h => int.TryParse(h, out var v) ? v : (int?)null).ToArray();
                 var extras = new TickExtras(r.IsDBNull(10) ? null : r.GetInt32(10) != 0, D(r, 11), D(r, 12), D(r, 13), D(r, 14),
-                    I(r, 15), I(r, 16), I(r, 17), I(r, 18), I(r, 19), I(r, 20), I(r, 21), I(r, 22), I(r, 23), I(r, 24));
+                    I(r, 15), I(r, 16), I(r, 17), I(r, 18), I(r, 19), I(r, 20), I(r, 21), I(r, 22), I(r, 23), I(r, 24),
+                    D(r, 25), I(r, 26), D(r, 27), D(r, 28), I(r, 29), D(r, 30), S(r, 31), r.IsDBNull(32) ? null : r.GetInt32(32) != 0, S(r, 33), I(r, 34));
                 return new TickRow(r.GetInt64(0), r.IsDBNull(1) ? null : r.GetInt64(1),
                     new GuardTick(Ts(r, 2)!.Value, r.IsDBNull(3) ? 0 : r.GetInt32(3), !r.IsDBNull(4) && r.GetInt32(4) != 0, hw, r.IsDBNull(6) ? 0 : r.GetInt32(6),
                         D(r, 7), D(r, 8), S(r, 9) ?? "", extras));

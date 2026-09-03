@@ -83,7 +83,8 @@ public class StoreTests : IDisposable
     {
         using var s = new Store(DbPath);
         var session = s.BeginSession(1234, "-40,-40", 60, adhoc: false, T0);
-        var extras = new TickExtras(false, 12.5, 80.0, 64.0, 80.0, 55, 40, 48, 2100, 0, 1800, 1, 2, 60, 40);
+        var extras = new TickExtras(false, 12.5, 80.0, 64.0, 80.0, 55, 40, 48, 2100, 0, 1800, 1, 2, 60, 40,
+            71.5, 6, 1.021, 5.45, 12, 45.0, "conservation", false, "best power efficiency", 38);
         s.AddTick(session, new GuardTick(T0.AddMinutes(1), 60, true, [-40, null], 0, 3.5, 12.0, "ok", extras));
         s.AddTick(session, new GuardTick(T0.AddMinutes(2), 120, true, [-40, -40], 0, null, null, "ok"));   // no extras: every column null
         s.AddEvent("guard", session, null, T0, "start", "profile -40,-40");

@@ -10,7 +10,7 @@ namespace Rycolab.Core.Legion;
 /// </summary>
 public static class BatteryInfo
 {
-    public readonly record struct Sample(bool? OnAc, double? DischargeW, double? RemainingWh, double? FullWh)
+    public readonly record struct Sample(bool? OnAc, double? DischargeW, double? RemainingWh, double? FullWh, double? ChargeW = null)
     {
         public double? Percent => RemainingWh is { } r && FullWh is > 0 and var f ? Math.Round(100.0 * r / f, 1) : null;
         /// <summary>Hours left at the current discharge rate.</summary>
@@ -19,15 +19,17 @@ public static class BatteryInfo
 
     public static Sample Read()
     {
-        bool? onAc = null; double? dischargeW = null, remaining = null, full = null;
+        bool? onAc = null; double? dischargeW = null, remaining = null, full = null, chargeW = null;
         try
         {
-            using var s = new ManagementObjectSearcher(@"root\WMI", "SELECT PowerOnline, Discharging, DischargeRate, RemainingCapacity FROM BatteryStatus");
+            using var s = new ManagementObjectSearcher(@"root\WMI", "SELECT PowerOnline, Discharging, DischargeRate, Charging, ChargeRate, RemainingCapacity FROM BatteryStatus");
             foreach (ManagementObject o in s.Get())
             {
                 onAc = (bool)o["PowerOnline"];
                 var rate = Convert.ToDouble(o["DischargeRate"]) / 1000.0;
                 dischargeW = (bool)o["Discharging"] && rate > 0 ? rate : null;
+                var charge = Convert.ToDouble(o["ChargeRate"]) / 1000.0;
+                chargeW = (bool)o["Charging"] && charge > 0 ? charge : null;
                 remaining = Convert.ToDouble(o["RemainingCapacity"]) / 1000.0;
                 break;
             }
@@ -35,7 +37,7 @@ public static class BatteryInfo
             foreach (ManagementObject o in f.Get()) { full = Convert.ToDouble(o["FullChargedCapacity"]) / 1000.0; break; }
         }
         catch { /* no battery class: nulls */ }
-        return new Sample(onAc, dischargeW, remaining, full);
+        return new Sample(onAc, dischargeW, remaining, full, chargeW);
     }
 
     /// <summary>AC line from the kernel, for the guard's event handler (cheaper than WMI and the same source Windows uses).</summary>

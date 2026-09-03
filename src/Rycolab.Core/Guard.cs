@@ -33,6 +33,8 @@ public sealed class Guard
     private readonly Store _store;
     private long _session;
     private LenovoEc? _ec;
+    private LenovoEnergy? _energy;
+    private int? _smuMs;
     private readonly HashSet<string> _failedSources = [];
     private readonly CpuLoad _load = new();
     private readonly PmTable? _pm;
@@ -111,10 +113,11 @@ public sealed class Guard
         try
         {
             if (!ApplyProfile("start")) { code = 1; return 1; }
-            // The EC is read every tick (temperatures, fans, modes); one handle for the whole session.
+            // The EC and the Energy driver are read every tick (temperatures, fans, modes, charge mode); one handle each for the whole session.
             try { _ec = new LenovoEc(); } catch { _ec = null; }
+            try { _energy = new LenovoEnergy(); } catch { _energy = null; }
             // A sample right away: `on` waits for a tick, and the first interval is a minute.
-            Tick(0, true, _co.ReadAll().Select(x => x.Margin).ToArray(), 0, null, PackagePower(), "ok");
+            Tick(0, true, ReadTimed().Select(x => x.Margin).ToArray(), 0, null, PackagePower(), "ok");
 
             using var power = new PowerWatch();
             power.Suspending += () => { _suspendSeen = true; Event("suspend", "the system is going to sleep"); };
@@ -154,7 +157,7 @@ public sealed class Guard
                 Safe("health", HealthTick);
                 Safe("dgpu-eject", DgpuEjectTick);
 
-                var readings = _co.ReadAll();
+                var readings = ReadTimed();
                 var hw = readings.Select(x => x.Margin).ToArray();
                 var bad = _profile.Mismatches(readings);
                 var hardware = Whea.HardwareSince(_t0);
@@ -195,7 +198,7 @@ public sealed class Guard
                     _reapplies.Add(DateTime.Now);
                     if (_validation is not null) _validation.Reapplies++;
                     if (!ApplyProfile("lost")) { code = 1; break; }
-                    Tick(el, true, _co.ReadAll().Select(x => x.Margin).ToArray(), hardware.Count, cpu, pkg, "reapplied");
+                    Tick(el, true, ReadTimed().Select(x => x.Margin).ToArray(), hardware.Count, cpu, pkg, "reapplied");
                     continue;
                 }
 
@@ -215,7 +218,7 @@ public sealed class Guard
         finally
         {
             var restored = _co.TryRestore(_profile.Base);
-            var after = _co.ReadAll().Select(x => x.Margin).ToArray();
+            var after = ReadTimed().Select(x => x.Margin).ToArray();
             _state.Hardware = after;
             _state.Applied = false;
             _state.GuardPid = null;
@@ -223,6 +226,7 @@ public sealed class Guard
             Event("restore", $"baseline {_profile.Base}: {restored} cores written; hardware {string.Join(",", after)}  code {code}");
             _store.EndSession(_session, code);
             _ec?.Dispose();
+            _energy?.Dispose();
             _store.Dispose();
         }
         return code;
@@ -364,6 +368,15 @@ public sealed class Guard
     private double? PackagePower()
         => _pm?.Refresh() == true ? _pm.Package() : null;
 
+    /// <summary>The margins of every core, timed: the SMU mailbox has no cross-process lock, and contention shows here before it shows as a wrong readback.</summary>
+    private IReadOnlyList<CoreReading> ReadTimed()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = _co.ReadAll();
+        _smuMs = (int)sw.ElapsedMilliseconds;
+        return r;
+    }
+
     /// <summary>
     /// Everything else the tick records: battery, Lenovo EC, power and GPU
     /// mode, panel. A source that fails leaves its columns null and is
@@ -371,9 +384,26 @@ public sealed class Guard
     /// </summary>
     private TickExtras Extras()
     {
-        bool? ac = null; double? batW = null, batPct = null, batWh = null, batFull = null;
+        bool? ac = null; double? batW = null, batPct = null, batWh = null, batFull = null, chargeW = null;
         int? ecCpu = null, ecGpu = null, ecPch = null, fanCpu = null, fanGpu = null, fanPch = null, mode = null, gpu = null, hz = null, bright = null;
-        Source("battery", () => { var b = BatteryInfo.Read(); ac = b.OnAc; batW = b.DischargeW; batPct = b.Percent; batWh = b.RemainingWh; batFull = b.FullWh; });
+        double? coreTempMax = null, coreVoltMean = null, coreGhzMax = null; int? coreHot = null, idle = null; string? chargeMode = null, overlay = null; bool? dgpu = null;
+        Source("battery", () => { var b = BatteryInfo.Read(); ac = b.OnAc; batW = b.DischargeW; batPct = b.Percent; batWh = b.RemainingWh; batFull = b.FullWh; chargeW = b.ChargeW; });
+        // The PM table was refreshed for the package power a moment ago (PackagePower); the per-core blocks come from the same read.
+        if (_pm is { IsAvailable: true } pm)
+            Source("pm", () =>
+            {
+                var cores = Enumerable.Range(0, _co.CoreCount).Select(pm.Core).ToList();
+                var temps = cores.Select(c => c.Temp).OfType<double>().ToList();
+                var volts = cores.Select(c => c.Volt).OfType<double>().ToList();
+                var freqs = cores.Select(c => c.Freq).OfType<double>().ToList();
+                if (temps.Count > 0) { coreTempMax = temps.Max(); coreHot = cores.FindIndex(c => c.Temp == coreTempMax); }
+                if (volts.Count > 0) coreVoltMean = volts.Average();
+                if (freqs.Count > 0) coreGhzMax = freqs.Max();
+            });
+        if (_energy is { IsAvailable: true } energy) Source("charge", () => chargeMode = energy.ChargeMode());
+        Source("dgpu", () => dgpu = LenovoEc.DgpuPresent());
+        Source("overlay", () => { var o = WindowsPower.Overlays(); overlay = ac == false ? o.Dc : o.Ac; });
+        Source("idle", () => idle = UserIdle.Seconds());
         if (_ec is { IsAvailable: true } ec)
             Source("ec", () =>
             {
@@ -383,7 +413,8 @@ public sealed class Guard
                 mode = ec.SmartFanMode; gpu = ec.IGpuMode;
             });
         Source("panel", () => { hz = WindowsPower.RefreshHz; bright = WindowsPower.Brightness; });
-        return new TickExtras(ac, batW, batPct, batWh, batFull, ecCpu, ecGpu, ecPch, fanCpu, fanGpu, fanPch, mode, gpu, hz, bright);
+        return new TickExtras(ac, batW, batPct, batWh, batFull, ecCpu, ecGpu, ecPch, fanCpu, fanGpu, fanPch, mode, gpu, hz, bright,
+            coreTempMax, coreHot, coreVoltMean, coreGhzMax, idle, chargeW, chargeMode, dgpu, overlay, _smuMs);
 
         void Source(string name, Action read)
         {
