@@ -54,6 +54,10 @@ public static class Whea
     public static List<SystemEvent> PowerSince(DateTime since)
         => Query(since, (KernelPower, [42, 107]), (PowerTroubleshooter, [1]));
 
+    /// <summary>The GPU's equivalent of a WHEA: a display driver reset (TDR, `Display` 4101) or the NVIDIA driver's own error (`nvlddmkm` 14).</summary>
+    public static List<SystemEvent> GpuResetsSince(DateTime since)
+        => Query(since, ("Display", [4101]), ("nvlddmkm", [14]));
+
     internal static string XPath(DateTime since, params (string Provider, int[] Ids)[] filters)
     {
         var t = since.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture);

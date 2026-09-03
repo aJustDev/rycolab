@@ -1,3 +1,4 @@
+using Rycolab.Core.Gpu;
 using Rycolab.Core.Legion;
 
 namespace Rycolab.Core;
@@ -35,6 +36,14 @@ public sealed class Guard
     private LenovoEc? _ec;
     private LenovoEnergy? _energy;
     private int? _smuMs;
+
+    // The GPU curve: the profile the guard keeps (installed guards only), NVML while the card is on the bus,
+    // the TDRs seen so far, whether the card was on the bus at the last tick, and the re-applies this hour.
+    private GpuProfile? _gpu;
+    private Nvml? _nvml;
+    private int _tdrSeen;
+    private bool? _dgpuLast;
+    private readonly List<DateTime> _gpuReapplies = [];
     private readonly HashSet<string> _failedSources = [];
     private readonly CpuLoad _load = new();
     private readonly PmTable? _pm;
@@ -116,6 +125,14 @@ public sealed class Guard
             // The EC and the Energy driver are read every tick (temperatures, fans, modes, charge mode); one handle each for the whole session.
             try { _ec = new LenovoEc(); } catch { _ec = null; }
             try { _energy = new LenovoEnergy(); } catch { _energy = null; }
+            if (_o.PublishState && GpuProfile.Load() is { } gpuProfile)
+            {
+                _gpu = gpuProfile;
+                _state.GpuProfile = gpuProfile.Describe;
+                _state.GpuLock = gpuProfile.SafetyLock;
+                _tdrSeen = Whea.GpuResetsSince(_t0).Count;
+                if (gpuProfile is { Enabled: true, SafetyLock: null }) Safe("gpu-apply", () => ApplyGpu("start"));
+            }
             // A sample right away: `on` waits for a tick, and the first interval is a minute.
             Tick(0, true, ReadTimed().Select(x => x.Margin).ToArray(), 0, null, PackagePower(), "ok");
 
@@ -151,8 +168,10 @@ public sealed class Guard
                     _resumeAt = null;
                     if (_validation is not null) _validation.Resumes++;
                     if (!ApplyProfile("resume")) { code = 1; break; }
+                    if (_gpu is { Enabled: true, SafetyLock: null }) Safe("gpu-apply", () => ApplyGpu("resume"));
                 }
 
+                Safe("gpu", GpuTick);
                 Safe("charge-full", ChargeFullTick);
                 Safe("health", HealthTick);
                 Safe("dgpu-eject", DgpuEjectTick);
@@ -227,6 +246,7 @@ public sealed class Guard
             _store.EndSession(_session, code);
             _ec?.Dispose();
             _energy?.Dispose();
+            _nvml?.Dispose();
             _store.Dispose();
         }
         return code;
@@ -349,6 +369,83 @@ public sealed class Guard
         Event("dgpu-stuck", $"dGPU still on the bus 6 min after the switch; {string.Join(" | ", lines)}; the silicon keeps ~20 W without a driver, a reboot truly powers it off");
     }
 
+    /// <summary>
+    /// Puts the GPU profile on the curve and verifies it. A failed apply
+    /// sets the safety lock: the guard makes no more GPU writes until the
+    /// user runs `gpu on` (Green Curve's rule, and the right one: a curve
+    /// that did not land once is not something to retry blindly).
+    /// </summary>
+    private void ApplyGpu(string why)
+    {
+        if (_gpu is null) return;
+        if (!LenovoEc.DgpuPresent()) { Event("gpu-skip", $"{why}: the dGPU is not on the bus; the curve waits for it"); _state.GpuApplied = null; return; }
+        using var api = new NvApi();
+        if (!api.IsAvailable) { Event("gpu-skip", $"{why}: NvAPI: {api.Unavailable}"); _state.GpuApplied = null; return; }
+        if (_gpu.Refuse(api) is { } refused) { GpuSafetyLock($"{why}: refused, {refused}"); return; }
+        var r = CurveApply.Apply(api, new VfCurve(api), _gpu);
+        _state.GpuApplied = r.Ok;
+        if (r.Ok) Event("gpu-apply", $"{why}: {r.Detail}");
+        else GpuSafetyLock($"{why}: {r.Detail}");
+    }
+
+    private void GpuSafetyLock(string reason)
+    {
+        if (_gpu is null) return;
+        _gpu.Enabled = false;
+        _gpu.SafetyLock = $"{DateTime.Now:yyyy-MM-dd HH:mm} {reason}";
+        _gpu.Save();
+        _state.GpuApplied = false;
+        _state.GpuLock = _gpu.SafetyLock;
+        Event("gpu-lock", $"safety lock: {reason}; `rycolab gpu on` clears it");
+    }
+
+    /// <summary>
+    /// Every tick: a driver reset (TDR) is the GPU's WHEA, it locks the
+    /// profile and puts the curve back to the driver's own; the card coming
+    /// back on the bus gets the curve again; a curve found without the
+    /// profile (the driver dropped it) is re-applied, at most three times an
+    /// hour, then locked.
+    /// </summary>
+    private void GpuTick()
+    {
+        var present = LenovoEc.DgpuPresent();
+        var wasPresent = _dgpuLast;
+        _dgpuLast = present;
+        if (_gpu is null) return;
+
+        var resets = Whea.GpuResetsSince(_t0);
+        if (resets.Count > _tdrSeen)
+        {
+            foreach (var e in resets.Skip(_tdrSeen)) Event("gpu-tdr", $"{e.Time:HH:mm:ss} {e.Provider} id {e.Id}: {e.Message}");
+            _tdrSeen = resets.Count;
+            if (_gpu.Enabled)
+            {
+                GpuSafetyLock($"driver reset (TDR) at {resets[^1].Time:HH:mm:ss}");
+                if (present) { using var api = new NvApi(); if (api.IsAvailable) new VfCurve(api).Reset(); }
+            }
+            return;
+        }
+        if (!_gpu.Enabled || _gpu.SafetyLock is not null || !present)
+        {
+            if (!present) _state.GpuApplied = null;
+            return;
+        }
+        if (wasPresent == false) { ApplyGpu("dGPU back on the bus"); return; }
+
+        using (var api2 = new NvApi())
+        {
+            if (!api2.IsAvailable) return;
+            var applied = CurveApply.IsApplied(new VfCurve(api2).Read(), _gpu);
+            _state.GpuApplied = applied;
+            if (applied) return;
+        }
+        Event("gpu-changed", "the curve no longer carries the profile (the driver reset it?)");
+        _gpuReapplies.RemoveAll(t => (DateTime.Now - t).TotalHours >= 1);
+        if (_gpuReapplies.Count >= _o.MaxReappliesPerHour) { GpuSafetyLock($"{_gpuReapplies.Count} GPU re-applies within an hour"); return; }
+        _gpuReapplies.Add(DateTime.Now);
+        ApplyGpu("lost");
+    }
+
     /// <summary>One battery-health sample per day.</summary>
     private void HealthTick()
     {
@@ -413,8 +510,13 @@ public sealed class Guard
                 mode = ec.SmartFanMode; gpu = ec.IGpuMode;
             });
         Source("panel", () => { hz = WindowsPower.RefreshHz; bright = WindowsPower.Brightness; });
+        // NVML only while the card is on the bus: opening it wakes a sleeping dGPU, and on battery the card is gone anyway.
+        Nvml.Sample g = default;
+        if (dgpu == true) Source("nvml", () => { _nvml ??= new Nvml(); if (_nvml.IsAvailable) g = _nvml.Read(); });
+        else if (_nvml is not null) { _nvml.Dispose(); _nvml = null; }
         return new TickExtras(ac, batW, batPct, batWh, batFull, ecCpu, ecGpu, ecPch, fanCpu, fanGpu, fanPch, mode, gpu, hz, bright,
-            coreTempMax, coreHot, coreVoltMean, coreGhzMax, idle, chargeW, chargeMode, dgpu, overlay, _smuMs);
+            coreTempMax, coreHot, coreVoltMean, coreGhzMax, idle, chargeW, chargeMode, dgpu, overlay, _smuMs,
+            g.Mhz, g.MemMhz, g.Watts, g.TempC, g.Util, _gpu is null ? null : _state.GpuApplied, _gpu is null ? null : _tdrSeen);
 
         void Source(string name, Action read)
         {

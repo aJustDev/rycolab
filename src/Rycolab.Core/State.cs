@@ -67,6 +67,10 @@ public sealed class State
     /// <summary>"battery" while the guard's power auto has the battery profile applied; "ac" otherwise; null when power auto is off.</summary>
     public string? PowerProfile { get; set; }
     public DateTime? ValidationStartedAt { get; set; }
+    /// <summary>The GPU curve profile the guard keeps ("2655 MHz from 875 mV"), null without one; whether it was on the curve at the last look; the safety lock text.</summary>
+    public string? GpuProfile { get; set; }
+    public bool? GpuApplied { get; set; }
+    public string? GpuLock { get; set; }
     public List<string> LastEvents { get; set; } = [];
     public string? LastError { get; set; }
 

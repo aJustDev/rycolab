@@ -65,6 +65,8 @@ public static class StatusView
         var g = NewGrid();
         KV(g, "status", Verdict(guard, state, profile));
         KV(g, "profile", profile is null ? "[red]none[/]" : E(Commands.StatusCommand.Describe(profile)));
+        if (state?.GpuProfile is { } gp)
+            KV(g, "gpu curve", E(gp) + (state.GpuLock is { } gl ? $"   [red]safety lock: {E(gl)}[/]" : state.GpuApplied switch { true => "   [green]applied[/]", false => "   [yellow]not applied[/]", null => "   [grey]not checked[/]" }));
 
         if (state is not null)
         {
