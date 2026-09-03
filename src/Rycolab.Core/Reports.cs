@@ -55,8 +55,10 @@ public static class PowerReport
         var batSessions = BatterySessions(ticks, Hours);
         var inPeriod = sessions.Count(s => s.Started < until && (s.Ended is null || s.Ended >= since));
 
+        var unknown = ticks.Count - ac.Count - bat.Count;
         sb.AppendLine($"Guarded {Span(guardedH)} in {inPeriod} guard session{(inPeriod == 1 ? "" : "s")}; " +
-                      $"on battery {Span(batH)} ({(guardedH > 0 ? 100 * batH / guardedH : 0):F0} %) in {batSessions.Count} battery session{(batSessions.Count == 1 ? "" : "s")}.");
+                      $"on battery {Span(batH)} ({(guardedH > 0 ? 100 * batH / guardedH : 0):F0} %) in {batSessions.Count} battery session{(batSessions.Count == 1 ? "" : "s")}." +
+                      (unknown > 0 ? $" {unknown} ticks (from before 0.3.0) carry no line state and count only as guarded." : ""));
         sb.AppendLine();
         sb.AppendLine("| | AC | Battery |");
         sb.AppendLine("|---|---|---|");
