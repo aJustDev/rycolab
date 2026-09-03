@@ -70,7 +70,7 @@ public static class StatusView
             KV(g, "gpu curve", E(gp) + (state.GpuLock is { } gl ? $"   [red]safety lock: {E(gl)}[/]" : state.GpuApplied switch { true => "   [green]applied[/]", false => "   [yellow]not applied[/]", null => "   [grey]not checked[/]" }));
             var gpu = state.GpuMhz is { } mhz
                 ? $"{mhz} MHz   {state.GpuW?.ToString("F1") ?? "-"} W   {state.GpuC?.ToString() ?? "-"} C"
-                : "[grey]dGPU off the bus[/]";
+                : state.GpuTdr is null ? "[grey]no GPU sample yet[/]" : "[grey]dGPU off the bus[/]";
             KV(g, "", $"{gpu}   {(state.GpuTdr is > 0 and var tdr ? $"[red]{tdr} driver resets[/]" : "0 driver resets")}");
         }
 
