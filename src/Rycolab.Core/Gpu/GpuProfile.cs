@@ -1,0 +1,168 @@
+using System.Globalization;
+using System.Text.Json.Serialization;
+
+namespace Rycolab.Core.Gpu;
+
+public sealed class GpuFingerprint
+{
+    public string Name { get; set; } = "";
+    public uint DeviceId { get; set; }
+    public string Family { get; set; } = "";
+}
+
+public sealed class GpuProfileSource
+{
+    /// <summary>afterburner | greencurve | manual</summary>
+    public string Kind { get; set; } = "manual";
+    public string? File { get; set; }
+    public DateTime Date { get; set; }
+}
+
+/// <summary>
+/// What the user wants the GPU's V/F curve to be, in the terms an undervolt
+/// is expressed in: flat at <see cref="LockMhz"/> from <see cref="LockMv"/>
+/// up, and a uniform offset below (capped so nothing rises above the lock).
+/// gpu-profile.json. The guard keeps it applied while <see cref="Enabled"/>;
+/// a TDR sets <see cref="SafetyLock"/> and the guard stops until `gpu on`.
+/// </summary>
+public sealed class GpuProfile
+{
+    public bool Enabled { get; set; }
+    public int LockMv { get; set; }
+    public int LockMhz { get; set; }
+    public int LowOffsetMhz { get; set; }
+    public string? SafetyLock { get; set; }
+    public GpuFingerprint? Fingerprint { get; set; }
+    public GpuProfileSource? Source { get; set; }
+
+    [JsonIgnore] public string Describe => $"{LockMhz} MHz from {LockMv} mV{(LowOffsetMhz != 0 ? $", {LowOffsetMhz:+0;-0} MHz below" : "")}";
+
+    public static bool Exists() => File.Exists(AppPaths.GpuProfile);
+    public static GpuProfile? Load() => Journal.ReadJsonFile<GpuProfile>(AppPaths.GpuProfile);
+    public void Save() => Journal.WriteJsonFile(AppPaths.GpuProfile, this);
+
+    /// <summary>Null when the profile can be applied to this GPU; the reason otherwise.</summary>
+    public string? Refuse(NvApi api)
+    {
+        if (LockMhz <= 0 || LockMv <= 0) return "the profile has no lock";
+        if (Fingerprint is { } f && f.DeviceId != 0 && f.DeviceId != api.DeviceId) return $"the profile is for {f.Name} (device {f.DeviceId:X8}), this is {api.Name} ({api.DeviceId:X8})";
+        return null;
+    }
+}
+
+/// <summary>
+/// MSI Afterburner's profile file (`Profiles\VEN_10DE&amp;DEV_...cfg`): the
+/// `VFCurve=` value of a `[ProfileN]` section is hex, format 2: an 8-byte
+/// header (00 00 02 00, then the point count) and one triplet of floats per
+/// point: offset MHz, mV, base MHz at the time the profile was saved.
+/// Decoded from the reference machine's profile on 2026-09-03; the target of
+/// a point is base + offset.
+/// </summary>
+public static class Afterburner
+{
+    public sealed record Point(int Index, double OffsetMhz, double Mv, double BaseMhz)
+    {
+        public double TargetMhz => BaseMhz + OffsetMhz;
+    }
+
+    public static string? ReadVfCurve(string cfgPath, int profile = 1)
+    {
+        var section = $"[Profile{profile}]";
+        var inSection = false;
+        foreach (var raw in File.ReadLines(cfgPath))
+        {
+            var line = raw.Trim();
+            if (line.StartsWith('[')) { inSection = string.Equals(line, section, StringComparison.OrdinalIgnoreCase); continue; }
+            if (inSection && line.StartsWith("VFCurve=", StringComparison.OrdinalIgnoreCase))
+            {
+                var hex = line[8..].Trim();
+                return hex.Length > 0 ? hex : null;
+            }
+        }
+        return null;
+    }
+
+    public static List<Point> Decode(string hex)
+    {
+        if (hex.Length < 16 || hex.Length % 2 != 0) throw new FormatException("VFCurve: not a hex blob");
+        var bytes = Convert.FromHexString(hex);
+        var format = BitConverter.ToUInt16(bytes, 2);
+        if (format != 2) throw new FormatException($"VFCurve: format {format}, only 2 is known");
+        var count = BitConverter.ToInt32(bytes, 4);
+        if (count <= 0 || 8 + count * 12 > bytes.Length) throw new FormatException($"VFCurve: {count} points do not fit in {bytes.Length} bytes");
+        var points = new List<Point>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var o = 8 + i * 12;
+            points.Add(new Point(i, BitConverter.ToSingle(bytes, o), BitConverter.ToSingle(bytes, o + 4), BitConverter.ToSingle(bytes, o + 8)));
+        }
+        return points;
+    }
+
+    /// <summary>
+    /// The undervolt the curve expresses: the plateau (the highest target
+    /// MHz), the voltage of the first point that reaches it, and the offset
+    /// the low region carries. Null when the curve has no plateau (it keeps
+    /// rising: nothing to lock).
+    /// </summary>
+    public static (int LockMv, int LockMhz, int LowOffsetMhz)? Intent(IReadOnlyList<Point> points)
+    {
+        var live = points.Where(p => p.BaseMhz > 0).ToList();
+        if (live.Count < 2) return null;
+        var plateau = live.Max(p => p.TargetMhz);
+        var first = live.First(p => p.TargetMhz >= plateau - 1);
+        if (first.Index == live[^1].Index) return null;   // the maximum is the last point: no plateau
+        var below = live.Where(p => p.Index < first.Index && p.OffsetMhz != 0).Select(p => p.OffsetMhz).ToList();
+        var low = below.Count > 0 ? below.GroupBy(o => o).OrderByDescending(g => g.Count()).ThenByDescending(g => g.Key).First().Key : 0;
+        return ((int)Math.Round(first.Mv), (int)Math.Round(plateau), (int)Math.Round(low));
+    }
+}
+
+/// <summary>Green Curve's `config.ini`: `[profileN]` or `[controls]` with lock_ci, lock_mhz, gpu_offset_mhz. lock_ci is a curve index, resolved against the live curve.</summary>
+public static class GreenCurveIni
+{
+    public static (int LockIndex, int LockMhz, int GpuOffsetMhz)? Read(string iniPath, int profile = 1)
+    {
+        string? section = null; int? ci = null, mhz = null, off = null;
+        foreach (var raw in File.ReadLines(iniPath))
+        {
+            var line = raw.Trim();
+            if (line.StartsWith('[')) { section = line.Trim('[', ']').ToLowerInvariant(); continue; }
+            if (section != $"profile{profile}" && section != "controls") continue;
+            var eq = line.IndexOf('=');
+            if (eq <= 0) continue;
+            var key = line[..eq].Trim().ToLowerInvariant(); var value = line[(eq + 1)..].Trim();
+            if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)) continue;
+            if (key == "lock_ci") ci = v; else if (key == "lock_mhz") mhz = v; else if (key == "gpu_offset_mhz") off = v;
+        }
+        return ci is { } c && c >= 0 && mhz is > 0 and var m ? (c, m, off ?? 0) : null;
+    }
+}
+
+/// <summary>Applies a <see cref="GpuProfile"/> to the live curve and verifies it; rolls back to 0 when it does not land.</summary>
+public static class CurveApply
+{
+    public sealed record Result(bool Ok, string Detail, int LockIndex, VfPoint[] Curve);
+
+    public static Result Apply(NvApi api, VfCurve vf, GpuProfile profile, Action<string>? log = null)
+    {
+        var curve = vf.ReadSettled();
+        if (VfCurve.IndexForMv(curve, profile.LockMv) is not { } lockIndex)
+            return new Result(false, $"the curve has no point at {profile.LockMv} mV or above", -1, curve);
+        var blackwell = api.Architecture == NvApi.Blackwell || api.Architecture > NvApi.Blackwell;
+        var (targets, mask) = VfCurve.FlattenTargets(curve, lockIndex, profile.LockMhz, profile.LowOffsetMhz * 1000, blackwell);
+        log?.Invoke($"lock at point {lockIndex} ({curve[lockIndex].Mv:F1} mV, base {curve[lockIndex].BaseKhz / 1000} MHz) -> {profile.LockMhz} MHz: offset {targets[lockIndex] / 1000:+0;-0} MHz; {mask.Count(m => m) - 1} other points");
+        var left = vf.Apply(targets, mask, log);
+        var after = vf.ReadSettled();
+        if (VfCurve.IsFlatAt(after, lockIndex, profile.LockMhz))
+            return new Result(true, $"{profile.LockMhz} MHz from {after[lockIndex].Mv:F1} mV, {left.Count} offsets not exact", lockIndex, after);
+        var top = after.Where(p => p.HasData && p.Index <= VfBackend.LastTailPoint).Max(p => p.Mhz);
+        log?.Invoke($"not flat: lock point reads {after[lockIndex].Mhz} MHz, curve tops {top} MHz; rolling back");
+        vf.Reset(log);
+        return new Result(false, $"the curve did not flatten (lock point {after[lockIndex].Mhz} MHz, top {top} MHz); offsets reset to 0", lockIndex, after);
+    }
+
+    /// <summary>Is the profile on the curve right now: the lock point at its MHz and nothing above.</summary>
+    public static bool IsApplied(VfPoint[] curve, GpuProfile profile)
+        => VfCurve.IndexForMv(curve, profile.LockMv) is { } i && VfCurve.IsFlatAt(curve, i, profile.LockMhz);
+}

@@ -107,3 +107,107 @@ public class VfCurveTests
         Assert.True(b.StatusEntry(127) + 8 <= b.StatusSize);
     }
 }
+
+public class AfterburnerTests
+{
+    /// <summary>A format-2 blob like the reference machine's: +300 MHz low, tapering to a plateau of 2655 MHz from 900 mV.</summary>
+    private static string Blob()
+    {
+        var bytes = new List<byte> { 0, 0, 2, 0 };
+        bytes.AddRange(BitConverter.GetBytes(127));
+        for (var i = 0; i < 127; i++)
+        {
+            var mv = 450 + i * 6.25;
+            var baseMhz = i < 30 ? 180.0 : 180 + (i - 30) * 30.5;
+            var offset = Math.Min(300.0, 2655 - baseMhz);
+            foreach (var f in new[] { (float)offset, (float)mv, (float)baseMhz }) bytes.AddRange(BitConverter.GetBytes(f));
+        }
+        return Convert.ToHexString(bytes.ToArray());
+    }
+
+    [Fact]
+    public void DecodesTriplets()
+    {
+        var pts = Afterburner.Decode(Blob());
+        Assert.Equal(127, pts.Count);
+        Assert.Equal(300, pts[0].OffsetMhz);
+        Assert.Equal(450, pts[0].Mv);
+        Assert.Equal(180, pts[0].BaseMhz);
+        Assert.Equal(480, pts[0].TargetMhz);
+        Assert.Equal(2655, pts[126].TargetMhz, 1);
+    }
+
+    [Fact]
+    public void IntentIsThePlateauItsFirstVoltageAndTheLowOffset()
+    {
+        var intent = Afterburner.Intent(Afterburner.Decode(Blob()))!.Value;
+        Assert.Equal(2655, intent.LockMhz);
+        Assert.Equal(300, intent.LowOffsetMhz);
+        // base first reaches 2355 (2655 - 300) at i = 102: 450 + 102 * 6.25 = 1087.5 mV, rounded to even
+        Assert.Equal(1088, intent.LockMv);
+    }
+
+    [Fact]
+    public void ARisingCurveHasNoIntent()
+    {
+        var bytes = new List<byte> { 0, 0, 2, 0 };
+        bytes.AddRange(BitConverter.GetBytes(3));
+        foreach (var (o, mv, b) in new[] { (0f, 700f, 1000f), (0f, 800f, 1500f), (0f, 900f, 2000f) })
+            foreach (var f in new[] { o, mv, b }) bytes.AddRange(BitConverter.GetBytes(f));
+        Assert.Null(Afterburner.Intent(Afterburner.Decode(Convert.ToHexString(bytes.ToArray()))));
+    }
+
+    [Fact]
+    public void RejectsOtherFormats()
+    {
+        Assert.Throws<FormatException>(() => Afterburner.Decode("000003000100000000000000000000000000000000000000"));
+        Assert.Throws<FormatException>(() => Afterburner.Decode("00"));
+    }
+
+    [Fact]
+    public void ReadsTheProfileSection()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"rycolab-test-{Guid.NewGuid():N}.cfg");
+        File.WriteAllText(path, "[Startup]\r\nFormat=2\r\nVFCurve=\r\n[Profile1]\r\nFormat=2\r\nCoreClkBoost=0\r\nVFCurve=" + Blob() + "\r\n[Profile2]\r\nVFCurve=\r\n");
+        try
+        {
+            Assert.NotNull(Afterburner.ReadVfCurve(path, 1));
+            Assert.Null(Afterburner.ReadVfCurve(path, 2));
+            Assert.Null(Afterburner.ReadVfCurve(path, 3));
+        }
+        finally { File.Delete(path); }
+    }
+}
+
+public class GreenCurveIniTests
+{
+    [Fact]
+    public void ReadsLockAndOffset()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"rycolab-test-{Guid.NewGuid():N}.ini");
+        File.WriteAllText(path, "[profiles]\r\nselected=1\r\n[profile1]\r\ngpu_offset_mhz=150\r\nlock_ci=88\r\nlock_mhz=2610\r\nlock_mode=1\r\n[profile2]\r\nlock_ci=-1\r\nlock_mhz=0\r\n");
+        try
+        {
+            var p = GreenCurveIni.Read(path, 1)!.Value;
+            Assert.Equal((88, 2610, 150), p);
+            Assert.Null(GreenCurveIni.Read(path, 2));
+        }
+        finally { File.Delete(path); }
+    }
+}
+
+public class GpuProfileTests
+{
+    [Fact]
+    public void AppliedMeansFlatAtTheLock()
+    {
+        var pts = new VfPoint[VfBackend.Points];
+        for (var i = 0; i < 127; i++) pts[i] = new VfPoint(i, Math.Min(2400000, 1000000 + i * 20000), 450000 + i * 6250, 0);
+        pts[127] = new VfPoint(127, 405000, 525000, 0);
+        var p = new GpuProfile { LockMv = 887, LockMhz = 2400 };   // point 70 = 887.5 mV = 2400 MHz, flat after
+        Assert.True(CurveApply.IsApplied(pts, p));
+        Assert.False(CurveApply.IsApplied(pts, new GpuProfile { LockMv = 887, LockMhz = 2300 }));
+        Assert.False(CurveApply.IsApplied(pts, new GpuProfile { LockMv = 1300, LockMhz = 2400 }));
+        Assert.Equal("2400 MHz from 887 mV", p.Describe);
+    }
+}

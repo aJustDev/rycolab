@@ -18,6 +18,7 @@ public static class AppPaths
     /// <summary>The one database: the history of everything (see Store).</summary>
     public static string Db => Path.Combine(Data, "rycolab.db");
     public static string Profile => Path.Combine(Data, "profile.json");
+    public static string GpuProfile => Path.Combine(Data, "gpu-profile.json");
     public static string Config => Path.Combine(Data, "config.json");
     public static string State => Path.Combine(Data, "state.json");
     public static string Validation => Path.Combine(Data, "validation.json");

@@ -57,7 +57,7 @@ if (command is "help" or "-h" or "--help")
 }
 
 // Commands that only read files never need elevation.
-var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast") || (gpu && command is "probe" or "show");
+var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast") || (gpu && command is "probe" or "show" or "import" or "set");
 if (!unelevated && !Elevation.IsElevated())
 {
     Console.Error.WriteLine($"'rycolab {(dev ? "dev " : legion ? "legion " : "")}{command}' needs administrator privileges to talk to the {(legion ? "EC" : "SMU")}.");
@@ -182,6 +182,7 @@ static void PrintHelp()
           rycolab db stats|path|import|sql "<select>"|export <table> [--since 7d] [--out f.csv|f.jsonl]
                                         the database (the history of everything); `import` brings the 0.2 JSONL in once
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
+          rycolab gpu <command>         NVIDIA V/F curve: probe, show, import, set, apply, on, off   (`rycolab gpu help`)
           rycolab legion <command>      Lenovo Legion extras: fan, power (battery profile), charge   (`rycolab legion help`)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
                                         calibrate, plan, toast, task, profile import, log   (`rycolab dev help`)
@@ -212,7 +213,13 @@ static void PrintGpuHelp()
         rycolab gpu <command>   (NVIDIA only)
 
           probe [--all]                 the GPU, its family, the V/F curve (every 8th point; --all every point) and the offsets on it
+          show                          the saved profile and whether it is on the curve
+          import <file> [--profile 1]   an MSI Afterburner profile (Profiles\VEN_10DE...cfg) or a Green Curve config.ini
+          set --lock <MHz>@<mV> [--below <MHz>]   a profile by hand: flat at MHz from mV up, an offset below
+          apply | on | off              put the profile on the curve (the guard keeps it at logon and after sleep;
+                                        `on` also clears a safety lock) | every offset back to 0 and the profile disabled
 
+        A safety lock is set by the guard after a driver reset (TDR) so the curve is not re-applied blindly.
         Details: docs/gpu.md
         """);
 }
