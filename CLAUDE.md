@@ -45,6 +45,3 @@ tag `vX.Y.Z` whose message is the release notes (plain ASCII, what changed
 for the user), push main and the tag; `.github/workflows/build.yml` builds
 the zip and `SHA256SUMS.txt` and creates the GitHub release. The schema
 version in `Store` moves only with a minor or a major.
-
-`docs/auditoria-2026-09-01.md` is an untracked working document (excluded
-in `.git/info/exclude`); read it for the plan of record, never commit it.
