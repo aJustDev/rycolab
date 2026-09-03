@@ -161,7 +161,8 @@ static void PrintHelp()
                                         the Lenovo EC (with sudo) and the Windows scheme; --follow is the per-core view
           rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown; `report guard` the sessions
           rycolab report --power [--since 30d|7d|24h | --month 2026-08]   hours guarded and on battery, Wh per battery
-                                        session, package W on AC and battery, by power mode, EC temps and fans, health
+                                        session, package W on AC and battery, in use vs idle, by power / GPU mode and
+                                        overlay, EC and core temperatures, fans, charging, dGPU, SMU latency, health
           rycolab report --campaigns    every campaign and the limit per core side by side
           rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV (samples > 100 W, or on battery)
           rycolab report --health       battery capacity history (one sample per day while the guard runs)

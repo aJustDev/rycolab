@@ -13,7 +13,12 @@ namespace Rycolab.Core;
 public static class PowerReport
 {
     public sealed record BatterySession(DateTime Start, DateTime End, double Hours, double? WhUsed, double? MeanW, double? PctStart, double? PctEnd,
-        int? PowerMode, int? GpuMode, int? Hz, int? Brightness);
+        int? PowerMode, int? GpuMode, int? Hz, int? Brightness, double? InUsePct = null, double DgpuHours = 0);
+
+    /// <summary>A tick counts as "in use" when the user touched the machine within these seconds.</summary>
+    public const int InUseSeconds = 300;
+
+    private static bool? InUse(TickRow t) => t.Tick.Extras?.IdleS is { } s ? s < InUseSeconds : null;
 
     /// <summary>`--since 30d|7d|24h|12h` or `--month 2026-08`; default the last 30 days. Null when the text is not a period.</summary>
     public static (DateTime Since, DateTime Until, string Label)? Period(string? since, string? month, DateTime now)
@@ -70,21 +75,45 @@ public static class PowerReport
         sb.AppendLine($"| EC GPU C mean / max | {MeanMax(ac, t => t.Tick.Extras?.EcGpuC)} | {MeanMax(bat, t => t.Tick.Extras?.EcGpuC)} |");
         sb.AppendLine($"| fan CPU / GPU rpm mean | {Mean(ac, t => t.Tick.Extras?.FanCpu)} / {Mean(ac, t => t.Tick.Extras?.FanGpu)} | {Mean(bat, t => t.Tick.Extras?.FanCpu)} / {Mean(bat, t => t.Tick.Extras?.FanGpu)} |");
         sb.AppendLine($"| panel Hz / brightness (most of the time) | {Mode(ac, t => t.Tick.Extras?.Hz)} / {Mode(ac, t => t.Tick.Extras?.Brightness)} | {Mode(bat, t => t.Tick.Extras?.Hz)} / {Mode(bat, t => t.Tick.Extras?.Brightness)} |");
+        sb.AppendLine($"| core temp max mean / max | {MeanMax(ac, t => t.Tick.Extras?.CoreTempMax)} | {MeanMax(bat, t => t.Tick.Extras?.CoreTempMax)} |");
+        sb.AppendLine($"| hottest core (most of the time) | {Mode(ac, t => t.Tick.Extras?.CoreHot)} | {Mode(bat, t => t.Tick.Extras?.CoreHot)} |");
+        sb.AppendLine($"| core GHz max p95 | {P95(ac, t => t.Tick.Extras?.CoreGhzMax)} | {P95(bat, t => t.Tick.Extras?.CoreGhzMax)} |");
+        sb.AppendLine($"| battery W mean in use / idle | - | {Mean(bat.Where(t => InUse(t) == true).ToList(), t => t.Tick.Extras?.BatW)} / {Mean(bat.Where(t => InUse(t) == false).ToList(), t => t.Tick.Extras?.BatW)} |");
+        sb.AppendLine($"| SMU read ms mean / p95 / max | {IntStats(ac, t => t.Tick.Extras?.SmuMs)} | {IntStats(bat, t => t.Tick.Extras?.SmuMs)} |");
         sb.AppendLine();
 
         if (batSessions.Count > 0)
         {
             sb.AppendLine("### Battery sessions");
             sb.AppendLine();
-            sb.AppendLine("| Start | Hours | Wh used | Mean W | % start -> end | Mode | GPU | Hz | Brightness |");
-            sb.AppendLine("|---|---|---|---|---|---|---|---|---|");
+            sb.AppendLine("| Start | Hours | Wh used | Mean W | % start -> end | Mode | GPU | Hz | Brightness | In use % | dGPU h |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
             foreach (var s in batSessions)
-                sb.AppendLine($"| {s.Start:yyyy-MM-dd HH:mm} | {s.Hours:F1} | {F1(s.WhUsed)} | {F1(s.MeanW)} | {F0(s.PctStart)} -> {F0(s.PctEnd)} | {LenovoEc.ModeName(s.PowerMode)} | {LenovoEc.IGpuModeName(s.GpuMode)} | {s.Hz?.ToString() ?? "-"} | {s.Brightness?.ToString() ?? "-"} |");
+                sb.AppendLine($"| {s.Start:yyyy-MM-dd HH:mm} | {s.Hours:F1} | {F1(s.WhUsed)} | {F1(s.MeanW)} | {F0(s.PctStart)} -> {F0(s.PctEnd)} | {LenovoEc.ModeName(s.PowerMode)} | {LenovoEc.IGpuModeName(s.GpuMode)} | {s.Hz?.ToString() ?? "-"} | {s.Brightness?.ToString() ?? "-"} | {F0(s.InUsePct)} | {s.DgpuHours:F1} |");
             sb.AppendLine();
         }
 
-        Breakdown(sb, "power mode", ticks, t => t.Tick.Extras?.PowerMode, LenovoEc.ModeName, Hours);
-        Breakdown(sb, "GPU mode", ticks, t => t.Tick.Extras?.GpuMode, LenovoEc.IGpuModeName, Hours);
+        Breakdown(sb, "power mode", ticks, t => t.Tick.Extras?.PowerMode is { } m ? LenovoEc.ModeName(m) : null, Hours);
+        Breakdown(sb, "GPU mode", ticks, t => t.Tick.Extras?.GpuMode is { } m ? LenovoEc.IGpuModeName(m) : null, Hours);
+        Breakdown(sb, "Windows overlay", ticks, t => t.Tick.Extras?.Overlay, Hours);
+
+        var charging = ticks.Where(t => t.Tick.Extras?.ChargeW is not null).ToList();
+        var modes = ticks.Where(t => t.Tick.Extras?.ChargeMode is not null).GroupBy(t => t.Tick.Extras!.ChargeMode!).OrderByDescending(g => g.Sum(Hours)).ToList();
+        if (charging.Count > 0 || modes.Count > 0)
+        {
+            sb.Append(charging.Count > 0 ? $"Charging: {charging.Sum(Hours):F1} h at {Mean(charging, t => t.Tick.Extras?.ChargeW)} W mean" : "Charging: none");
+            if (modes.Count > 0) sb.Append("; charge mode: " + string.Join(", ", modes.Select(g => $"{g.Key} {g.Sum(Hours):F1} h")));
+            sb.AppendLine(".");
+            sb.AppendLine();
+        }
+
+        var withDgpu = bat.Where(t => t.Tick.Extras?.Dgpu == true).ToList();
+        var withoutDgpu = bat.Where(t => t.Tick.Extras?.Dgpu == false).ToList();
+        if (withDgpu.Count + withoutDgpu.Count > 0)
+        {
+            sb.AppendLine($"dGPU on the bus {withDgpu.Sum(Hours):F1} h of the {batH:F1} h on battery; battery W mean {Mean(withDgpu, t => t.Tick.Extras?.BatW)} with it, {Mean(withoutDgpu, t => t.Tick.Extras?.BatW)} without.");
+            sb.AppendLine();
+        }
 
         var h = health.Where(x => x.Ts >= since && x.Ts < until && x.FullWh is not null).OrderBy(x => x.Ts).ToList();
         if (h.Count > 0)
@@ -114,9 +143,11 @@ public static class PowerReport
             var whs = run.Select(t => t.Tick.Extras?.BatWh).Where(w => w is not null).Select(w => w!.Value).ToList();
             var ws = run.Select(t => t.Tick.Extras?.BatW).Where(w => w is not null).Select(w => w!.Value).ToList();
             var span = (last.Ts - first.Ts).TotalHours + hours(run[^1]);
+            var known = run.Select(InUse).Where(u => u is not null).ToList();
             list.Add(new BatterySession(first.Ts, last.Ts, span, whs.Count > 1 && whs[0] >= whs[^1] ? whs[0] - whs[^1] : null,
                 ws.Count > 0 ? ws.Average() : null, first.Extras?.BatPct, last.Extras?.BatPct,
-                ModeOf(run, t => t.Tick.Extras?.PowerMode), ModeOf(run, t => t.Tick.Extras?.GpuMode), ModeOf(run, t => t.Tick.Extras?.Hz), ModeOf(run, t => t.Tick.Extras?.Brightness)));
+                ModeOf(run, t => t.Tick.Extras?.PowerMode), ModeOf(run, t => t.Tick.Extras?.GpuMode), ModeOf(run, t => t.Tick.Extras?.Hz), ModeOf(run, t => t.Tick.Extras?.Brightness),
+                known.Count > 0 ? 100.0 * known.Count(u => u == true) / known.Count : null, run.Where(t => t.Tick.Extras?.Dgpu == true).Sum(hours)));
             run = null;
         }
         foreach (var t in ticks)
@@ -129,17 +160,35 @@ public static class PowerReport
         return list;
     }
 
-    private static void Breakdown(StringBuilder sb, string what, List<TickRow> ticks, Func<TickRow, int?> key, Func<int?, string> name, Func<TickRow, double> hours)
+    private static void Breakdown(StringBuilder sb, string what, List<TickRow> ticks, Func<TickRow, string?> key, Func<TickRow, double> hours)
     {
-        var groups = ticks.Where(t => key(t) is not null).GroupBy(key).OrderByDescending(g => g.Sum(hours)).ToList();
+        var groups = ticks.Where(t => key(t) is not null).GroupBy(t => key(t)!).OrderByDescending(g => g.Sum(hours)).ToList();
         if (groups.Count == 0) return;
         sb.AppendLine($"### By {what}");
         sb.AppendLine();
         sb.AppendLine("| Mode | Hours | On battery h | Package W mean | EC CPU C mean |");
         sb.AppendLine("|---|---|---|---|---|");
         foreach (var g in groups)
-            sb.AppendLine($"| {name(g.Key)} | {g.Sum(hours):F1} | {g.Where(t => t.Tick.Extras?.Ac == false).Sum(hours):F1} | {Mean(g.ToList(), t => t.Tick.PackagePower)} | {Mean(g.ToList(), t => t.Tick.Extras?.EcCpuC)} |");
+            sb.AppendLine($"| {g.Key} | {g.Sum(hours):F1} | {g.Where(t => t.Tick.Extras?.Ac == false).Sum(hours):F1} | {Mean(g.ToList(), t => t.Tick.PackagePower)} | {Mean(g.ToList(), t => t.Tick.Extras?.EcCpuC)} |");
         sb.AppendLine();
+    }
+
+    private static string P95(List<TickRow> ticks, Func<TickRow, double?> f)
+    {
+        var xs = ticks.Select(f).Where(x => x is not null).Select(x => x!.Value).ToList();
+        return xs.Count == 0 ? "-" : $"{Sampler.Percentile(xs, 0.95):F2}";
+    }
+
+    private static string IntStats(List<TickRow> ticks, Func<TickRow, int?> f)
+    {
+        var xs = ticks.Select(f).Where(x => x is not null).Select(x => (double)x!.Value).ToList();
+        return xs.Count == 0 ? "-" : $"{xs.Average():F0} / {Sampler.Percentile(xs, 0.95):F0} / {xs.Max():F0}";
+    }
+
+    private static string MeanMax(List<TickRow> ticks, Func<TickRow, double?> f)
+    {
+        var xs = ticks.Select(f).Where(x => x is not null).Select(x => x!.Value).ToList();
+        return xs.Count == 0 ? "-" : $"{xs.Average():F0} / {xs.Max():F0}";
     }
 
     private static string Stats(List<TickRow> ticks, Func<TickRow, double?> f)
