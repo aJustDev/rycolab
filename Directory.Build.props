@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <!-- 10.0.17763 (Win10 1809) is the floor for the WinRT toast projection the guard's notifier uses. -->
     <TargetFramework>net9.0-windows10.0.17763.0</TargetFramework>
     <!-- Run on a newer runtime (.NET 10+) when 9 is not installed. -->
