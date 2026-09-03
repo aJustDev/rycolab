@@ -172,6 +172,17 @@ public static class CurveApply
     public static Result Apply(NvApi api, VfCurve vf, GpuProfile profile, Action<string>? log = null)
     {
         var curve = vf.ReadSettled();
+        // The base cannot be derived from a curve that carries offsets: the driver reports the flattened
+        // tail at the lock's clock, so clock - offset is fiction there (2655 - (-1000) = 3655 on
+        // 2026-09-04, which turned a per-point tail into -1000 everywhere). Green Curve resets
+        // before applying and settles 1 s; so does this.
+        if (curve.Any(p => p.OffsetKhz != 0))
+        {
+            log?.Invoke("offsets on the curve: reset to 0 first, then 1 s to settle");
+            vf.Reset(log);
+            Thread.Sleep(1000);
+            curve = vf.ReadSettled();
+        }
         if (VfCurve.IndexForMv(curve, profile.LockMv) is not { } lockIndex)
             return new Result(false, $"the curve has no point at {profile.LockMv} mV or above", -1, curve);
         var blackwell = api.Architecture == NvApi.Blackwell || api.Architecture > NvApi.Blackwell;
