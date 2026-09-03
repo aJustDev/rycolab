@@ -46,10 +46,10 @@ public sealed class GpuProfile
     /// How the points above the lock are written: "floor" (Green Curve's
     /// Blackwell way: every tail point at the driver's minimum offset, the
     /// lock point sets the ceiling) or "points" (Afterburner's way: each
-    /// tail point gets the offset that puts it at the lock's clock). The
-    /// driver reports both as flat; what the boost does with them is what
-    /// the A-B on 2026-09-04 measures (Time Spy 16312 with the floor
-    /// against 21160 with Afterburner's per-point tail).
+    /// tail point gets the offset that puts it at the lock's clock, the
+    /// default). The driver honoured both on the reference machine and Time
+    /// Spy could not tell them apart (2026-09-04: 20449 floor, 20342 points,
+    /// 20069 stock; the GPU sits at its power limit under the lock).
     /// </summary>
     public string Tail { get; set; } = "points";
     [JsonIgnore] public bool TailPerPoint => string.Equals(Tail, "points", StringComparison.OrdinalIgnoreCase);

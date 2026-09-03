@@ -219,6 +219,6 @@ public class GpuProfileTests
         var rising = pts.Select(q => q.Index == 127 ? q : q with { Khz = 1000000 + q.Index * 20000 }).ToArray();
         Assert.False(CurveApply.IsApplied(rising, p));
         Assert.Null(CurveApply.LockMhzNow(rising, p));
-        Assert.Equal("+100 MHz at 887 mV (2400 MHz on a 0 base)", p.Describe);
+        Assert.Equal("+100 MHz at 887 mV (2400 MHz on a 0 base), tail per point", p.Describe);
     }
 }
