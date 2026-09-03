@@ -43,15 +43,19 @@ public sealed class Nvml : IDisposable
 
     public readonly record struct Sample(int? Mhz, int? MemMhz, double? Watts, int? TempC, int? Util);
 
-    public Sample Read()
+    /// <summary>Null when the handle went stale: after a driver reset NVML answers success with garbage (2332033 MHz, 2336538 W on 2026-09-03); the caller reopens.</summary>
+    public Sample? Read()
     {
-        if (!_open) return default;
-        return new Sample(
+        if (!_open) return null;
+        var s = new Sample(
             GetClock(_device, ClockGraphics, out var g) == 0 ? (int)g : null,
             GetClock(_device, ClockMemory, out var m) == 0 ? (int)m : null,
             GetPower(_device, out var mw) == 0 ? mw / 1000.0 : null,
             GetTemperature(_device, 0, out var c) == 0 ? (int)c : null,
             GetUtilization(_device, out var u) == 0 ? (int)u.Gpu : null);
+        var plausible = s.Mhz is null or (>= 0 and < 10000) && s.MemMhz is null or (>= 0 and < 40000)
+            && s.Watts is null or (>= 0 and < 1000) && s.TempC is null or (>= 0 and < 150) && s.Util is null or (>= 0 and <= 100);
+        return plausible ? s : null;
     }
 
     public void Dispose()

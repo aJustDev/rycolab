@@ -19,23 +19,35 @@ public sealed class GpuProfileSource
 }
 
 /// <summary>
-/// What the user wants the GPU's V/F curve to be, in the terms an undervolt
-/// is expressed in: flat at <see cref="LockMhz"/> from <see cref="LockMv"/>
-/// up, and a uniform offset below (capped so nothing rises above the lock).
-/// gpu-profile.json. The guard keeps it applied while <see cref="Enabled"/>;
-/// a TDR sets <see cref="SafetyLock"/> and the guard stops until `gpu on`.
+/// What the user wants the GPU's V/F curve to be, in Afterburner's terms:
+/// a static frequency offset at the lock point (<see cref="LockOffsetMhz"/>
+/// at <see cref="LockMv"/>), the tail flattened to it, and a uniform offset
+/// below (capped so nothing rises above the lock). Offsets, not a target
+/// clock: the driver's base curve sits in two states on the reference
+/// machine (idle and awake, ~260 MHz apart), and an offset computed
+/// against the idle base put the awake lock 240 MHz too high and into a
+/// TDR loop (2026-09-03). A static offset rides the base the way
+/// Afterburner's does; <see cref="LockMhz"/> and <see cref="LockBaseMhz"/>
+/// only record what the offset meant where it was derived. gpu-profile.json.
+/// The guard keeps it applied while <see cref="Enabled"/>; a TDR sets
+/// <see cref="SafetyLock"/> and the guard stops until `gpu on`.
 /// </summary>
 public sealed class GpuProfile
 {
     public bool Enabled { get; set; }
     public int LockMv { get; set; }
+    /// <summary>The offset on the lock point, MHz. The source of truth.</summary>
+    public int LockOffsetMhz { get; set; }
+    /// <summary>The clock the lock meant, and the base it was derived against (both informational).</summary>
     public int LockMhz { get; set; }
+    public int LockBaseMhz { get; set; }
     public int LowOffsetMhz { get; set; }
     public string? SafetyLock { get; set; }
     public GpuFingerprint? Fingerprint { get; set; }
     public GpuProfileSource? Source { get; set; }
 
-    [JsonIgnore] public string Describe => $"{LockMhz} MHz from {LockMv} mV{(LowOffsetMhz != 0 ? $", {LowOffsetMhz:+0;-0} MHz below" : "")}";
+    [JsonIgnore] public string Describe =>
+        $"{LockOffsetMhz:+0;-0} MHz at {LockMv} mV{(LockMhz > 0 ? $" ({LockMhz} MHz on a {LockBaseMhz} base)" : "")}{(LowOffsetMhz != 0 ? $", {LowOffsetMhz:+0;-0} MHz below" : "")}";
 
     public static bool Exists() => File.Exists(AppPaths.GpuProfile);
     public static GpuProfile? Load() => Journal.ReadJsonFile<GpuProfile>(AppPaths.GpuProfile);
@@ -44,7 +56,7 @@ public sealed class GpuProfile
     /// <summary>Null when the profile can be applied to this GPU; the reason otherwise.</summary>
     public string? Refuse(NvApi api)
     {
-        if (LockMhz <= 0 || LockMv <= 0) return "the profile has no lock";
+        if (LockMv <= 0 || (LockOffsetMhz == 0 && LockMhz <= 0)) return "the profile has no lock";
         if (Fingerprint is { } f && f.DeviceId != 0 && f.DeviceId != api.DeviceId) return $"the profile is for {f.Name} (device {f.DeviceId:X8}), this is {api.Name} ({api.DeviceId:X8})";
         return null;
     }
@@ -99,13 +111,15 @@ public static class Afterburner
         return points;
     }
 
+    public sealed record Intent(int LockMv, int LockOffsetMhz, int LockMhz, int LockBaseMhz, int LowOffsetMhz);
+
     /// <summary>
     /// The undervolt the curve expresses: the plateau (the highest target
-    /// MHz), the voltage of the first point that reaches it, and the offset
-    /// the low region carries. Null when the curve has no plateau (it keeps
-    /// rising: nothing to lock).
+    /// MHz), the first point that reaches it with its offset and base, and
+    /// the offset the low region carries. Null when the curve has no
+    /// plateau (it keeps rising: nothing to lock).
     /// </summary>
-    public static (int LockMv, int LockMhz, int LowOffsetMhz)? Intent(IReadOnlyList<Point> points)
+    public static Intent? IntentOf(IReadOnlyList<Point> points)
     {
         var live = points.Where(p => p.BaseMhz > 0).ToList();
         if (live.Count < 2) return null;
@@ -114,7 +128,7 @@ public static class Afterburner
         if (first.Index == live[^1].Index) return null;   // the maximum is the last point: no plateau
         var below = live.Where(p => p.Index < first.Index && p.OffsetMhz != 0).Select(p => p.OffsetMhz).ToList();
         var low = below.Count > 0 ? below.GroupBy(o => o).OrderByDescending(g => g.Count()).ThenByDescending(g => g.Key).First().Key : 0;
-        return ((int)Math.Round(first.Mv), (int)Math.Round(plateau), (int)Math.Round(low));
+        return new Intent((int)Math.Round(first.Mv), (int)Math.Round(first.OffsetMhz), (int)Math.Round(plateau), (int)Math.Round(first.BaseMhz), (int)Math.Round(low));
     }
 }
 
@@ -150,16 +164,19 @@ public static class CurveApply
         if (VfCurve.IndexForMv(curve, profile.LockMv) is not { } lockIndex)
             return new Result(false, $"the curve has no point at {profile.LockMv} mV or above", -1, curve);
         var blackwell = api.Architecture == NvApi.Blackwell || api.Architecture > NvApi.Blackwell;
-        var (targets, mask) = VfCurve.FlattenTargets(curve, lockIndex, profile.LockMhz, profile.LowOffsetMhz * 1000, blackwell);
-        log?.Invoke($"lock at point {lockIndex} ({curve[lockIndex].Mv:F1} mV, base {curve[lockIndex].BaseKhz / 1000} MHz) -> {profile.LockMhz} MHz: offset {targets[lockIndex] / 1000:+0;-0} MHz; {mask.Count(m => m) - 1} other points");
+        var baseMhz = curve[lockIndex].BaseKhz / 1000;
+        // A profile from `set --lock MHz@mV` carries a target, not an offset: the offset is derived once, here, against this base.
+        var lockOffsetKhz = profile.LockOffsetMhz != 0 ? profile.LockOffsetMhz * 1000 : profile.LockMhz * 1000 - curve[lockIndex].BaseKhz;
+        var (targets, mask) = VfCurve.FlattenTargets(curve, lockIndex, lockOffsetKhz, profile.LowOffsetMhz * 1000, blackwell);
+        log?.Invoke($"lock at point {lockIndex} ({curve[lockIndex].Mv:F1} mV, base {baseMhz} MHz now): offset {targets[lockIndex] / 1000:+0;-0} MHz -> {(curve[lockIndex].BaseKhz + targets[lockIndex]) / 1000} MHz; {mask.Count(m => m) - 1} other points");
         var left = vf.Apply(targets, mask, log);
         var after = vf.ReadSettled();
-        if (VfCurve.IsFlatAt(after, lockIndex, profile.LockMhz))
-            return new Result(true, $"{profile.LockMhz} MHz from {after[lockIndex].Mv:F1} mV, {left.Count} offsets not exact", lockIndex, after);
+        if (VfCurve.DetectLock(after, VfCurve.VerifyToleranceMhz) == lockIndex && after[lockIndex].OffsetKhz == targets[lockIndex])
+            return new Result(true, $"flat from {after[lockIndex].Mv:F1} mV at {after[lockIndex].Mhz} MHz now (base {baseMhz} {targets[lockIndex] / 1000:+0;-0}), {left.Count} offsets not exact", lockIndex, after);
         var top = after.Where(p => p.HasData && p.Index <= VfBackend.LastTailPoint).Max(p => p.Mhz);
-        log?.Invoke($"not flat: lock point reads {after[lockIndex].Mhz} MHz, curve tops {top} MHz; rolling back");
+        log?.Invoke($"not flat from the lock: lock point reads {after[lockIndex].Mhz} MHz (offset {after[lockIndex].OffsetKhz / 1000:+0;-0}), curve tops {top} MHz; rolling back");
         vf.Reset(log);
-        return new Result(false, $"the curve did not flatten (lock point {after[lockIndex].Mhz} MHz, top {top} MHz); offsets reset to 0", lockIndex, after);
+        return new Result(false, $"the curve did not flatten from the lock (lock point {after[lockIndex].Mhz} MHz, top {top} MHz); offsets reset to 0", lockIndex, after);
     }
 
     /// <summary>

@@ -215,7 +215,8 @@ static void PrintGpuHelp()
           probe [--all]                 the GPU, its family, the V/F curve (every 8th point; --all every point) and the offsets on it
           show                          the saved profile and whether it is on the curve
           import <file> [--profile 1]   an MSI Afterburner profile (Profiles\VEN_10DE...cfg) or a Green Curve config.ini
-          set --lock <MHz>@<mV> [--below <MHz>]   a profile by hand: flat at MHz from mV up, an offset below
+          set --offset <+MHz>@<mV> [--below <MHz>]   a profile by hand, Afterburner's terms: the offset on the lock point, flat from there
+          set --lock <MHz>@<mV>         the same from a clock: the offset is derived against the base read now (it sits in two states)
           apply | on | off              put the profile on the curve (the guard keeps it at logon and after sleep;
                                         `on` also clears a safety lock) | every offset back to 0 and the profile disabled
 

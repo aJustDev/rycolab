@@ -159,17 +159,19 @@ public sealed class VfCurve
     }
 
     /// <summary>
-    /// The offsets that put the curve at <paramref name="lockMhz"/> from the
-    /// lock point on: below the lock a uniform offset, capped so no point
-    /// rises above the lock; the lock point gets lock - base; the tail gets
-    /// the driver's minimum offset on Blackwell (per-point deltas there are
-    /// ignored) or lock - base elsewhere. Point 127 (low power) is left alone.
+    /// The offsets that flatten the curve from the lock point on: the lock
+    /// point gets <paramref name="lockOffsetKhz"/> (a static offset, the way
+    /// Afterburner stores a curve: the clock it yields rides the driver's
+    /// base); below the lock a uniform offset, capped so no point rises
+    /// above the lock; the tail gets the driver's minimum offset on
+    /// Blackwell (per-point deltas there are ignored) or lock - base
+    /// elsewhere. Point 127 (low power) is left alone.
     /// </summary>
-    public static (int[] Targets, bool[] Mask) FlattenTargets(VfPoint[] curve, int lockIndex, int lockMhz, int lowOffsetKhz, bool blackwell,
+    public static (int[] Targets, bool[] Mask) FlattenTargets(VfPoint[] curve, int lockIndex, int lockOffsetKhz, int lowOffsetKhz, bool blackwell,
         int minKhz = DefaultMinOffsetKhz, int maxKhz = DefaultMaxOffsetKhz)
     {
         var targets = new int[VfBackend.Points]; var mask = new bool[VfBackend.Points];
-        var lockKhz = lockMhz * 1000;
+        var lockKhz = curve[lockIndex].BaseKhz + lockOffsetKhz;
         for (var i = 0; i <= VfBackend.LastTailPoint; i++)
         {
             if (!curve[i].HasData) continue;

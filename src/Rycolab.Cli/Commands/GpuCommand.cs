@@ -95,11 +95,16 @@ public static class GpuCommand
         {
             if (GreenCurveIni.Read(path, slot) is not { } gc) { Console.Error.WriteLine($"  No lock in profile {slot} of {path}."); return 1; }
             if (!api.IsAvailable) { Console.Error.WriteLine($"  Green Curve stores the lock as a curve index; the GPU is needed to turn it into a voltage ({api.Unavailable})."); return 1; }
-            var curve = new VfCurve(api).Read();
+            var curve = new VfCurve(api).ReadSettled();
+            var basePoint = curve[gc.LockIndex];
             profile.Source.Kind = "greencurve";
-            profile.LockMv = (int)Math.Round(curve[gc.LockIndex].Mv);
+            profile.LockMv = (int)Math.Round(basePoint.Mv);
             profile.LockMhz = gc.LockMhz;
+            profile.LockBaseMhz = basePoint.BaseKhz / 1000;
+            profile.LockOffsetMhz = gc.LockMhz - profile.LockBaseMhz;
             profile.LowOffsetMhz = gc.GpuOffsetMhz;
+            Console.WriteLine();
+            Console.WriteLine($"  Green Curve profile {slot}: lock {gc.LockMhz} MHz at point {gc.LockIndex} ({basePoint.Mv:F0} mV); the base reads {profile.LockBaseMhz} MHz right now, so the offset is {profile.LockOffsetMhz:+0;-0} MHz. If the base was in its other state when Green Curve applied it, the offset differs: check with `gpu probe` after `gpu apply`.");
         }
         else
         {
@@ -108,12 +113,12 @@ public static class GpuCommand
             List<Afterburner.Point> points;
             try { points = Afterburner.Decode(hex); }
             catch (FormatException ex) { Console.Error.WriteLine($"  {ex.Message}"); return 1; }
-            if (Afterburner.Intent(points) is not { } intent) { Console.Error.WriteLine("  The curve keeps rising to the last point: no plateau to lock at."); return 1; }
+            if (Afterburner.IntentOf(points) is not { } intent) { Console.Error.WriteLine("  The curve keeps rising to the last point: no plateau to lock at."); return 1; }
             profile.Source.Kind = "afterburner";
-            (profile.LockMv, profile.LockMhz, profile.LowOffsetMhz) = intent;
-            var plateauFrom = points.First(p => p.TargetMhz >= profile.LockMhz - 1);
+            profile.LockMv = intent.LockMv; profile.LockOffsetMhz = intent.LockOffsetMhz; profile.LockMhz = intent.LockMhz;
+            profile.LockBaseMhz = intent.LockBaseMhz; profile.LowOffsetMhz = intent.LowOffsetMhz;
             Console.WriteLine();
-            Console.WriteLine($"  Afterburner profile {slot}: {points.Count} points, plateau {profile.LockMhz} MHz from point {plateauFrom.Index} ({plateauFrom.Mv:F0} mV, base {plateauFrom.BaseMhz:F0} + {plateauFrom.OffsetMhz:+0;-0}); low region {profile.LowOffsetMhz:+0;-0} MHz");
+            Console.WriteLine($"  Afterburner profile {slot}: {points.Count} points; the plateau {intent.LockMhz} MHz starts at {intent.LockMv} mV as base {intent.LockBaseMhz} {intent.LockOffsetMhz:+0;-0} MHz; low region {intent.LowOffsetMhz:+0;-0} MHz. The offsets are kept as Afterburner had them; the clock they yield rides the driver's base.");
         }
 
         if (api.IsAvailable) profile.Fingerprint = new GpuFingerprint { Name = api.Name, DeviceId = api.DeviceId, Family = api.Family };
@@ -124,20 +129,36 @@ public static class GpuCommand
 
     private static int Set(Args args)
     {
+        // --offset +300@875: the offset itself (Afterburner's terms). --lock 2655@875: a clock, turned into an offset against the base read now.
+        var offsetSpec = args.Get("offset");
         var lockSpec = args.Get("lock");
-        if (lockSpec is null || lockSpec.Split('@') is not [var mhzText, var mvText] || !int.TryParse(mhzText, out var mhz) || !int.TryParse(mvText, out var mv))
+        var spec = offsetSpec ?? lockSpec;
+        if (spec is null || spec.Split('@') is not [var valueText, var mvText] || !int.TryParse(valueText, out var value) || !int.TryParse(mvText, out var mv))
         {
-            Console.Error.WriteLine("Usage: rycolab gpu set --lock <MHz>@<mV> [--below <MHz offset>]   e.g. --lock 2655@900 --below 300");
+            Console.Error.WriteLine("Usage: rycolab gpu set --offset <+MHz>@<mV> | --lock <MHz>@<mV>  [--below <MHz offset>]   e.g. --offset +300@875 --below 300");
             return 2;
         }
         var existing = GpuProfile.Load();
         using var api = new NvApi();
         var profile = new GpuProfile
         {
-            LockMhz = mhz, LockMv = mv, LowOffsetMhz = args.GetInt("below") ?? 0,
+            LockMv = mv, LowOffsetMhz = args.GetInt("below") ?? 0,
             Source = new GpuProfileSource { Kind = "manual", Date = DateTime.Now },
             Fingerprint = api.IsAvailable ? new GpuFingerprint { Name = api.Name, DeviceId = api.DeviceId, Family = api.Family } : existing?.Fingerprint,
         };
+        if (offsetSpec is not null) profile.LockOffsetMhz = value;
+        else
+        {
+            profile.LockMhz = value;
+            if (api.IsAvailable && VfCurve.IndexForMv(new VfCurve(api).ReadSettled(), mv) is { } i)
+            {
+                var curve = new VfCurve(api).ReadSettled();
+                profile.LockBaseMhz = curve[i].BaseKhz / 1000;
+                profile.LockOffsetMhz = value - profile.LockBaseMhz;
+                Console.WriteLine($"  The base at {curve[i].Mv:F0} mV reads {profile.LockBaseMhz} MHz right now: offset {profile.LockOffsetMhz:+0;-0} MHz. The base sits in two states on a laptop (idle and awake, hundreds of MHz apart); an offset derived against the idle one overshoots when the card wakes. Prefer --offset, or derive with the GPU awake.");
+            }
+            else Console.WriteLine("  No GPU to read the base from: the offset will be derived at `gpu apply`.");
+        }
         profile.Save();
         Console.WriteLine($"  Saved {profile.Describe} to {AppPaths.GpuProfile} (disabled). `rycolab gpu apply` puts it on the curve.");
         return 0;

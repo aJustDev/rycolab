@@ -54,9 +54,15 @@ public static class Whea
     public static List<SystemEvent> PowerSince(DateTime since)
         => Query(since, (KernelPower, [42, 107]), (PowerTroubleshooter, [1]));
 
-    /// <summary>The GPU's equivalent of a WHEA: a display driver reset (TDR, `Display` 4101) or the NVIDIA driver's own error (`nvlddmkm` 14).</summary>
+    /// <summary>
+    /// The GPU's equivalent of a WHEA: a display driver reset. `Display`
+    /// 4101 (Windows' TDR notice), `nvlddmkm` 153 ("Restarting TDR occurred
+    /// on GPUID:100", twenty of them in two minutes on the reference machine
+    /// 2026-09-03 when a curve applied against the idle base met the awake
+    /// one) and `nvlddmkm` 14 (the driver's own error record).
+    /// </summary>
     public static List<SystemEvent> GpuResetsSince(DateTime since)
-        => Query(since, ("Display", [4101]), ("nvlddmkm", [14]));
+        => Query(since, ("Display", [4101]), ("nvlddmkm", [14, 153]));
 
     internal static string XPath(DateTime since, params (string Provider, int[] Ids)[] filters)
     {

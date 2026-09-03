@@ -43,7 +43,7 @@ public class VfCurveTests
     {
         var c = Curve();
         var lockIndex = 80;   // 950 mV, 1530 MHz on this synthetic curve
-        var (t, m) = VfCurve.FlattenTargets(c, lockIndex, lockMhz: 1600, lowOffsetKhz: 300000, blackwell: true);
+        var (t, m) = VfCurve.FlattenTargets(c, lockIndex, lockOffsetKhz: 1600000 - c[80].BaseKhz, lowOffsetKhz: 300000, blackwell: true);
         Assert.Equal(1600000 - c[80].BaseKhz, t[80]);
         Assert.True(m[80]);
         Assert.Equal(-1000000, t[81]);
@@ -59,7 +59,7 @@ public class VfCurveTests
     public void FlattenElsewhereUsesPerPointDeltasForTheTail()
     {
         var c = Curve();
-        var (t, _) = VfCurve.FlattenTargets(c, 80, 1600, 0, blackwell: false);
+        var (t, _) = VfCurve.FlattenTargets(c, 80, 1600000 - c[80].BaseKhz, 0, blackwell: false);
         Assert.Equal(1600000 - c[100].BaseKhz, t[100]);
         Assert.Equal(1600000 - c[110].BaseKhz, t[110]);
         Assert.Equal(-1000000, t[126]);   // 1600 - 2772 MHz would exceed the driver range: clamped
@@ -69,7 +69,7 @@ public class VfCurveTests
     public void FlattenClampsToTheDriverRange()
     {
         var c = Curve();
-        var (t, _) = VfCurve.FlattenTargets(c, 80, 4000, 0, blackwell: true, minKhz: -500000, maxKhz: 500000);
+        var (t, _) = VfCurve.FlattenTargets(c, 80, 4000000 - c[80].BaseKhz, 0, blackwell: true, minKhz: -500000, maxKhz: 500000);
         Assert.Equal(500000, t[80]);
         Assert.Equal(-500000, t[100]);
     }
@@ -140,9 +140,11 @@ public class AfterburnerTests
     [Fact]
     public void IntentIsThePlateauItsFirstVoltageAndTheLowOffset()
     {
-        var intent = Afterburner.Intent(Afterburner.Decode(Blob()))!.Value;
+        var intent = Afterburner.IntentOf(Afterburner.Decode(Blob()))!;
         Assert.Equal(2655, intent.LockMhz);
         Assert.Equal(300, intent.LowOffsetMhz);
+        Assert.Equal(279, intent.LockOffsetMhz);   // the offset Afterburner had on the first plateau point
+        Assert.Equal(2376, intent.LockBaseMhz);
         // base first reaches 2355 (2655 - 300) at i = 102: 450 + 102 * 6.25 = 1087.5 mV, rounded to even
         Assert.Equal(1088, intent.LockMv);
     }
@@ -154,7 +156,7 @@ public class AfterburnerTests
         bytes.AddRange(BitConverter.GetBytes(3));
         foreach (var (o, mv, b) in new[] { (0f, 700f, 1000f), (0f, 800f, 1500f), (0f, 900f, 2000f) })
             foreach (var f in new[] { o, mv, b }) bytes.AddRange(BitConverter.GetBytes(f));
-        Assert.Null(Afterburner.Intent(Afterburner.Decode(Convert.ToHexString(bytes.ToArray()))));
+        Assert.Null(Afterburner.IntentOf(Afterburner.Decode(Convert.ToHexString(bytes.ToArray()))));
     }
 
     [Fact]
@@ -204,7 +206,7 @@ public class GpuProfileTests
         var pts = new VfPoint[VfBackend.Points];
         for (var i = 0; i < 127; i++) pts[i] = new VfPoint(i, Math.Min(2400000, 1000000 + i * 20000), 450000 + i * 6250, 0);
         pts[127] = new VfPoint(127, 405000, 525000, 0);
-        var p = new GpuProfile { LockMv = 887, LockMhz = 2400 };   // point 70 = 887.5 mV = 2400 MHz, flat after
+        var p = new GpuProfile { LockMv = 887, LockOffsetMhz = 100, LockMhz = 2400 };   // point 70 = 887.5 mV = 2400 MHz, flat after
         Assert.True(CurveApply.IsApplied(pts, p));
         Assert.Equal(2400, CurveApply.LockMhzNow(pts, p));
         // The base drifted: the same shape 260 MHz higher is still the profile.
@@ -217,6 +219,6 @@ public class GpuProfileTests
         var rising = pts.Select(q => q.Index == 127 ? q : q with { Khz = 1000000 + q.Index * 20000 }).ToArray();
         Assert.False(CurveApply.IsApplied(rising, p));
         Assert.Null(CurveApply.LockMhzNow(rising, p));
-        Assert.Equal("2400 MHz from 887 mV", p.Describe);
+        Assert.Equal("+100 MHz at 887 mV (2400 MHz on a 0 base)", p.Describe);
     }
 }

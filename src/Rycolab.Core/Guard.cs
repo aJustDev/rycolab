@@ -455,6 +455,8 @@ public sealed class Guard
             if (applied) return;
         }
         Event("gpu-changed", "the curve no longer carries the profile (the driver reset it?)");
+        // A curve that vanished right after a driver reset is not re-applied: the reset is why it vanished.
+        if (resets.Count > 0 && (DateTime.Now - resets[^1].Time).TotalMinutes < 10) { GpuSafetyLock($"curve lost within 10 min of a driver reset ({resets[^1].Time:HH:mm:ss})"); return; }
         _gpuReapplies.RemoveAll(t => (DateTime.Now - t).TotalHours >= 1);
         if (_gpuReapplies.Count >= _o.MaxReappliesPerHour) { GpuSafetyLock($"{_gpuReapplies.Count} GPU re-applies within an hour"); return; }
         _gpuReapplies.Add(DateTime.Now);
@@ -527,7 +529,13 @@ public sealed class Guard
         Source("panel", () => { hz = WindowsPower.RefreshHz; bright = WindowsPower.Brightness; });
         // NVML only while the card is on the bus: opening it wakes a sleeping dGPU, and on battery the card is gone anyway.
         Nvml.Sample g = default;
-        if (dgpu == true) Source("nvml", () => { _nvml ??= new Nvml(); if (_nvml.IsAvailable) g = _nvml.Read(); });
+        if (dgpu == true) Source("nvml", () =>
+        {
+            _nvml ??= new Nvml();
+            if (!_nvml.IsAvailable) return;
+            if (_nvml.Read() is { } sample) g = sample;
+            else { _nvml.Dispose(); _nvml = null; }   // stale after a driver reset: reopen next tick
+        });
         else if (_nvml is not null) { _nvml.Dispose(); _nvml = null; }
         return new TickExtras(ac, batW, batPct, batWh, batFull, ecCpu, ecGpu, ecPch, fanCpu, fanGpu, fanPch, mode, gpu, hz, bright,
             coreTempMax, coreHot, coreVoltMean, coreGhzMax, idle, chargeW, chargeMode, dgpu, overlay, _smuMs,
