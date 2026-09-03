@@ -158,7 +158,10 @@ static void PrintHelp()
           rycolab status [--once]       is the profile on the cores, in what phase, last sample, events, battery
                                         (2 s refresh, Ctrl+C closes); --once prints and exits; --all adds the machine,
                                         the Lenovo EC (with sudo) and the Windows scheme; --follow is the per-core view
-          rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown
+          rycolab report [<campaign>]   limits, positives, telemetry, events; --md writes markdown; `report guard` the sessions
+          rycolab report --power [--since 30d|7d|24h | --month 2026-08]   hours guarded and on battery, Wh per battery
+                                        session, package W on AC and battery, by power mode, EC temps and fans, health
+          rycolab report --campaigns    every campaign and the limit per core side by side
           rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV (samples > 100 W, or on battery)
           rycolab report --health       battery capacity history (one sample per day while the guard runs)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>

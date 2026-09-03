@@ -13,8 +13,8 @@ public sealed class Args
     public static readonly HashSet<string> Flags = new(StringComparer.OrdinalIgnoreCase)
     {
         "plain", "quick", "yes", "accept", "resume", "force", "dry-run", "once", "follow", "health", "battery",
-        "no-task", "no-suspend", "no-windows", "close-apps", "raw", "rebuild", "sensors", "write-test", "no-compare",
-        "new", "purge", "all",
+        "no-task", "no-suspend", "no-windows", "close-apps", "raw", "sensors", "write-test", "no-compare",
+        "new", "purge", "all", "power", "campaigns",
     };
 
     private readonly Dictionary<string, string?> _opts = new(StringComparer.OrdinalIgnoreCase);

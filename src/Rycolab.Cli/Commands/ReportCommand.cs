@@ -5,11 +5,13 @@ using Rycolab.Core;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab report [<campaign>|guard] [--md [path]] [--rebuild]
-/// rycolab report --health [--md [path]]
+/// rycolab report [<campaign>|guard] [--md[=path]]
+/// rycolab report --power [--since 30d | --month 2026-08] | --campaigns | --health [--md[=path]]
 /// Per-core limits with V/GHz/W at the limit, positives with time to error,
-/// WHEA and events; --health is the daily battery capacity history the
-/// guard records. Default: the current campaign. No elevation.
+/// WHEA and events; `guard` the sessions and events; --power the ticks over
+/// a period; --campaigns every campaign's limits; --health the daily battery
+/// capacity. Everything from the database. Default: the current campaign.
+/// No elevation.
 /// </summary>
 public static class ReportCommand
 {
@@ -17,6 +19,8 @@ public static class ReportCommand
     {
         if (args.Get("bench") is { } bench) return Bench(bench, args.Get("vs"), args.GetInt("min-power") ?? 100, args.Has("battery"), args.Get("md"), args.Has("md"));
         if (args.Has("health")) return Health(args);
+        if (args.Has("power")) return Power(args);
+        if (args.Has("campaigns")) return Campaigns(args);
 
         var name = args.Positional.FirstOrDefault() ?? args.Get("campaign");
         if (name is null)
@@ -29,7 +33,7 @@ public static class ReportCommand
         using var store = Store.Open();
         string md;
         if (name == "guard")
-            md = Build("guard", [], [], store.Events("guard"));
+            md = GuardReport.Build(store.Sessions(), store.Events("guard"));
         else
         {
             if (store.CampaignId(name) is not { } id)
@@ -111,6 +115,40 @@ public static class ReportCommand
             sb.AppendLine();
         }
         return sb.ToString();
+    }
+
+    /// <summary>rycolab report --power [--since 30d|7d|24h | --month 2026-08] [--md[=path]]: the guard's ticks over a period.</summary>
+    private static int Power(Args args)
+    {
+        if (PowerReport.Period(args.Get("since"), args.Get("month"), DateTime.Now) is not { } p)
+        {
+            Console.Error.WriteLine("  --since takes 30d, 7d, 2w or 24h; --month takes 2026-08.");
+            return 2;
+        }
+        using var store = Store.Open();
+        var text = PowerReport.Build(p.Label, p.Since, p.Until, store.Ticks(p.Since, p.Until), store.Sessions(p.Since),
+            store.Events("guard", null, p.Since), store.Health());
+        return Emit(text, args, Path.Combine(AppPaths.Guard, "power.md"));
+    }
+
+    /// <summary>rycolab report --campaigns [--md[=path]]: every campaign and its limits per core.</summary>
+    private static int Campaigns(Args args)
+    {
+        using var store = Store.Open();
+        return Emit(CampaignsReport.Build(store.Campaigns(), store.AllLimits()), args, Path.Combine(AppPaths.Campaigns, "campaigns.md"));
+    }
+
+    private static int Emit(string text, Args args, string defaultTarget)
+    {
+        if (args.Has("md"))
+        {
+            var target = args.Get("md") ?? defaultTarget;
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.WriteAllText(target, text, new UTF8Encoding(false));
+            Console.WriteLine($"  Written {target}");
+        }
+        else Console.WriteLine(text);
+        return 0;
     }
 
     /// <summary>rycolab report --health [--md [path]]: the guard's daily battery capacity samples.</summary>
