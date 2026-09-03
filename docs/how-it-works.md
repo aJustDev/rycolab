@@ -166,7 +166,7 @@ guard journal that is still being written).
 | `samples` | second of a run: clock, effective clock, V, GHz, W, temperature, package W, Tctl | Sweep |
 | `limits` | core closed by a campaign (null: nothing up to the top survived) | Sweep |
 | `sessions` | guard start (profile, interval, ad hoc or installed, exit code) | Guard |
-| `ticks` | guard interval: margins read back, WHEA, CPU load, package W, state, AC line, battery W / % / Wh, EC temperatures and fans, power and GPU mode, panel Hz and brightness | Guard |
+| `ticks` | guard interval: margins read back, WHEA, CPU load, package W, state, AC line, battery W / % / Wh, EC temperatures and fans, power and GPU mode, panel Hz and brightness; since 0.4.0 the hottest core and its temperature, mean core V and highest core GHz (PM table), seconds since the last user input, charging W and charge mode, whether the dGPU is on the bus, the Windows overlay, and the SMU read latency in ms | Guard |
 | `events` | guard or sweep event (`source`, kind, detail) | Guard, Sweep |
 | `health` | day: full-charge Wh, design Wh, cycles | Guard |
 | `bench`, `bench_samples` | `dev log` session and its rows (the CSV is the export) | `dev log` |

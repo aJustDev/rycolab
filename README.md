@@ -93,8 +93,9 @@ rycolab status [--once]       is the profile on the cores, in what phase, last s
                               machine, the Lenovo EC (needs sudo) and the Windows scheme; --follow is
                               the per-core guard view
 rycolab report [<campaign>]   limits, positives with time to error, telemetry, events; --md writes markdown
-rycolab report --power        hours guarded and on battery, Wh per battery session, package W, EC temps and
-                              fans, by power mode, health (--since 30d|7d|24h or --month 2026-08)
+rycolab report --power        hours guarded and on battery, Wh per battery session, in use vs idle, package W,
+                              by power / GPU mode and overlay, EC and core temps, fans, charging, dGPU, SMU
+                              latency, health (--since 30d|7d|24h or --month 2026-08)
 rycolab report --campaigns    every campaign and the limit per core side by side
 rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
 rycolab db stats|sql "<select>"|export <table>   the database: the history of everything (also path, import)
@@ -168,8 +169,9 @@ Data lives in `%LOCALAPPDATA%\rycolab` (`RYCOLAB_HOME` overrides): `bin\`,
 `profile.json`, `state.json`, `validation.json`, and `rycolab.db`, one
 SQLite database with the history of everything: campaigns, runs, samples,
 limits, guard sessions, ticks (margins, WHEA, load, package W, battery, EC
-temperatures and fans, power and GPU mode, panel), events, battery health,
-`dev log` rows. `rycolab report` reads it; `rycolab db sql "select ..."`
+temperatures and fans, power and GPU mode, panel, hottest core and core
+V/GHz, user idle, charging, dGPU on the bus, Windows overlay, SMU read
+latency), events, battery health, `dev log` rows. `rycolab report` reads it; `rycolab db sql "select ..."`
 runs any read-only query, `rycolab db export <table>` dumps one as CSV or
 JSONL, and `rycolab db import` brings the JSONL files of 0.2 in once.
 `guard\positives\` and `campaigns\<name>\positives\` keep the raw output of
@@ -210,9 +212,11 @@ rate. The summary uses the samples above 100 W of package power
 adds the runtime a full charge would give at the mean discharge.
 `rycolab report --health` is the battery capacity history the guard samples
 once a day, and `rycolab report --power` what its ticks say about a period:
-hours guarded and on battery, each battery session with the Wh it used,
-package power on AC and on battery, the split by power and GPU mode, EC
-temperatures and fans, the panel on battery, the events.
+hours guarded and on battery, each battery session with the Wh it used and
+how much of it the machine was in use, package power on AC and on battery,
+the split by power mode, GPU mode and Windows overlay, EC and core
+temperatures, fans, charging, the dGPU on the bus, the SMU's read latency,
+the panel on battery, the events.
 
 ## Lenovo Legion extras
 
