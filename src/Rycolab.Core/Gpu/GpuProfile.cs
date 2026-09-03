@@ -51,7 +51,7 @@ public sealed class GpuProfile
     /// the A-B on 2026-09-04 measures (Time Spy 16312 with the floor
     /// against 21160 with Afterburner's per-point tail).
     /// </summary>
-    public string Tail { get; set; } = "floor";
+    public string Tail { get; set; } = "points";
     [JsonIgnore] public bool TailPerPoint => string.Equals(Tail, "points", StringComparison.OrdinalIgnoreCase);
     public string? SafetyLock { get; set; }
     public GpuFingerprint? Fingerprint { get; set; }
