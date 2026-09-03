@@ -71,6 +71,11 @@ public sealed class State
     public string? GpuProfile { get; set; }
     public bool? GpuApplied { get; set; }
     public string? GpuLock { get; set; }
+    /// <summary>The GPU at the last tick (NVML, only with the card on the bus) and the driver resets seen this session.</summary>
+    public int? GpuMhz { get; set; }
+    public double? GpuW { get; set; }
+    public int? GpuC { get; set; }
+    public int? GpuTdr { get; set; }
     public List<string> LastEvents { get; set; } = [];
     public string? LastError { get; set; }
 

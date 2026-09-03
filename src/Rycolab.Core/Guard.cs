@@ -560,6 +560,10 @@ public sealed class Guard
         _state.Whea = whea;
         _state.CpuLoad = cpu;
         _state.PackagePower = pkg;
+        _state.GpuMhz = t.Extras?.GpuMhz;
+        _state.GpuW = t.Extras?.GpuW;
+        _state.GpuC = t.Extras?.GpuC;
+        _state.GpuTdr = t.Extras?.Tdr;
         if (_validation is not null) _validation.LastTickAt = t.Ts;
         PublishState();
         _onTick(t);
