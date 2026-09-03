@@ -411,6 +411,21 @@ public sealed class Guard
         var present = LenovoEc.DgpuPresent();
         var wasPresent = _dgpuLast;
         _dgpuLast = present;
+        // `gpu apply|off|on` edit the profile from another process: read it again every tick.
+        if (_o.PublishState)
+        {
+            var fresh = GpuProfile.Load();
+            var wasEnabled = _gpu?.Enabled == true;
+            _gpu = fresh;
+            _state.GpuProfile = fresh?.Describe;
+            _state.GpuLock = fresh?.SafetyLock;
+            if (fresh is { Enabled: true, SafetyLock: null } && !wasEnabled)
+            {
+                if (present && _tdrSeen == 0) _tdrSeen = Whea.GpuResetsSince(_t0).Count;
+                Event("gpu-enabled", $"profile {fresh.Describe} enabled; the guard keeps it from here");
+            }
+            if (fresh is null || !fresh.Enabled) _state.GpuApplied = null;
+        }
         if (_gpu is null) return;
 
         var resets = Whea.GpuResetsSince(_t0);
