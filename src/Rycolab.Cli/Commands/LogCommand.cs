@@ -5,22 +5,24 @@ using Rycolab.Core;
 namespace Rycolab.Cli.Commands;
 
 /// <summary>
-/// rycolab dev log --out file.csv [--interval 2] [--minutes N]
-/// One CSV row per sample while something else (Cinebench, a game) loads the
+/// rycolab dev log --out file.csv [--name bench] [--interval 2] [--minutes N]
+/// One row per sample while something else (Cinebench, a game) loads the
 /// machine: package power, Tctl and CCD temperatures, effective clock (all
 /// cores and per core), core voltages from the PM table, VID, and on Lenovo
-/// Legion machines the fan speeds and EC temperatures. Written row by row.
-/// `rycolab report --bench file.csv [--vs base.csv]` summarises it.
+/// Legion machines the fan speeds and EC temperatures. Every row goes to the
+/// database (`bench`, `bench_samples`) and to the CSV, row by row.
+/// `rycolab report --bench file.csv [--vs base.csv]` summarises the CSV.
 /// </summary>
 public static class LogCommand
 {
     public static int Run(Args args)
     {
         var outPath = args.Get("out");
-        if (outPath is null) { Console.Error.WriteLine("Usage: rycolab dev log --out <file.csv> [--interval 2] [--minutes N]"); return 2; }
+        if (outPath is null) { Console.Error.WriteLine("Usage: rycolab dev log --out <file.csv> [--name bench] [--interval 2] [--minutes N]"); return 2; }
         var interval = args.GetInt("interval") ?? 2;
         var minutes = args.GetInt("minutes");
         outPath = Path.GetFullPath(outPath);
+        var benchName = args.Get("name") ?? Path.GetFileNameWithoutExtension(outPath);
 
         using var telemetry = new Telemetry();
         using var co = new CoController();
@@ -36,6 +38,8 @@ public static class LogCommand
         var append = File.Exists(outPath) && new FileInfo(outPath).Length > 0;
         using var w = new StreamWriter(outPath, append, new UTF8Encoding(false)) { AutoFlush = true };
         if (!append) w.WriteLine(string.Join(",", BenchLog.Columns(cores)));
+        using var store = Store.Open();
+        var benchId = store.BeginBench(benchName, interval);
 
         var t0 = DateTime.Now;
         var end = minutes is > 0 ? t0.AddMinutes(minutes.Value) : DateTime.MaxValue;
@@ -59,28 +63,35 @@ public static class LogCommand
             var vids = lhm.Select(s => s.Vid).OfType<double>().ToList();
             var volts = pmc.Select(s => s.Volt).OfType<double>().ToList();
             var temps = pmc.Select(s => s.Temp).OfType<double>().ToList();
+            var elapsed = (int)(now - t0).TotalSeconds;
+            double? effAvg = effs.Count > 0 ? effs.Average() : null, vAvg = volts.Count > 0 ? volts.Average() : null, vMax = volts.Count > 0 ? volts.Max() : null,
+                vidAvg = vids.Count > 0 ? vids.Average() : null, tempMax = temps.Count > 0 ? temps.Max() : null;
+            int? fanCpu = ec.CpuFanRpm, fanGpu = ec.GpuFanRpm, fanPch = ec.PchFanRpm, ecCpu = ec.CpuTempC, ecGpu = ec.GpuTempC, ecPch = ec.PchTempC;
+            var perCoreEff = Enumerable.Range(0, cores).Select(c => c < lhm.Count ? lhm[c].ClockEffective : null).ToList();
+            var perCoreVolt = pmc.Select(s => s.Volt).ToList();
 
             var cells = new List<string>
             {
-                now.ToString("yyyy-MM-dd HH:mm:ss"), ((int)(now - t0).TotalSeconds).ToString(),
+                now.ToString("yyyy-MM-dd HH:mm:ss"), elapsed.ToString(),
                 BenchLog.Cell(snap.PackagePower, 1), BenchLog.Cell(snap.Tctl, 1), BenchLog.Cell(snap.Ccd0Temp, 1), BenchLog.Cell(snap.Ccd1Temp, 1),
-                BenchLog.Cell(effs.Count > 0 ? effs.Average() : null, 0),
-                BenchLog.Cell(volts.Count > 0 ? volts.Average() : null, 4), BenchLog.Cell(volts.Count > 0 ? volts.Max() : null, 4),
-                BenchLog.Cell(vids.Count > 0 ? vids.Average() : null, 4), BenchLog.Cell(temps.Count > 0 ? temps.Max() : null, 1),
-                BenchLog.Cell(ec.CpuFanRpm), BenchLog.Cell(ec.GpuFanRpm), BenchLog.Cell(ec.PchFanRpm),
-                BenchLog.Cell(ec.CpuTempC), BenchLog.Cell(ec.GpuTempC), BenchLog.Cell(ec.PchTempC),
+                BenchLog.Cell(effAvg, 0), BenchLog.Cell(vAvg, 4), BenchLog.Cell(vMax, 4), BenchLog.Cell(vidAvg, 4), BenchLog.Cell(tempMax, 1),
+                BenchLog.Cell(fanCpu), BenchLog.Cell(fanGpu), BenchLog.Cell(fanPch), BenchLog.Cell(ecCpu), BenchLog.Cell(ecGpu), BenchLog.Cell(ecPch),
                 BenchLog.Cell(bat.OnAc is { } ac ? (ac ? 1 : 0) : null), BenchLog.Cell(bat.DischargeW, 2), BenchLog.Cell(bat.Percent, 1), BenchLog.Cell(bat.RemainingWh, 2),
             };
-            cells.AddRange(Enumerable.Range(0, cores).Select(c => BenchLog.Cell(c < lhm.Count ? lhm[c].ClockEffective : null, 0)));
-            cells.AddRange(pmc.Select(s => BenchLog.Cell(s.Volt, 4)));
+            cells.AddRange(perCoreEff.Select(e => BenchLog.Cell(e, 0)));
+            cells.AddRange(perCoreVolt.Select(v => BenchLog.Cell(v, 4)));
             w.WriteLine(string.Join(",", cells));
+            store.AddBenchSample(benchId, now, elapsed, snap.PackagePower, snap.Tctl, snap.Ccd0Temp, snap.Ccd1Temp, effAvg, vAvg, vMax, vidAvg, tempMax,
+                fanCpu, fanGpu, fanPch, ecCpu, ecGpu, ecPch, bat.OnAc, bat.DischargeW, bat.Percent, bat.RemainingWh,
+                System.Text.Json.JsonSerializer.Serialize(new { eff = perCoreEff, v = perCoreVolt }));
 
             Console.WriteLine("  {0,5}s  {1,6}  {2,5}  {3,8}  {4,6}   {5}/{6}/{7}   {8}",
                 cells[1], cells[2], cells[3], cells[6], cells[7], Or(cells[11]), Or(cells[12]), Or(cells[13]), cells[17] == "0" ? cells[18] + " W bat" : "AC");
             cts.Token.WaitHandle.WaitOne(interval * 1000);
         }
+        store.EndBench(benchId);
         Console.WriteLine();
-        Console.WriteLine($"  Done. Summary: rycolab report --bench \"{outPath}\"");
+        Console.WriteLine($"  Done. Summary: rycolab report --bench \"{outPath}\"   (rows also in the database: bench {benchName})");
         return 0;
     }
 
