@@ -42,12 +42,23 @@ public sealed class GpuProfile
     public int LockMhz { get; set; }
     public int LockBaseMhz { get; set; }
     public int LowOffsetMhz { get; set; }
+    /// <summary>
+    /// How the points above the lock are written: "floor" (Green Curve's
+    /// Blackwell way: every tail point at the driver's minimum offset, the
+    /// lock point sets the ceiling) or "points" (Afterburner's way: each
+    /// tail point gets the offset that puts it at the lock's clock). The
+    /// driver reports both as flat; what the boost does with them is what
+    /// the A-B on 2026-09-04 measures (Time Spy 16312 with the floor
+    /// against 21160 with Afterburner's per-point tail).
+    /// </summary>
+    public string Tail { get; set; } = "floor";
+    [JsonIgnore] public bool TailPerPoint => string.Equals(Tail, "points", StringComparison.OrdinalIgnoreCase);
     public string? SafetyLock { get; set; }
     public GpuFingerprint? Fingerprint { get; set; }
     public GpuProfileSource? Source { get; set; }
 
     [JsonIgnore] public string Describe =>
-        $"{LockOffsetMhz:+0;-0} MHz at {LockMv} mV{(LockMhz > 0 ? $" ({LockMhz} MHz on a {LockBaseMhz} base)" : "")}{(LowOffsetMhz != 0 ? $", {LowOffsetMhz:+0;-0} MHz below" : "")}";
+        $"{LockOffsetMhz:+0;-0} MHz at {LockMv} mV{(LockMhz > 0 ? $" ({LockMhz} MHz on a {LockBaseMhz} base)" : "")}{(LowOffsetMhz != 0 ? $", {LowOffsetMhz:+0;-0} MHz below" : "")}{(TailPerPoint ? ", tail per point" : "")}";
 
     public static bool Exists() => File.Exists(AppPaths.GpuProfile);
     public static GpuProfile? Load() => Journal.ReadJsonFile<GpuProfile>(AppPaths.GpuProfile);
@@ -167,7 +178,7 @@ public static class CurveApply
         var baseMhz = curve[lockIndex].BaseKhz / 1000;
         // A profile from `set --lock MHz@mV` carries a target, not an offset: the offset is derived once, here, against this base.
         var lockOffsetKhz = profile.LockOffsetMhz != 0 ? profile.LockOffsetMhz * 1000 : profile.LockMhz * 1000 - curve[lockIndex].BaseKhz;
-        var (targets, mask) = VfCurve.FlattenTargets(curve, lockIndex, lockOffsetKhz, profile.LowOffsetMhz * 1000, blackwell);
+        var (targets, mask) = VfCurve.FlattenTargets(curve, lockIndex, lockOffsetKhz, profile.LowOffsetMhz * 1000, blackwell && !profile.TailPerPoint);
         log?.Invoke($"lock at point {lockIndex} ({curve[lockIndex].Mv:F1} mV, base {baseMhz} MHz now): offset {targets[lockIndex] / 1000:+0;-0} MHz -> {(curve[lockIndex].BaseKhz + targets[lockIndex]) / 1000} MHz; {mask.Count(m => m) - 1} other points");
         var left = vf.Apply(targets, mask, log);
         var after = vf.ReadSettled();

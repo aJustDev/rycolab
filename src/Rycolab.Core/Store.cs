@@ -91,7 +91,8 @@ public sealed class Store : IDisposable
                 id INTEGER PRIMARY KEY, bench_id INT, ts TEXT, elapsed INT, pkg_w REAL, tctl REAL, ccd0_c REAL, ccd1_c REAL,
                 eff_avg REAL, v_avg REAL, v_max REAL, vid_avg REAL, core_temp_max REAL,
                 fan_cpu INT, fan_gpu INT, fan_pch INT, ec_cpu_c INT, ec_gpu_c INT, ec_pch_c INT,
-                ac INT, bat_w REAL, bat_pct REAL, bat_wh REAL, per_core TEXT);
+                ac INT, bat_w REAL, bat_pct REAL, bat_wh REAL, per_core TEXT,
+                gpu_mhz INT, gpu_w REAL, gpu_c INT, gpu_util INT);
             """);
         Migrate();
         Exec("""
@@ -128,6 +129,7 @@ public sealed class Store : IDisposable
             // 0.4.0, the GPU
             ("ticks", "gpu_mhz INT"), ("ticks", "gpu_mem_mhz INT"), ("ticks", "gpu_w REAL"), ("ticks", "gpu_c INT"), ("ticks", "gpu_util INT"), ("ticks", "gpu_curve INT"), ("ticks", "tdr INT"),
             ("events", "source TEXT"), ("events", "session_id INT"), ("events", "campaign_id INT"),
+            ("bench_samples", "gpu_mhz INT"), ("bench_samples", "gpu_w REAL"), ("bench_samples", "gpu_c INT"), ("bench_samples", "gpu_util INT"),
         ];
         foreach (var (table, column) in added)
             try { Exec($"ALTER TABLE {table} ADD COLUMN {column}"); } catch (SqliteException) { /* already there */ }
@@ -340,16 +342,18 @@ public sealed class Store : IDisposable
     /// <summary>One `dev log` row. <paramref name="perCore"/>: whatever is per core, as JSON (effective clocks and voltages).</summary>
     public void AddBenchSample(long benchId, DateTime ts, int elapsed, double? pkgW, double? tctl, double? ccd0, double? ccd1, double? effAvg,
         double? vAvg, double? vMax, double? vidAvg, double? coreTempMax, int? fanCpu, int? fanGpu, int? fanPch, int? ecCpu, int? ecGpu, int? ecPch,
-        bool? ac, double? batW, double? batPct, double? batWh, string? perCore)
+        bool? ac, double? batW, double? batPct, double? batWh, string? perCore,
+        int? gpuMhz = null, double? gpuW = null, int? gpuC = null, int? gpuUtil = null)
         => Exec("""
             INSERT INTO bench_samples (bench_id, ts, elapsed, pkg_w, tctl, ccd0_c, ccd1_c, eff_avg, v_avg, v_max, vid_avg, core_temp_max,
-                fan_cpu, fan_gpu, fan_pch, ec_cpu_c, ec_gpu_c, ec_pch_c, ac, bat_w, bat_pct, bat_wh, per_core)
+                fan_cpu, fan_gpu, fan_pch, ec_cpu_c, ec_gpu_c, ec_pch_c, ac, bat_w, bat_pct, bat_wh, per_core, gpu_mhz, gpu_w, gpu_c, gpu_util)
             VALUES ($b, $ts, $el, $pkg, $tctl, $ccd0, $ccd1, $eff, $vavg, $vmax, $vid, $ctmax,
-                $fcpu, $fgpu, $fpch, $ecpu, $egpu, $epch, $ac, $batw, $batpct, $batwh, $pc)
+                $fcpu, $fgpu, $fpch, $ecpu, $egpu, $epch, $ac, $batw, $batpct, $batwh, $pc, $gmhz, $gw, $gc, $gutil)
             """,
             ("$b", benchId), ("$ts", Iso(ts)), ("$el", elapsed), ("$pkg", pkgW), ("$tctl", tctl), ("$ccd0", ccd0), ("$ccd1", ccd1), ("$eff", effAvg),
             ("$vavg", vAvg), ("$vmax", vMax), ("$vid", vidAvg), ("$ctmax", coreTempMax), ("$fcpu", fanCpu), ("$fgpu", fanGpu), ("$fpch", fanPch),
-            ("$ecpu", ecCpu), ("$egpu", ecGpu), ("$epch", ecPch), ("$ac", ac is { } a ? (a ? 1 : 0) : null), ("$batw", batW), ("$batpct", batPct), ("$batwh", batWh), ("$pc", perCore));
+            ("$ecpu", ecCpu), ("$egpu", ecGpu), ("$epch", ecPch), ("$ac", ac is { } a ? (a ? 1 : 0) : null), ("$batw", batW), ("$batpct", batPct), ("$batwh", batWh), ("$pc", perCore),
+            ("$gmhz", gpuMhz), ("$gw", gpuW), ("$gc", gpuC), ("$gutil", gpuUtil));
 
     // ---- ad hoc: query, stats, export ----
 

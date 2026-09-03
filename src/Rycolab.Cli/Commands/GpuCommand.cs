@@ -21,6 +21,7 @@ public static class GpuCommand
             "show" => Show(),
             "import" => Import(args),
             "set" => Set(args),
+            "tail" => Tail(args),
             "apply" => Apply(clearLock: false),
             "on" => Apply(clearLock: true),
             "off" => Off(),
@@ -161,6 +162,18 @@ public static class GpuCommand
         }
         profile.Save();
         Console.WriteLine($"  Saved {profile.Describe} to {AppPaths.GpuProfile} (disabled). `rycolab gpu apply` puts it on the curve.");
+        return 0;
+    }
+
+    /// <summary>rycolab gpu tail floor|points: how the points above the lock are written (see GpuProfile.Tail); `gpu apply` afterwards.</summary>
+    private static int Tail(Args args)
+    {
+        var mode = args.Positional.Count > 1 ? args.Positional[1].ToLowerInvariant() : null;
+        if (mode is not ("floor" or "points")) { Console.Error.WriteLine("Usage: rycolab gpu tail floor|points   (floor: Green Curve's Blackwell way; points: Afterburner's per-point offsets)"); return 2; }
+        if (GpuProfile.Load() is not { } p) { Console.Error.WriteLine("  No GPU profile."); return 2; }
+        p.Tail = mode;
+        p.Save();
+        Console.WriteLine($"  Tail: {mode}. `rycolab gpu apply` writes it{(p.Enabled ? " (the profile is enabled: the guard keeps whatever is on the curve until then)" : "")}.");
         return 0;
     }
 

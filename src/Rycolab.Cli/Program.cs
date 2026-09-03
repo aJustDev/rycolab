@@ -57,7 +57,7 @@ if (command is "help" or "-h" or "--help")
 }
 
 // Commands that only read files never need elevation.
-var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast") || (gpu && command is "probe" or "show" or "import" or "set");
+var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast") || (gpu && command is "probe" or "show" or "import" or "set" or "tail");
 if (!unelevated && !Elevation.IsElevated())
 {
     Console.Error.WriteLine($"'rycolab {(dev ? "dev " : legion ? "legion " : "")}{command}' needs administrator privileges to talk to the {(legion ? "EC" : "SMU")}.");
@@ -217,6 +217,8 @@ static void PrintGpuHelp()
           import <file> [--profile 1]   an MSI Afterburner profile (Profiles\VEN_10DE...cfg) or a Green Curve config.ini
           set --offset <+MHz>@<mV> [--below <MHz>]   a profile by hand, Afterburner's terms: the offset on the lock point, flat from there
           set --lock <MHz>@<mV>         the same from a clock: the offset is derived against the base read now (it sits in two states)
+          tail floor|points             the points above the lock: all at the driver's minimum (Green Curve, Blackwell) or each at
+                                        the lock's clock (Afterburner); then `gpu apply`
           apply | on | off              put the profile on the curve (the guard keeps it at logon and after sleep;
                                         `on` also clears a safety lock) | every offset back to 0 and the profile disabled
 
@@ -260,6 +262,6 @@ static void PrintDevHelp()
           toast [--title t] [--body b]      test notification, same path as the guard (no elevation)
           task install|run|stop|remove|status                             the scheduled task by hand
           profile import --cores a,...,p --campaign <name> [--limits a,...,p] [--note ...]
-          log --out <file.csv> [--name bench] [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans, battery W; rows to the database too
+          log --out <file.csv> [--name bench] [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans, battery W, GPU MHz/W/C/util; rows to the database too
         """);
 }

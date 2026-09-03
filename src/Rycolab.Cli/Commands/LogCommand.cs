@@ -1,3 +1,4 @@
+using Rycolab.Core.Gpu;
 using Rycolab.Core.Legion;
 using System.Text;
 using Rycolab.Core;
@@ -40,6 +41,9 @@ public static class LogCommand
         if (!append) w.WriteLine(string.Join(",", BenchLog.Columns(cores)));
         using var store = Store.Open();
         var benchId = store.BeginBench(benchName, interval);
+        // The dGPU through NVML, only when it is on the bus (opening NVML wakes a sleeping card).
+        using var nvml = LenovoEc.DgpuPresent() ? new Nvml() : null;
+        Console.WriteLine($"  GPU {(nvml is { IsAvailable: true } ? "NVML ok" : nvml is null ? "not on the bus (GPU columns empty)" : "NVML unavailable: " + nvml.Unavailable)}");
 
         var t0 = DateTime.Now;
         var end = minutes is > 0 ? t0.AddMinutes(minutes.Value) : DateTime.MaxValue;
@@ -69,6 +73,7 @@ public static class LogCommand
             int? fanCpu = ec.CpuFanRpm, fanGpu = ec.GpuFanRpm, fanPch = ec.PchFanRpm, ecCpu = ec.CpuTempC, ecGpu = ec.GpuTempC, ecPch = ec.PchTempC;
             var perCoreEff = Enumerable.Range(0, cores).Select(c => c < lhm.Count ? lhm[c].ClockEffective : null).ToList();
             var perCoreVolt = pmc.Select(s => s.Volt).ToList();
+            var g = nvml is { IsAvailable: true } ? nvml.Read() ?? default : default;
 
             var cells = new List<string>
             {
@@ -77,16 +82,18 @@ public static class LogCommand
                 BenchLog.Cell(effAvg, 0), BenchLog.Cell(vAvg, 4), BenchLog.Cell(vMax, 4), BenchLog.Cell(vidAvg, 4), BenchLog.Cell(tempMax, 1),
                 BenchLog.Cell(fanCpu), BenchLog.Cell(fanGpu), BenchLog.Cell(fanPch), BenchLog.Cell(ecCpu), BenchLog.Cell(ecGpu), BenchLog.Cell(ecPch),
                 BenchLog.Cell(bat.OnAc is { } ac ? (ac ? 1 : 0) : null), BenchLog.Cell(bat.DischargeW, 2), BenchLog.Cell(bat.Percent, 1), BenchLog.Cell(bat.RemainingWh, 2),
+                BenchLog.Cell(g.Mhz), BenchLog.Cell(g.Watts, 1), BenchLog.Cell(g.TempC), BenchLog.Cell(g.Util),
             };
             cells.AddRange(perCoreEff.Select(e => BenchLog.Cell(e, 0)));
             cells.AddRange(perCoreVolt.Select(v => BenchLog.Cell(v, 4)));
             w.WriteLine(string.Join(",", cells));
             store.AddBenchSample(benchId, now, elapsed, snap.PackagePower, snap.Tctl, snap.Ccd0Temp, snap.Ccd1Temp, effAvg, vAvg, vMax, vidAvg, tempMax,
                 fanCpu, fanGpu, fanPch, ecCpu, ecGpu, ecPch, bat.OnAc, bat.DischargeW, bat.Percent, bat.RemainingWh,
-                System.Text.Json.JsonSerializer.Serialize(new { eff = perCoreEff, v = perCoreVolt }));
+                System.Text.Json.JsonSerializer.Serialize(new { eff = perCoreEff, v = perCoreVolt }), g.Mhz, g.Watts, g.TempC, g.Util);
 
-            Console.WriteLine("  {0,5}s  {1,6}  {2,5}  {3,8}  {4,6}   {5}/{6}/{7}   {8}",
-                cells[1], cells[2], cells[3], cells[6], cells[7], Or(cells[11]), Or(cells[12]), Or(cells[13]), cells[17] == "0" ? cells[18] + " W bat" : "AC");
+            Console.WriteLine("  {0,5}s  {1,6}  {2,5}  {3,8}  {4,6}   {5}/{6}/{7}   {8}   gpu {9} MHz {10} W {11} C {12} %",
+                cells[1], cells[2], cells[3], cells[6], cells[7], Or(cells[11]), Or(cells[12]), Or(cells[13]), cells[17] == "0" ? cells[18] + " W bat" : "AC",
+                Or(cells[21]), Or(cells[22]), Or(cells[23]), Or(cells[24]));
             cts.Token.WaitHandle.WaitOne(interval * 1000);
         }
         store.EndBench(benchId);

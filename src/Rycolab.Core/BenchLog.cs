@@ -32,13 +32,17 @@ public static class BenchLog
     public const string BatteryW = "bat_w";        // discharge rate, empty on AC
     public const string BatteryPct = "bat_pct";
     public const string BatteryWh = "bat_wh";
+    public const string GpuMhz = "gpu_mhz";        // NVML, empty when the dGPU is off the bus
+    public const string GpuW = "gpu_w";
+    public const string GpuC = "gpu_c";
+    public const string GpuUtil = "gpu_util";
 
     public static string Eff(int core) => $"eff_c{core}_mhz";
     public static string Volt(int core) => $"vcore_c{core}_v";
 
     public static List<string> Columns(int coreCount)
     {
-        var cols = new List<string> { Time, Elapsed, PackagePower, Tctl, Ccd0, Ccd1, EffAvg, VoltAvg, VoltMax, VidAvg, CoreTempMax, CpuFan, GpuFan, PchFan, EcCpu, EcGpu, EcPch, Ac, BatteryW, BatteryPct, BatteryWh };
+        var cols = new List<string> { Time, Elapsed, PackagePower, Tctl, Ccd0, Ccd1, EffAvg, VoltAvg, VoltMax, VidAvg, CoreTempMax, CpuFan, GpuFan, PchFan, EcCpu, EcGpu, EcPch, Ac, BatteryW, BatteryPct, BatteryWh, GpuMhz, GpuW, GpuC, GpuUtil };
         cols.AddRange(Enumerable.Range(0, coreCount).Select(Eff));
         cols.AddRange(Enumerable.Range(0, coreCount).Select(Volt));
         return cols;
@@ -85,6 +89,7 @@ public static class BenchLog
         (CpuFan, "CPU fan [RPM]", 0), (GpuFan, "GPU fan [RPM]", 0), (PchFan, "PCH fan [RPM]", 0),
         (EcCpu, "EC CPU temp [C]", 0), (EcGpu, "EC GPU temp [C]", 0), (EcPch, "EC PCH temp [C]", 0),
         (BatteryW, "Battery discharge [W]", 2), (BatteryPct, "Battery charge [%]", 1),
+        (GpuMhz, "GPU clock (NVML) [MHz]", 0), (GpuW, "GPU power (NVML) [W]", 1), (GpuC, "GPU temp (NVML) [C]", 0), (GpuUtil, "GPU utilisation [%]", 0),
     ];
 
     /// <summary>Markdown table of the aggregates; with a baseline, a delta column. <paramref name="filter"/> names the row filter applied.</summary>
