@@ -1043,3 +1043,24 @@ the number of record. What the run was for: every row above came out of
 row was visible with 29 samples 30 s in, the limit and the campaign's
 `ended` were there at the end, and the guard restarted afterwards on the
 same database.
+
+## 2026-09-03 12:48 - Six more columns in the tick, first values
+
+Guard reinstalled with the 0.4.0 build (schema 3; the live database took
+the ALTERs while the 0.3.0 guard was still writing). First ticks on AC,
+idle desktop, 80 % battery in conservation mode:
+
+| t | core temp max | hottest | core GHz max | idle s | charge | dGPU | overlay | SMU ms |
+|---|---|---|---|---|---|---|---|---|
+| 12:47:58 | 57.3 | 7 | 4.38 | 0 | conservation, not charging | on the bus | best performance | 7 |
+| 12:48:59 | 40.3 | 6 | 3.03 | 0 | idem | idem | idem | 20 |
+| 12:49:59 | 42.0 | 9 | 3.68 | 1 | idem | idem | idem | 7 |
+
+The first tick lands right after the profile write (57 C, 4.38 GHz); the
+next two are the idle desktop (40-42 C, 3-3.7 GHz, the momentary clock of
+whichever core the table caught). `ReadAll` of 16 cores takes 7-20 ms
+with nothing else on the mailbox: the baseline to compare against when
+LLT or HWiNFO are open. `charge_w` is null because the pack sits at 80 %
+under conservation. `report --power --since 3h` shows the new rows and
+the `In use %` / `dGPU h` columns; the battery session of 11:46 predates
+the columns, hence its dashes.
