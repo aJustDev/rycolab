@@ -395,17 +395,28 @@ public sealed class Store : IDisposable
         return report;
     }
 
+    /// <summary>
+    /// Incremental: the 0.2 guard keeps appending until it is reinstalled, so
+    /// the meta row remembers how many lines are in and which session was
+    /// open, and a later import continues from there.
+    /// </summary>
     private string ImportGuardJournal(string path)
     {
         var key = "imported:" + path;
-        if (Meta(key) is not null) return $"{path}: already imported";
-        var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        long done = 0; long? session = null;
+        if (Meta(key) is { } state)
+            foreach (var part in state.Split(';'))
+            {
+                if (part.StartsWith("lines=") && long.TryParse(part[6..], out var n)) done = n;
+                if (part.StartsWith("session=") && long.TryParse(part[8..], out var s)) session = s;
+            }
         int ticks = 0, events = 0, health = 0, sessions = 0;
-        long? session = null;
+        long seen = 0;
         using (var tx = _db.BeginTransaction())
         {
             foreach (var line in Lines(path))
             {
+                if (++seen <= done) continue;
                 using var doc = JsonDocument.Parse(line);
                 var e = doc.RootElement;
                 var kind = e.GetProperty("kind").GetString()!;
@@ -445,10 +456,11 @@ public sealed class Store : IDisposable
                     session = null;
                 }
             }
-            SetMeta(key, Iso(DateTime.Now));
+            SetMeta(key, $"lines={seen};session={session?.ToString() ?? ""}");
             tx.Commit();
         }
-        return $"{path}: {sessions} sessions, {ticks} ticks, {events} events, {health} health samples";
+        return seen == done ? $"{path}: already up to date ({done} lines)"
+            : $"{path}: {sessions} sessions, {ticks} ticks, {events} events, {health} health samples{(done > 0 ? $" (lines {done + 1}-{seen})" : "")}";
     }
 
     private string ImportCampaignDir(string dir)

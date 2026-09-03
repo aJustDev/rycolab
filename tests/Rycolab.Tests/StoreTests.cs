@@ -196,10 +196,22 @@ public class StoreTests : IDisposable
 
         // Again: nothing doubles.
         var again = s.ImportLegacy(_dir);
-        Assert.All(again, line => Assert.Contains("already imported", line));
+        Assert.Contains("already up to date (6 lines)", again[0]);
+        Assert.Contains("already imported", again[1]);
         Assert.Equal(2, s.Runs(c.Id).Count);
         Assert.Equal(2, s.Sessions().Count);
         Assert.Single(s.Campaigns());
+
+        // The old guard kept writing: the new lines come in, on the session that was open.
+        File.AppendAllText(Path.Combine(guard, "guard.jsonl"),
+            """{"kind":"tick","Ts":"2026-09-02T09:01:00","Elapsed":60,"Ok":true,"Hardware":[-40,-40],"Whea":0,"CpuLoad":1.0,"PackagePower":null,"State":"ok"}""" + "\n" +
+            """{"kind":"restore","ts":"2026-09-02T09:02:00","detail":"baseline -5: 16 cores written; hardware -5,-5  code 10"}""" + "\n");
+        var more = s.ImportLegacy(_dir);
+        Assert.Contains("0 sessions, 1 ticks, 1 events, 0 health samples (lines 7-8)", more[0]);
+        Assert.Equal(3, s.Ticks(DateTime.MinValue).Count);
+        Assert.Equal(sessions[1].Id, s.Ticks(DateTime.MinValue)[2].SessionId);
+        Assert.Equal(10, s.Sessions()[1].ExitCode);
+        Assert.Equal(new DateTime(2026, 9, 2, 9, 2, 0), s.Sessions()[1].Ended);
     }
 
     [Fact]

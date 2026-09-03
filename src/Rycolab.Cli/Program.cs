@@ -47,7 +47,7 @@ if (command is "help" or "-h" or "--help")
 }
 
 // Commands that only read files never need elevation.
-var unelevated = command is null or "status" or "report" or "profile" or "version" || (dev && command is "plan" or "toast");
+var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast");
 if (!unelevated && !Elevation.IsElevated())
 {
     Console.Error.WriteLine($"'rycolab {(dev ? "dev " : legion ? "legion " : "")}{command}' needs administrator privileges to talk to the {(legion ? "EC" : "SMU")}.");
@@ -97,6 +97,7 @@ try
         "status" => StatusCommand.Run(opts),
         "report" => ReportCommand.Run(opts),
         "profile" => ProfileCommand.Run(opts),
+        "db" => DbCommand.Run(opts),
         // The task itself runs `guard --plain`; keep it reachable at the top level.
         "guard" => GuardCommand.Run(opts),
         "fan" or "power" or "charge" => Moved(command),
@@ -165,6 +166,8 @@ static void PrintHelp()
           rycolab report --bench <csv> [--vs <csv>] [--battery]   summary of a `dev log` CSV (samples > 100 W, or on battery)
           rycolab report --health       battery capacity history (one sample per day while the guard runs)
           rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
+          rycolab db stats|path|import|sql "<select>"|export <table> [--since 7d] [--out f.csv|f.jsonl]
+                                        the database (the history of everything); `import` brings the 0.2 JSONL in once
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
           rycolab legion <command>      Lenovo Legion extras: fan, power (battery profile), charge   (`rycolab legion help`)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
@@ -225,6 +228,6 @@ static void PrintDevHelp()
           toast [--title t] [--body b]      test notification, same path as the guard (no elevation)
           task install|run|stop|remove|status                             the scheduled task by hand
           profile import --cores a,...,p --campaign <name> [--limits a,...,p] [--note ...]
-          log --out <file.csv> [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans, battery W
+          log --out <file.csv> [--name bench] [--interval 2] [--minutes N]   package W, temps, effective clocks, core V, Lenovo fans, battery W; rows to the database too
         """);
 }

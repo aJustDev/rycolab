@@ -83,6 +83,10 @@ public static class InstallCommand
             else Console.Error.WriteLine("  could not create the scheduled task (schtasks failed).");
         }
 
+        // Data from before the database (0.2: guard.jsonl, campaigns\*\runs.jsonl) is imported once, by hand.
+        if (File.Exists(Path.Combine(AppPaths.Guard, "guard.jsonl")) && !File.Exists(AppPaths.Db))
+            Log("there is data from the JSONL era: `rycolab db import` brings it into the database (once; nothing is deleted)");
+
         Console.WriteLine();
         Console.WriteLine(copied
             ? $"  Installed. Open a new console and run `rycolab`{(Profile.Exists() ? "" : "; there is no profile yet: `rycolab find` measures the cores and proposes one")}."
