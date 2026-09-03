@@ -297,6 +297,24 @@ place because other tools (ZenTimings, SMUDebugTool) share it;
 ZenStates.Core 1.0.1 does not start without the DLL even though it embeds
 PawnIO modules, so PawnIO alone is not an option yet.
 
+## Versioning
+
+Semantic versioning, read for a tool that touches hardware and keeps data:
+
+- **Major**: something the user has to redo, or something saved that the
+  new version no longer reads. A profile or a database without a migration,
+  a command removed without an alias, a change of methodology that makes
+  earlier limits incomparable. 1.0.0 comes after the first full campaign
+  with the four stages and a week of guard without incident.
+- **Minor**: new functionality, new hardware, or a change of behaviour with
+  an automatic migration (`db import`, `profile import`). The database
+  schema version moves only with a minor or a major.
+- **Patch**: fixes without a change of schema or commands, and docs.
+
+Before 1.0 a minor may break compatibility as long as the migration
+exists. A release is an annotated tag `vX.Y.Z` whose message is the notes;
+CI builds the zip and the checksums from it.
+
 ## License
 
 GPL-3.0. The core mask encoding and the SMU access sequence derive from Lenovo
