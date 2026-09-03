@@ -57,8 +57,10 @@ public static class FindCommand
         // ---- campaign: new or resume ----
         string dir;
         var resume = args.Has("resume");
+        using var store = Store.Open();
         var current = File.Exists(AppPaths.CurrentCampaign) ? File.ReadAllText(AppPaths.CurrentCampaign).Trim() : null;
-        var currentUnfinished = current is not null && Directory.Exists(current) && !IsComplete(current, cores);
+        var currentId = current is null ? null : store.CampaignId(Path.GetFileName(current.TrimEnd('\\', '/')));
+        var currentUnfinished = currentId is { } cid && !cores.All(store.Limits(cid).ContainsKey);
         if (resume)
         {
             if (!currentUnfinished)
@@ -73,15 +75,14 @@ public static class FindCommand
         else if (currentUnfinished && !args.Has("new"))
         {
             Console.WriteLine($"  There is an unfinished campaign: {current}");
-            if (File.Exists(Path.Combine(current!, "in-progress.json")))
+            if (store.RunningRun(currentId!.Value) is not null)
                 Console.WriteLine("  It has a run in progress: the machine hung or rebooted during it (that counts as a positive).");
             if (!Ask("  Resume it? [Y/n] ", args, defaultYes: true)) dir = AppPaths.Campaign($"find-{DateTime.Now:yyyyMMdd-HHmm}");
             else dir = current!;
         }
         else dir = AppPaths.Campaign($"find-{DateTime.Now:yyyyMMdd-HHmm}");
 
-        var known = Journal.ReadJsonFile<Dictionary<string, int?>>(Path.Combine(dir, "limits.json"))?
-                        .ToDictionary(k => int.Parse(k.Key), k => k.Value) ?? [];
+        var known = store.CampaignId(Path.GetFileName(dir.TrimEnd('\\', '/'))) is { } knownId ? store.Limits(knownId) : [];
         var pending = cores.Where(c => !known.ContainsKey(c)).ToArray();
 
         // ---- estimate ----
@@ -123,7 +124,7 @@ public static class FindCommand
             Console.Error.WriteLine("  Could not create the auto-resume task; after a reboot run `rycolab find --resume` by hand.");
 
         // ---- sweep ----
-        var options = new SweepOptions { Cores = cores, CampaignDir = dir };
+        var options = new SweepOptions { Cores = cores, CampaignDir = dir, Quick = quick };
         using var telemetry = new Telemetry();
         var pm = new PmTable(co.Cpu);
         using var cts = new CancellationTokenSource();
@@ -194,12 +195,6 @@ public static class FindCommand
         if (engines.Length == 0) return "  --engines: at least one engine (zn5, p4p, zn2 or a binary name).";
         config.Engines = engines;
         return null;
-    }
-
-    private static bool IsComplete(string dir, int[] cores)
-    {
-        var limits = Journal.ReadJsonFile<Dictionary<string, int?>>(Path.Combine(dir, "limits.json"));
-        return limits is not null && cores.All(c => limits.ContainsKey(c.ToString()));
     }
 
     private static string Fmt(Dictionary<int, int?> limits, int c)

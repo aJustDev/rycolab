@@ -15,6 +15,8 @@ public static class AppPaths
     public static string Exe => Path.Combine(Bin, "rycolab.exe");
     public static string Tools => Path.Combine(Data, "tools");
     public static string YCruncher => Path.Combine(Tools, "y-cruncher", "Binaries");
+    /// <summary>The one database: the history of everything (see Store).</summary>
+    public static string Db => Path.Combine(Data, "rycolab.db");
     public static string Profile => Path.Combine(Data, "profile.json");
     public static string Config => Path.Combine(Data, "config.json");
     public static string State => Path.Combine(Data, "state.json");

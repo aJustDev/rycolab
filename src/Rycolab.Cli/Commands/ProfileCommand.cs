@@ -21,16 +21,16 @@ public static class ProfileCommand
             case "from-sweep":
             {
                 if (args.Positional.Count < 2) { Console.Error.WriteLine("Usage: rycolab profile from-sweep <campaign> [--margin 5]"); return 1; }
-                var dir = AppPaths.Campaign(args.Positional[1]);
-                var limits = Journal.ReadJsonFile<Dictionary<string, int?>>(Path.Combine(dir, "limits.json"));
-                if (limits is null) { Console.Error.WriteLine($"No limits.json in {dir}"); return 1; }
+                var name = Path.GetFileName(args.Positional[1].TrimEnd('\\', '/'));
+                Dictionary<int, int?>? limits;
+                using (var store = Store.Open()) limits = store.CampaignId(name) is { } id ? store.Limits(id) : null;
+                if (limits is null) { Console.Error.WriteLine($"No campaign named {name} in the database (`rycolab report --campaigns` lists them; `rycolab db import` brings the JSONL era in)."); return 1; }
                 var config = Plan.LoadOrDefault();
                 using var co = new CoController();
-                var profile = Profile.FromLimits(limits.ToDictionary(k => int.Parse(k.Key), k => k.Value), config,
-                    Path.GetFileName(dir.TrimEnd('\\', '/')), CpuFingerprint.Of(co), args.GetInt("margin"));
+                var profile = Profile.FromLimits(limits, config, name, CpuFingerprint.Of(co), args.GetInt("margin"));
                 var missing = Enumerable.Range(0, co.CoreCount).Where(c => profile.Source!.Limits[c] is null).ToList();
                 profile.Save();
-                Console.WriteLine($"  Profile = limit + {profile.Source!.SafetyMargin} from {dir}, saved to {AppPaths.Profile}");
+                Console.WriteLine($"  Profile = limit + {profile.Source!.SafetyMargin} from campaign {name}, saved to {AppPaths.Profile}");
                 if (missing.Count > 0) Console.WriteLine($"  Cores without a limit stay at the baseline {config.Base}: {string.Join(",", missing)}");
                 Show(profile);
                 Console.WriteLine("  Apply it with `rycolab on`.");

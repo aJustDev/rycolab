@@ -19,32 +19,30 @@ public static class ReportCommand
         if (args.Has("health")) return Health(args);
 
         var name = args.Positional.FirstOrDefault() ?? args.Get("campaign");
-        string dir;
         if (name is null)
         {
             if (!File.Exists(AppPaths.CurrentCampaign)) { Console.Error.WriteLine("No campaign yet. Usage: rycolab report <campaign>|guard"); return 2; }
-            dir = File.ReadAllText(AppPaths.CurrentCampaign).Trim();
+            name = File.ReadAllText(AppPaths.CurrentCampaign).Trim();
         }
-        else dir = name == "guard" ? AppPaths.Guard : AppPaths.Campaign(name);
-        if (!Directory.Exists(dir)) { Console.Error.WriteLine($"Not found: {dir}"); return 1; }
+        name = Path.GetFileName(name.TrimEnd('\\', '/'));
 
-        var dbPath = Path.Combine(dir, "rycolab.db");
-        var rebuild = args.Has("rebuild") || !File.Exists(dbPath);
-        // A running guard holds its database; read from a copy of the journal instead.
-        if (dir == AppPaths.Guard && Service.GuardProcess() is not null) rebuild = true;
-        var work = dbPath;
-        if (rebuild && dir == AppPaths.Guard && Service.GuardProcess() is not null)
-            work = Path.Combine(Path.GetTempPath(), "rycolab-report.db");
-        using var store = new Store(work);
-        if (rebuild) store.Rebuild(dir);
-
-        var runs = store.Runs();
-        var limits = Journal.ReadJsonFile<Dictionary<string, int?>>(Path.Combine(dir, "limits.json")) ?? [];
-        var md = Build(Path.GetFileName(dir.TrimEnd('\\', '/')), runs, limits, store.Events());
+        using var store = Store.Open();
+        string md;
+        if (name == "guard")
+            md = Build("guard", [], [], store.Events("guard"));
+        else
+        {
+            if (store.CampaignId(name) is not { } id)
+            {
+                Console.Error.WriteLine($"No campaign named {name} in the database (`rycolab report --campaigns` lists them; `rycolab db import` brings the JSONL era in).");
+                return 1;
+            }
+            md = Build(name, store.Runs(id), store.Limits(id).ToDictionary(k => k.Key.ToString(), k => k.Value), store.Events("sweep", id));
+        }
 
         if (args.Has("md"))
         {
-            var target = args.Get("md") ?? Path.Combine(dir, "report.md");
+            var target = args.Get("md") ?? Path.Combine(name == "guard" ? AppPaths.Guard : AppPaths.Campaign(name), "report.md");
             File.WriteAllText(target, md, new UTF8Encoding(false));
             Console.WriteLine($"  Written {target}");
         }
@@ -119,14 +117,7 @@ public static class ReportCommand
     private static int Health(Args args)
     {
         var dir = AppPaths.Guard;
-        var dbPath = Path.Combine(dir, "rycolab.db");
-        var rebuild = args.Has("rebuild") || !File.Exists(dbPath);
-        // A running guard holds its database; read from a copy of the journal instead.
-        var work = dbPath;
-        if (Service.GuardProcess() is not null) { rebuild = true; work = Path.Combine(Path.GetTempPath(), "rycolab-report.db"); }
-        using var store = new Store(work);
-        if (rebuild) store.Rebuild(dir);
-
+        using var store = Store.Open();
         var samples = store.Health();
         if (samples.Count == 0) { Console.Error.WriteLine("  No health samples yet: the guard takes one per day while it runs."); return 1; }
 

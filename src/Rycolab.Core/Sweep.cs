@@ -15,7 +15,10 @@ public sealed class SweepOptions
     public int? Step { get; init; }
     public int? Seconds { get; init; }
     public bool Suspend { get; init; } = true;
+    /// <summary>Where the campaign keeps its files (positives, work); its name is the directory name.</summary>
     public required string CampaignDir { get; init; }
+    /// <summary>`find --quick`: recorded on the campaign so its limits are not mistaken for a real one.</summary>
+    public bool Quick { get; init; }
 }
 
 public interface ISweepSink
@@ -40,9 +43,11 @@ public interface ISweepSink
 ///            limit + safety margin, where the profile will actually run; a
 ///            positive moves the limit one step up and soaks again
 ///
-/// The limit written to limits.json is the one that survived confirm and
-/// soak. Any positive (error, crash, WHEA, hang) counts. Resumable: cores
-/// with a limit are skipped and in-progress.json betrays a machine hang.
+/// The limit recorded for the core is the one that survived confirm and
+/// soak. Any positive (error, crash, WHEA, hang) counts. Everything goes to
+/// the database as it happens (a run row first, then a sample per second,
+/// then the verdict). Resumable: cores with a limit are skipped, and a run
+/// still `running` at startup betrays a machine hang or a killed process.
 /// </summary>
 public sealed class Sweep
 {
@@ -52,33 +57,24 @@ public sealed class Sweep
     private readonly Telemetry? _tel;
     private readonly PmTable? _pm;
     private readonly ISweepSink _sink;
-    private readonly Journal _runs;
-    private readonly Journal _samples;
     private readonly Store _store;
-    private readonly string _limitsPath;
-    private readonly string _inProgressPath;
+    private readonly long _campaignId;
 
-    public Dictionary<int, int?> Limits { get; } = [];
+    public Dictionary<int, int?> Limits { get; }
+
+    public string CampaignName => Path.GetFileName(_o.CampaignDir.TrimEnd('\\', '/'));
 
     public Sweep(CoController co, Plan plan, SweepOptions options, Telemetry? telemetry, PmTable? pm, ISweepSink sink)
     {
         _co = co; _plan = plan; _o = options; _tel = telemetry; _pm = pm; _sink = sink;
         Directory.CreateDirectory(_o.CampaignDir);
-        _runs = new Journal(Path.Combine(_o.CampaignDir, "runs.jsonl"));
-        _samples = new Journal(Path.Combine(_o.CampaignDir, "samples.jsonl"));
-        _store = new Store(Path.Combine(_o.CampaignDir, "rycolab.db"));
-        _limitsPath = Path.Combine(_o.CampaignDir, "limits.json");
-        _inProgressPath = Path.Combine(_o.CampaignDir, "in-progress.json");
-
-        var existing = Journal.ReadJsonFile<Dictionary<string, int?>>(_limitsPath);
-        if (existing is not null)
-            foreach (var (k, v) in existing) Limits[int.Parse(k)] = v;
-
-        Journal.WriteJsonFile(Path.Combine(_o.CampaignDir, "campaign.json"), new
+        _store = Store.Open();
+        _campaignId = _store.OpenCampaign(CampaignName, _o.CampaignDir, new
         {
-            started = DateTime.Now, plan = _plan, cores = _o.Cores, start = Start, top = Top, step = Step, coarse = Coarse, seconds = Seconds,
+            plan = _plan, start = Start, top = Top, step = Step, coarse = Coarse, seconds = Seconds,
             confirmSeconds = _plan.ConfirmSeconds, soakSeconds = _plan.SoakSeconds, soakEngine = _plan.SoakEngine, suspend = _o.Suspend,
-        });
+        }, _o.Cores, _o.Quick);
+        Limits = _store.Limits(_campaignId);
     }
 
     private int Start => _o.Start ?? _plan.Start;
@@ -104,7 +100,7 @@ public sealed class Sweep
     public int Run(CancellationToken ct)
     {
         var t0 = DateTime.Now;
-        _sink.Event($"sweep: cores {string.Join(",", _o.Cores)}  {Start} -> {Top} coarse {Coarse} fine {Step}  {Seconds} s  engines {string.Join(" | ", _plan.Engines)}  tests {string.Join(",", _plan.Tests)}" +
+        Note($"sweep: cores {string.Join(",", _o.Cores)}  {Start} -> {Top} coarse {Coarse} fine {Step}  {Seconds} s  engines {string.Join(" | ", _plan.Engines)}  tests {string.Join(",", _plan.Tests)}" +
                     $"  confirm {_plan.ConfirmSeconds} s  soak {_plan.SoakSeconds} s with {_plan.SoakEngine} at limit + {_plan.SafetyMargin}");
 
         // A y-cruncher load does not count as user activity: without this the
@@ -115,22 +111,21 @@ public sealed class Sweep
         // A run left in progress: a machine hang (the BIOS restored the baseline by itself) if
         // the machine has rebooted since; if it is still the same boot session, the process was
         // killed (console closed, session ended) and the run simply repeats (2026-08-31 15:45).
-        var hang = Journal.ReadJsonFile<InProgress>(_inProgressPath);
-        InProgress? killed = null;
+        var hang = _store.RunningRun(_campaignId);
+        RunningRun? killed = null;
         if (hang is not null)
         {
-            File.Delete(_inProgressPath);
             if (SameBoot(hang.Boot, BootTime()))
             {
                 killed = hang;
                 hang = null;
-                _sink.Event($"RUN IN PROGRESS AT STARTUP: core {killed.Core} margin {killed.Margin} {killed.Engine} since {killed.Ts:HH:mm:ss}, same boot session -> the process was killed, not a hang; the run repeats");
-                Record(new RunResult(killed.Core, killed.Margin, killed.Engine, "aborted", 0, "process killed (same boot session)", null, 0, 0, 0, null, killed.Ts, DateTime.Now, killed.Stage));
+                Note($"RUN IN PROGRESS AT STARTUP: core {killed.Core} margin {killed.Margin} {killed.Engine} since {killed.Started:HH:mm:ss}, same boot session -> the process was killed, not a hang; the run repeats", "killed");
+                Record(killed.Id, new RunResult(killed.Core, killed.Margin, killed.Engine, "aborted", 0, "process killed (same boot session)", null, 0, 0, 0, null, killed.Started, DateTime.Now, killed.Stage));
             }
             else
             {
-                _sink.Event($"RUN IN PROGRESS AT STARTUP: core {hang.Core} margin {hang.Margin} {hang.Engine} ({hang.Stage}) since {hang.Ts:HH:mm:ss} -> machine hang, positive");
-                Record(new RunResult(hang.Core, hang.Margin, hang.Engine, "hang", 0, "machine hang (reboot)", null, 0, 0, 0, null, hang.Ts, DateTime.Now, hang.Stage));
+                Note($"RUN IN PROGRESS AT STARTUP: core {hang.Core} margin {hang.Margin} {hang.Engine} ({hang.Stage}) since {hang.Started:HH:mm:ss} -> machine hang, positive", "hang");
+                Record(hang.Id, new RunResult(hang.Core, hang.Margin, hang.Engine, "hang", 0, "machine hang (reboot)", null, 0, 0, 0, null, hang.Started, DateTime.Now, hang.Stage));
             }
         }
 
@@ -141,7 +136,7 @@ public sealed class Sweep
                 if (ct.IsCancellationRequested) break;
                 if (Limits.TryGetValue(core, out var done) && done is not null)
                 {
-                    _sink.Event($"core {core}: already has limit {done}, skipped");
+                    Note($"core {core}: already has limit {done}, skipped");
                     continue;
                 }
 
@@ -158,7 +153,7 @@ public sealed class Sweep
                 if (ct.IsCancellationRequested) break;
 
                 Limits[core] = limit;
-                Journal.WriteJsonFile(_limitsPath, Limits.OrderBy(k => k.Key).ToDictionary(k => k.Key.ToString(), k => k.Value));
+                _store.SetLimit(_campaignId, core, limit);
                 _sink.CoreDone(core, limit);
             }
         }
@@ -166,14 +161,16 @@ public sealed class Sweep
         {
             KeepAwake.Off();
             _co.TryRestore(_plan.Base);
-            _runs.Dispose();
-            _samples.Dispose();
-            _store.Dispose();
         }
 
-        _sink.Event(ct.IsCancellationRequested
-            ? $"interrupted after {(DateTime.Now - t0).TotalMinutes:F0} min; baseline {_plan.Base} restored"
-            : $"sweep finished in {(DateTime.Now - t0).TotalMinutes:F0} min");
+        if (ct.IsCancellationRequested)
+            Note($"interrupted after {(DateTime.Now - t0).TotalMinutes:F0} min; baseline {_plan.Base} restored", "interrupted");
+        else
+        {
+            Note($"sweep finished in {(DateTime.Now - t0).TotalMinutes:F0} min", "done");
+            _store.EndCampaign(_campaignId);
+        }
+        _store.Dispose();
         return ct.IsCancellationRequested ? 1 : 0;
     }
 
@@ -205,9 +202,9 @@ public sealed class Sweep
         if (_plan.ConfirmSeconds <= 0) return limit;
         while (!ct.IsCancellationRequested)
         {
-            if (limit > Top) { _sink.Event($"core {core}: no margin up to the top survived confirmation"); return null; }
+            if (limit > Top) { Note($"core {core}: no margin up to the top survived confirmation"); return null; }
             if (Clean(core, limit, _plan.Engines, _plan.ConfirmSeconds, "confirm", ct)) return limit;
-            _sink.Event($"core {core}: {limit} failed the {_plan.ConfirmSeconds} s confirmation; limit moves to {limit + Step}");
+            Note($"core {core}: {limit} failed the {_plan.ConfirmSeconds} s confirmation; limit moves to {limit + Step}");
             limit += Step;
         }
         return null;
@@ -219,10 +216,10 @@ public sealed class Sweep
         if (_plan.SoakSeconds <= 0 || string.IsNullOrEmpty(_plan.SoakEngine)) return limit;
         while (!ct.IsCancellationRequested)
         {
-            if (limit > Top) { _sink.Event($"core {core}: no margin up to the top survived the soak"); return null; }
+            if (limit > Top) { Note($"core {core}: no margin up to the top survived the soak"); return null; }
             var at = Math.Min(Top, limit + _plan.SafetyMargin);
             if (Clean(core, at, [_plan.SoakEngine], _plan.SoakSeconds, "soak", ct)) return limit;
-            _sink.Event($"core {core}: {at} (limit {limit} + {_plan.SafetyMargin}) failed the {_plan.SoakSeconds} s soak; limit moves to {limit + Step}");
+            Note($"core {core}: {at} (limit {limit} + {_plan.SafetyMargin}) failed the {_plan.SoakSeconds} s soak; limit moves to {limit + Step}");
             limit += Step;
         }
         return null;
@@ -238,7 +235,7 @@ public sealed class Sweep
             do
             {
                 r = RunOne(core, margin, engine, seconds, stage, ct);
-                if (r.Verdict == "invalid") _sink.Event($"core {core} margin {margin} {engine} ({stage}): INVALID ({r.Error}); the run repeats");
+                if (r.Verdict == "invalid") Note($"core {core} margin {margin} {engine} ({stage}): INVALID ({r.Error}); the run repeats");
             } while (r.Verdict == "invalid" && !ct.IsCancellationRequested);
             if (r.Verdict != "clean") return false;
         }
@@ -254,7 +251,8 @@ public sealed class Sweep
         var read = _co.ReadCore(core);
         if (read != margin) throw new CoWriteFailedException($"core {core}: requested {margin}, hardware {read}");
 
-        Journal.WriteJsonFile(_inProgressPath, new InProgress(core, margin, engineName, started, BootTime(), stage));
+        // The row is `running` from here: if the machine hangs or the process dies, the next start finds it.
+        var runId = _store.BeginRun(_campaignId, core, margin, engineName, stage, started, BootTime());
 
         var work = Path.Combine(_o.CampaignDir, "work", $"core{core}");
         using var engine = new YCruncherEngine(_plan.YCruncherDir, engineName, _plan.Tests, suspend: _o.Suspend);
@@ -262,7 +260,6 @@ public sealed class Sweep
         sampler.Prime();
 
         EngineStatus status;
-        var taken = new List<Sample>();
         // A sleep of any kind mid-run resets every margin to the BIOS baseline and the
         // rest of the run tests nothing (it happened on 2026-08-31: a "-45 CLEAN after
         // 1096 s" that mostly ran at -5). Two independent detectors: a wall-clock jump
@@ -282,8 +279,7 @@ public sealed class Sweep
                 if (loopGap > 30) { gapSeconds = loopGap; break; }
                 var s = sampler.Take();
                 status = engine.Poll();
-                taken.Add(s);
-                _samples.Write(new { core, margin, engine = engineName, stage, s.Ts, s.Elapsed, s.Clock, s.ClockEffective, s.Volt, s.Freq, s.Power, s.Temp, s.PackagePower });
+                _store.AddSample(_campaignId, runId, core, margin, engineName, stage, s);
                 _sink.Progress(s, status);
                 if (status.State != EngineState.Running || DateTime.Now >= deadline || ct.IsCancellationRequested) break;
             }
@@ -293,13 +289,12 @@ public sealed class Sweep
         finally
         {
             _co.TryRestore(_plan.Base);
-            File.Delete(_inProgressPath);
         }
 
         Thread.Sleep(1500);   // the WHEA log takes a moment to be written
         var whea = Whea.HardwareSince(started);
         foreach (var e in Whea.IgnoredSince(started))
-            _sink.Event($"core {core} margin {margin}: WHEA id {e.Id} during the run not counted (PCIe, not a core): {e.Message}");
+            Note($"core {core} margin {margin}: WHEA id {e.Id} during the run not counted (PCIe, not a core): {e.Message}");
         var invalid = gapSeconds > 0 || !marginHeld;
         var verdict =
             ct.IsCancellationRequested ? "aborted" :
@@ -317,8 +312,7 @@ public sealed class Sweep
 
         var result = new RunResult(core, margin, engineName, verdict, (int)(DateTime.Now - started).TotalSeconds, error, status.ExitCode,
             whea.Count, status.Lines, status.Suspensions, sampler.Summary(), started, DateTime.Now, stage);
-        Record(result);
-        _store.AddSamples(core, margin, engineName, taken);
+        Record(runId, result);
 
         if (verdict is not ("clean" or "aborted" or "invalid"))
         {
@@ -330,19 +324,22 @@ public sealed class Sweep
         return result;
     }
 
-    private void Record(RunResult r)
+    private void Record(long runId, RunResult r)
     {
-        _runs.Write(r);
-        _store.AddRun(r);
+        _store.EndRun(runId, r);
         _sink.RunEnded(r);
+    }
+
+    /// <summary>A line for the console and a row in the database.</summary>
+    private void Note(string line, string kind = "info")
+    {
+        _store.AddEvent("sweep", null, _campaignId, DateTime.Now, kind, line);
+        _sink.Event(line);
     }
 
     private static string Sanitize(string s) => new(s.Where(char.IsLetterOrDigit).ToArray());
 
-    /// <summary><paramref name="Boot"/>: when the machine booted, so a file left behind can be told apart from a hang. Null on files from before it was recorded (treated as a hang, the old behaviour).</summary>
-    internal sealed record InProgress(int Core, int Margin, string Engine, DateTime Ts, DateTime? Boot = null, string Stage = "sweep");
-
-    /// <summary>Boot time from the tick counter; drifts by fractions of a second between calls, hence the tolerance in <see cref="SameBoot"/>.</summary>
+    /// <summary>Boot time from the tick counter; drifts by fractions of a second between calls, hence the tolerance in <see cref="SameBoot"/>. A run recorded without one (never, since 0.2.0) counts as a hang.</summary>
     internal static DateTime BootTime() => DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
 
     internal static bool SameBoot(DateTime? recorded, DateTime now)

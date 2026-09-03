@@ -3,7 +3,7 @@ using Rycolab.Core.Legion;
 namespace Rycolab.Core;
 
 public sealed record GuardTick(
-    DateTime Ts, int Elapsed, bool Ok, int?[] Hardware, int Whea, double? CpuLoad, double? PackagePower, string State);
+    DateTime Ts, int Elapsed, bool Ok, int?[] Hardware, int Whea, double? CpuLoad, double? PackagePower, string State, TickExtras? Extras = null);
 
 public sealed class GuardOptions
 {
@@ -30,8 +30,10 @@ public sealed class Guard
     private readonly CoController _co;
     private readonly Profile _profile;
     private readonly GuardOptions _o;
-    private readonly Journal _journal;
     private readonly Store _store;
+    private long _session;
+    private LenovoEc? _ec;
+    private readonly HashSet<string> _failedSources = [];
     private readonly CpuLoad _load = new();
     private readonly PmTable? _pm;
     private readonly Action<GuardTick> _onTick;
@@ -80,8 +82,7 @@ public sealed class Guard
         _onEvent = onEvent;
         Directory.CreateDirectory(_o.RunsDir);
         File.Delete(StopFile(_o.RunsDir));
-        _journal = new Journal(Path.Combine(_o.RunsDir, "guard.jsonl"));
-        _store = new Store(Path.Combine(_o.RunsDir, "rycolab.db"));
+        _store = Store.Open();
         if (_o.PublishState) _validation = Validation.LoadFor(profile);
         _lastHealthAt = _store.LastHealthTs();
     }
@@ -96,6 +97,7 @@ public sealed class Guard
         _state.GuardPid = Environment.ProcessId;
         _state.Since = _t0;
         _state.Profile = _profile.Cores;
+        _session = _store.BeginSession(Environment.ProcessId, string.Join(",", _profile.Cores), _o.IntervalSeconds, adhoc: !_o.PublishState);
         Event("start", $"profile {string.Join(",", _profile.Cores)}  interval {_o.IntervalSeconds}s  {(_o.Minutes is { } m ? m + " min" : "no time limit")}");
 
         // A hard reset leaves no WHEA and no journal line; the only trace is Kernel-Power 41 at the next boot.
@@ -108,7 +110,9 @@ public sealed class Guard
 
         try
         {
-            if (!ApplyProfile("start")) return 1;
+            if (!ApplyProfile("start")) { code = 1; return 1; }
+            // The EC is read every tick (temperatures, fans, modes); one handle for the whole session.
+            try { _ec = new LenovoEc(); } catch { _ec = null; }
             // A sample right away: `on` waits for a tick, and the first interval is a minute.
             Tick(0, true, _co.ReadAll().Select(x => x.Margin).ToArray(), 0, null, PackagePower(), "ok");
 
@@ -217,7 +221,8 @@ public sealed class Guard
             _state.GuardPid = null;
             _state.Phase = code == 10 ? "positive" : "off";
             Event("restore", $"baseline {_profile.Base}: {restored} cores written; hardware {string.Join(",", after)}  code {code}");
-            _journal.Dispose();
+            _store.EndSession(_session, code);
+            _ec?.Dispose();
             _store.Dispose();
         }
         return code;
@@ -340,13 +345,12 @@ public sealed class Guard
         Event("dgpu-stuck", $"dGPU still on the bus 6 min after the switch; {string.Join(" | ", lines)}; the silicon keeps ~20 W without a driver, a reboot truly powers it off");
     }
 
-    /// <summary>One battery-health sample per day, write-through like ticks so Rebuild regenerates it.</summary>
+    /// <summary>One battery-health sample per day.</summary>
     private void HealthTick()
     {
         if (!_o.PublishState || _lastHealthAt?.Date == DateTime.Now.Date) return;
         var s = BatteryHealth.Read();
         if (s.FullWh is null) { _lastHealthAt = s.Ts; return; }   // no battery here; do not retry every minute
-        _journal.Write(new { kind = "health", ts = s.Ts, fullWh = s.FullWh, designWh = s.DesignWh, cycles = s.Cycles });
         _store.AddHealth(s);
         _lastHealthAt = s.Ts;
     }
@@ -360,11 +364,37 @@ public sealed class Guard
     private double? PackagePower()
         => _pm?.Refresh() == true ? _pm.Package() : null;
 
+    /// <summary>
+    /// Everything else the tick records: battery, Lenovo EC, power and GPU
+    /// mode, panel. A source that fails leaves its columns null and is
+    /// reported once, not every minute.
+    /// </summary>
+    private TickExtras Extras()
+    {
+        bool? ac = null; double? batW = null, batPct = null, batWh = null, batFull = null;
+        int? ecCpu = null, ecGpu = null, ecPch = null, fanCpu = null, fanGpu = null, fanPch = null, mode = null, gpu = null, hz = null, bright = null;
+        Source("battery", () => { var b = BatteryInfo.Read(); ac = b.OnAc; batW = b.DischargeW; batPct = b.Percent; batWh = b.RemainingWh; batFull = b.FullWh; });
+        if (_ec is { IsAvailable: true } ec)
+            Source("ec", () =>
+            {
+                ecCpu = ec.CpuTempC; ecGpu = ec.GpuTempC; ecPch = ec.PchTempC;
+                fanCpu = ec.CpuFanRpm; fanGpu = ec.GpuFanRpm; fanPch = ec.PchFanRpm;
+                mode = ec.SmartFanMode; gpu = ec.IGpuMode;
+            });
+        Source("panel", () => { hz = WindowsPower.RefreshHz; bright = WindowsPower.Brightness; });
+        return new TickExtras(ac, batW, batPct, batWh, batFull, ecCpu, ecGpu, ecPch, fanCpu, fanGpu, fanPch, mode, gpu, hz, bright);
+
+        void Source(string name, Action read)
+        {
+            try { read(); }
+            catch (Exception ex) { if (_failedSources.Add(name)) Event("tick-failed", $"{name}: {ex.Message} (its columns stay empty; not repeated)"); }
+        }
+    }
+
     private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)
     {
-        var t = new GuardTick(DateTime.Now, el, ok, hw, whea, cpu, pkg, state);
-        _journal.Write(new { kind = "tick", t.Ts, t.Elapsed, t.Ok, t.Hardware, t.Whea, t.CpuLoad, t.PackagePower, t.State });
-        _store.AddTick(t);
+        var t = new GuardTick(DateTime.Now, el, ok, hw, whea, cpu, pkg, state, Extras());
+        _store.AddTick(_session, t);
 
         _state.Hardware = hw;
         _state.Applied = ok;
@@ -380,8 +410,7 @@ public sealed class Guard
 
     private void Event(string kind, string detail)
     {
-        _journal.Write(new { kind, ts = DateTime.Now, detail });
-        _store.AddEvent(DateTime.Now, kind, detail);
+        _store.AddEvent("guard", _session, null, DateTime.Now, kind, detail);
         _state.LastEvents.Add($"{DateTime.Now:HH:mm:ss}  {kind}: {detail}");
         if (_state.LastEvents.Count > 10) _state.LastEvents.RemoveAt(0);
         PublishState();

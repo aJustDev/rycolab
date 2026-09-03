@@ -71,8 +71,8 @@ public static class SweepCommand
             return sweep.Run(cts.Token);
         }
 
-        var known = Journal.ReadJsonFile<Dictionary<string, int?>>(Path.Combine(dir, "limits.json"))?
-                        .ToDictionary(k => int.Parse(k.Key), k => k.Value) ?? [];
+        Dictionary<int, int?> known;
+        using (var store = Store.Open()) known = store.CampaignId(campaign) is { } id ? store.Limits(id) : [];
         var view = new SweepView(cores, options.Seconds ?? config.Seconds, known);
         var code = 0;
         AnsiConsole.Live(view.Render()).AutoClear(false).Start(ctx =>
