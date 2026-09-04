@@ -51,7 +51,7 @@ iGPU only"; no reboot; the EC is told whether the dGPU node has gone, as
 Legion Toolkit does), the internal panel to 60 Hz (a display mode change,
 frequency only) and 40 % brightness, and the DC values of the active Windows
 power scheme (boost mode off, max processor state 99 %, PCIe ASPM maximum,
-Wi-Fi maximum power saving, USB selective suspend). `--gpu igpu|auto|keep`,
+USB selective suspend; Wi-Fi power saving is not touched: the Wi-Fi 7 card drops packets in any saving mode, so the scheme keeps maximum performance on both lines). `--gpu igpu|auto|keep`,
 `--hz`, `--brightness` (a non-numeric value like `--brightness keep` leaves
 it alone), `--mode quiet|keep`, `--no-windows` and `--close-apps` (kills
 Legion Toolkit and HWiNFO) tune it. Measured on the reference machine

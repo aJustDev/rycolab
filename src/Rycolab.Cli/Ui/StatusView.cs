@@ -36,7 +36,6 @@ public static class StatusView
     private static string ShortLabel(string label) => label switch
     {
         "max processor state %" => "max proc. %",
-        "Wi-Fi power saving" => "Wi-Fi saving",
         "USB selective suspend" => "USB suspend",
         _ => label,
     };

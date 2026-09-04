@@ -1136,3 +1136,13 @@ sits at 100 C in all three runs, and the CPU test is part of the score),
 not another curve. The 16312 of 00:20 was the run 3DMark made while its
 SystemInfo updated and crashed. Default tail from now on: per point
 (exactly what Afterburner writes); the floor stays as an option.
+
+## 2026-09-04 - The Wi-Fi card is never in power saving; the battery profile stops touching it
+
+The DC block of the battery profile set Wi-Fi power saving to 3 (maximum)
+and `legion power ac` put back Windows' DC default, 2 (medium saving). On
+this machine (MediaTek MT7927 Wi-Fi 7) any saving mode drops packets and
+breaks sessions, and the whole DC block measured -0.2 W (2026-09-01 entry
+above), so the saving bought nothing. Wi-Fi leaves the DC block and the
+active scheme is set once to 0 (maximum performance) on both lines (AC
+already was); the profile and its restore no longer write the value.
