@@ -140,8 +140,6 @@ public static class WindowsPower
     public const string SubProcessor = "54533251-82be-4824-96c1-47b60b740d00";
     public const string ProcThrottleMax = "bc5038f7-23e0-4960-96da-33abaf5935ec";   // max processor state, %
     public const string PerfBoostMode = "be337238-0d82-4146-a960-4f3749d470c7";     // 0 disabled .. 6
-    public const string SubPciExpress = "501a4d13-42af-4429-9fd1-a8218c268e20";
-    public const string Aspm = "ee12f906-d277-404b-b6da-e5fa1a576df5";              // 0 off, 1 moderate, 2 maximum
     public const string SubUsb = "2a737441-1930-4402-8d77-b2bebba308a3";
     public const string UsbSelectiveSuspend = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226"; // 0 disabled, 1 enabled
 
@@ -150,7 +148,6 @@ public static class WindowsPower
     [
         (SubProcessor, PerfBoostMode, "boost mode", 0),
         (SubProcessor, ProcThrottleMax, "max processor state %", 99),
-        (SubPciExpress, Aspm, "PCIe ASPM", 2),
         (SubUsb, UsbSelectiveSuspend, "USB selective suspend", 1),
     ];
 
@@ -163,7 +160,6 @@ public static class WindowsPower
             5 => "aggressive at guaranteed", 6 => "efficient aggressive at guaranteed", _ => value.ToString(),
         },
         ProcThrottleMax => $"{value} %",
-        Aspm => value switch { 0 => "off", 1 => "moderate", 2 => "maximum", _ => value.ToString() },
         UsbSelectiveSuspend => value switch { 0 => "disabled", 1 => "enabled", _ => value.ToString() },
         _ => value.ToString(),
     };

@@ -1146,3 +1146,24 @@ breaks sessions, and the whole DC block measured -0.2 W (2026-09-01 entry
 above), so the saving bought nothing. Wi-Fi leaves the DC block and the
 active scheme is set once to 0 (maximum performance) on both lines (AC
 already was); the profile and its restore no longer write the value.
+
+## 2026-09-16 - The Wi-Fi card falls off the PCIe bus on resume; the battery profile stops touching ASPM
+
+Three times in 30 days (09-07 14:10, 09-09 13:50, 09-16 19:15) the MT7927
+vanished from Device Manager (code 45, phantom) and only a reboot brought
+it back. Every time the System log shows the same run from `mtkwecx`:
+`SER L1 Trigger` (the firmware's full chip reset), `5002 adapter not
+working`, `8002 Driver surprise remove`, all within 10 s of resuming from
+S3 after a 15-21 h sleep. The Bluetooth half of the card (USB) stayed up,
+so the card had power; the PCIe link is what did not come back. The
+driver records `hasEnteredL1SS=1` and the scheme had PCIe ASPM at 2
+(maximum, L0s+L1) on both lines. Known MT79xx-on-AMD failure with L1
+substates. A fourth case the same evening (22:18) had no SER: WLAN
+AutoConfig's "reset the adapter" recovery unloaded the driver and the
+device never came back.
+
+ASPM leaves the DC block of the battery profile (it wrote 2 on every AC
+line off, undoing the fix within a minute of applying it) and the active
+scheme is set once to 0 (off) on both lines. Success measure: zero `8002
+Driver surprise remove` after several long S3 sleeps. Fallbacks if it
+recurs: a newer BIOS (SMCN20WW now) or Lenovo's own driver 5.7.0.5275.
