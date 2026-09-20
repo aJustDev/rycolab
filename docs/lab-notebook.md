@@ -1167,3 +1167,22 @@ line off, undoing the fix within a minute of applying it) and the active
 scheme is set once to 0 (off) on both lines. Success measure: zero `8002
 Driver surprise remove` after several long S3 sleeps. Fallbacks if it
 recurs: a newer BIOS (SMCN20WW now) or Lenovo's own driver 5.7.0.5275.
+
+## 2026-09-20 - A reset that was the battery running out, not the profile
+
+The guard counted one unexpected reboot this morning and the validation
+verdict (which needs zero resets) stayed at "validating". The record says
+battery, not silicon: the machine booted at 10:09:58 already on DC at 2 %
+(2 Wh), the guard ticked 1 % at 10:11:49, 10:12:50 and 10:13:50 with the
+CPU idle (2-4 %) and the EC at 52-53 C, then nothing. Windows logged
+Kernel-Power 41 at the 10:18:08 boot and EventLog 6008 for the shutdown,
+no WHEA, no driver or hardware error between the two boots. An idle
+machine at 52 C that dies at 1 % is the EC's low-charge cut-off. The AC
+line came back at 10:19:10 and the guard restored its snapshot.
+
+The guard cannot tell a brown-out from a crash (Kernel-Power 41 looks the
+same), so the counter was cleared by hand: guard stopped with `rycolab
+off`, `Resets` 1 -> 0 in `validation.json`, `rycolab on`; the verdict went
+to steady on the first tick (130.8 h guarded, 23 resumes, 0 WHEA). Event
+557 stays in the database as the record of what happened. Lesson: check
+`bat_pct` on the last ticks before a reset before blaming the margins.
