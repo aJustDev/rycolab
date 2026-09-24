@@ -161,5 +161,10 @@ public sealed class LenovoEc : IDisposable
         1 => "quiet", 2 => "balanced", 3 => "performance", 224 => "extreme", 255 => "custom", null => "?", _ => mode.ToString()!
     };
 
+    public static int? ModeFromName(string name) => name.ToLowerInvariant() switch
+    {
+        "quiet" => 1, "balanced" => 2, "performance" => 3, "extreme" => 224, "custom" => CustomMode, _ => null
+    };
+
     public void Dispose() => _obj?.Dispose();
 }

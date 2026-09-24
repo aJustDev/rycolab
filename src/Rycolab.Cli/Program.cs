@@ -92,6 +92,7 @@ try
         return command switch
         {
             "fan" => FanCommand.Run(opts),
+            "mode" => ModeCommand.Run(opts),
             "power" => PowerCommand.Run(opts),
             "charge" => ChargeCommand.Run(opts),
             _ => UnknownLegion(command!),
@@ -183,7 +184,7 @@ static void PrintHelp()
                                         the database (the history of everything); `import` brings the 0.2 JSONL in once
           rycolab uninstall [--purge]   remove task, PATH and binaries; --purge also the data
           rycolab gpu <command>         NVIDIA V/F curve: probe, show, import, set, apply, on, off   (`rycolab gpu help`)
-          rycolab legion <command>      Lenovo Legion extras: fan, power (battery profile), charge   (`rycolab legion help`)
+          rycolab legion <command>      Lenovo Legion extras: fan, mode, power (battery profile), charge   (`rycolab legion help`)
           rycolab dev <command>         low-level: probe, apply, reset, guard, sweep, watch, sensors,
                                         calibrate, plan, toast, task, profile import, log   (`rycolab dev help`)
 
@@ -234,6 +235,8 @@ static void PrintLegionHelp()
 
           fan show|on|off|auto [--on 85] [--off 80] [--hold 3]   the EC "fan full speed" switch, by hand or by CPU temperature
                                         (auto selects the custom power mode itself and restores it on exit)
+          mode [quiet|balanced|performance|extreme|custom]   the EC power mode, shown or set and read back
+                                        (Fn+Q skips extreme and custom on the Legion Pro 7)
           power show|battery|ac|restore|auto on|off   battery profile: quiet mode, iGPU only, 60 Hz, brightness 40 %,
                                         DC scheme values; `ac` restores the snapshot; `auto` lets the guard do it on AC line changes
                                         (battery: --gpu igpu|auto|keep --mode quiet|keep --hz 60 --brightness 40 --no-windows --close-apps)
