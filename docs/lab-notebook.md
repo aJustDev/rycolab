@@ -1254,3 +1254,30 @@ The game ran in Legion's quiet mode (`power_mode` 1): the GPU sat at 99 %
 and ~55 W, 1200-1500 MHz, never near the lock; no performance reading
 today. Still to see under the guard: the way back from awake to idle, and
 a few days of games and resumes without a lock.
+
+## 2026-09-25 00:36 - Extreme is back; the "limits in effect" readout is stuck at 90/95 W
+
+The machine had been in quiet on AC since 2026-09-20 10:19 (1765 ticks, ~29
+h of use): after the battery ran out, the guard's AC restore wrote extreme
+and read extreme back, and the next tick, 43 s later, read quiet. Who
+changed it is unknown: Legion Toolkit was not running (its last log is
+2026-09-12), the System and Application logs show nothing, and there was
+user input at 10:19:14. The unplug of 2026-09-24 17:21 then saved quiet as
+the AC mode, and its restore kept it. Fn+Q on this machine cycles quiet,
+balanced and performance only, so extreme had no way back until the new
+`rycolab legion mode extreme`, which set it and read it back.
+
+The EC's "limits in effect" (`LENOVO_OTHER_METHOD` 0x01020000, 0x01010000,
+0x01030000, 0x01060000) have read PL1 90, PL2 95, peak 102, cross 70 W in
+quiet, balanced, performance and extreme since 2026-09-20; extreme read
+135 / 162 / 195 / 100 W on 2026-09-16. Measured in extreme with
+y-cruncher on all 32 threads (SFTv4, FFTv4, N63, 90 s, profile applied),
+`dev log` every 2 s (bench rows 5 and 6):
+
+| Loaded samples | Package W mean | Package W max | Tctl max | Clock | CPU fan |
+|---|---|---|---|---|---|
+| 32 | 128.4 | 143.7 | 100.9 C | 3.8-5.3 GHz | to 5200 RPM |
+
+All three tests passed, no WHEA. The CPU is not held at 90 W: it runs into
+its 100 C limit, as extreme should. What is stuck is the readout, not the
+limit; `legion mode` prints it as a hint and `dev log` is the measure.
