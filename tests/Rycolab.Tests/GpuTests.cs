@@ -200,25 +200,51 @@ public class GreenCurveIniTests
 
 public class GpuProfileTests
 {
-    [Fact]
-    public void AppliedMeansFlatAtTheLock()
+    /// <summary>
+    /// A curve like the 5080's with +300 MHz at point 68 (875 mV) and the tail written per point against
+    /// base A; <paramref name="shift"/> moves the base the way the card's other state does (233 MHz at the
+    /// lock, 330 at the top), <paramref name="offset"/> replaces the offsets on the card.
+    /// </summary>
+    private static VfPoint[] Curve(bool shift = false, Func<int, int, int>? offset = null)
     {
         var pts = new VfPoint[VfBackend.Points];
-        for (var i = 0; i < 127; i++) pts[i] = new VfPoint(i, Math.Min(2400000, 1000000 + i * 20000), 450000 + i * 6250, 0);
+        var lockKhz = 1000000 + 68 * 20000 + 300000;
+        for (var i = 0; i < 127; i++)
+        {
+            var baseA = 1000000 + i * 20000;
+            var written = i < 68 ? Math.Min(300000, lockKhz - baseA) : lockKhz - baseA;
+            var off = offset?.Invoke(i, written) ?? written;
+            var b = baseA + (shift ? 233000 + Math.Max(0, i - 68) * 1672 : 0);
+            pts[i] = new VfPoint(i, b + off, 450000 + i * 6250, off);
+        }
         pts[127] = new VfPoint(127, 405000, 525000, 0);
-        var p = new GpuProfile { LockMv = 887, LockOffsetMhz = 100, LockMhz = 2400 };   // point 70 = 887.5 mV = 2400 MHz, flat after
-        Assert.True(CurveApply.IsApplied(pts, p));
-        Assert.Equal(2400, CurveApply.LockMhzNow(pts, p));
-        // The base drifted: the same shape 260 MHz higher is still the profile.
-        var drifted = pts.Select(q => q.Index == 127 ? q : q with { Khz = q.Khz + 260000 }).ToArray();
-        Assert.True(CurveApply.IsApplied(drifted, p));
-        Assert.Equal(2660, CurveApply.LockMhzNow(drifted, p));
-        // Flat from a different voltage, or not flat at all: not the profile.
-        Assert.False(CurveApply.IsApplied(pts, new GpuProfile { LockMv = 950, LockMhz = 2400 }));
-        Assert.False(CurveApply.IsApplied(pts, new GpuProfile { LockMv = 1300, LockMhz = 2400 }));
-        var rising = pts.Select(q => q.Index == 127 ? q : q with { Khz = 1000000 + q.Index * 20000 }).ToArray();
-        Assert.False(CurveApply.IsApplied(rising, p));
-        Assert.Null(CurveApply.LockMhzNow(rising, p));
-        Assert.Equal("+100 MHz at 887 mV (2400 MHz on a 0 base), tail per point", p.Describe);
+        return pts;
+    }
+
+    [Fact]
+    public void AppliedMeansTheLockPointCarriesTheOffset()
+    {
+        var p = new GpuProfile { LockMv = 875, LockOffsetMhz = 300 };
+        var a = Curve();
+        Assert.Equal(68, VfCurve.DetectLock(a, VfCurve.VerifyToleranceMhz));
+        Assert.True(CurveApply.IsApplied(a, p));
+        Assert.Equal(a[68].Mhz, CurveApply.LockMhzNow(a, p));
+
+        // The base changed state: the per-point tail is no longer flat (what used to read as a lost curve),
+        // yet every offset is where it was written: still the profile.
+        var b = Curve(shift: true);
+        Assert.NotEqual(68, VfCurve.DetectLock(b, VfCurve.VerifyToleranceMhz));
+        Assert.True(CurveApply.IsApplied(b, p));
+        Assert.Equal(a[68].Mhz + 233, CurveApply.LockMhzNow(b, p));
+
+        // The driver dropped the offsets, or another tool wrote its own: not the profile.
+        Assert.False(CurveApply.IsApplied(Curve(offset: (_, _) => 0), p));
+        Assert.False(CurveApply.IsApplied(Curve(offset: (i, w) => i == 68 ? 250000 : w), p));
+        Assert.Null(CurveApply.LockMhzNow(Curve(offset: (_, _) => 0), p));
+
+        // A profile with no offset (a clock never applied) or a lock above the curve: never on it.
+        Assert.False(CurveApply.IsApplied(a, new GpuProfile { LockMv = 875, LockMhz = 2655 }));
+        Assert.False(CurveApply.IsApplied(a, new GpuProfile { LockMv = 1300, LockOffsetMhz = 300 }));
+        Assert.Equal("+300 MHz at 875 mV, tail per point", p.Describe);
     }
 }

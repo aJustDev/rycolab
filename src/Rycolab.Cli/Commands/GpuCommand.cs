@@ -194,6 +194,9 @@ public static class GpuCommand
         }
         p.Enabled = true;
         p.SafetyLock = null;
+        // A `set --lock` profile saved without the GPU carries a clock: keep the offset derived now, so the guard
+        // re-applies that offset and checks for it instead of deriving a new one against whatever state the base is in.
+        if (p.LockOffsetMhz == 0) p.LockOffsetMhz = result.Curve[result.LockIndex].OffsetKhz / 1000;
         p.Save();
         Console.WriteLine($"  Applied: {result.Detail}. The guard re-applies it at logon and after sleep; `rycolab gpu off` removes it.");
         Console.WriteLine();

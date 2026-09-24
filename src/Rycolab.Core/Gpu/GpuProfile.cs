@@ -202,15 +202,18 @@ public static class CurveApply
     }
 
     /// <summary>
-    /// Is the profile on the curve right now: flat from the lock voltage on.
-    /// The shape, not the MHz: the driver's base curve moves by hundreds of
-    /// MHz between reads (temperature, power mode; seen on the reference
-    /// machine 2026-09-03, 2355 and 2617 MHz at 950 mV minutes apart) and
-    /// the offsets ride on it, so the lock point's clock drifts while the
-    /// profile is perfectly in place. The MHz is verified once, at apply.
+    /// Is the profile on the curve right now: the lock point carries the
+    /// profile's offset. The offset, not the shape nor the MHz: the driver's
+    /// base curve sits in two states hundreds of MHz apart, and the shift is
+    /// not uniform (233 MHz at 875 mV, 330 at 1240 mV on the reference
+    /// machine), so offsets derived in one state leave the curve off flat in
+    /// the other while every one of them is still in place; checking the
+    /// shape turned each change of state into a "lost" curve and three of
+    /// them into a safety lock (2026-09-04 to 2026-09-12). The shape is
+    /// verified once, at apply; what can vanish later is the offsets.
     /// </summary>
     public static bool IsApplied(VfPoint[] curve, GpuProfile profile)
-        => VfCurve.IndexForMv(curve, profile.LockMv) is { } i && VfCurve.DetectLock(curve, VfCurve.VerifyToleranceMhz) == i;
+        => profile.LockOffsetMhz != 0 && VfCurve.IndexForMv(curve, profile.LockMv) is { } i && curve[i].OffsetKhz == profile.LockOffsetMhz * 1000;
 
     /// <summary>The clock the lock point reads right now, null when the profile is not on the curve.</summary>
     public static int? LockMhzNow(VfPoint[] curve, GpuProfile profile)

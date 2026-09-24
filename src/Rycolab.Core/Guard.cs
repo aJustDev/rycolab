@@ -447,14 +447,18 @@ public sealed class Guard
         }
         if (wasPresent == false) { ApplyGpu("dGPU back on the bus"); return; }
 
+        VfPoint[] curve;
         using (var api2 = new NvApi())
         {
             if (!api2.IsAvailable) return;
-            var applied = CurveApply.IsApplied(new VfCurve(api2).Read(), _gpu);
+            curve = new VfCurve(api2).Read();
+            var applied = CurveApply.IsApplied(curve, _gpu);
             _state.GpuApplied = applied;
             if (applied) return;
         }
-        Event("gpu-changed", "the curve no longer carries the profile (the driver reset it?)");
+        // What was on the curve says who took the profile off: no offsets at all is the driver, others are another tool.
+        var lockOffset = VfCurve.IndexForMv(curve, _gpu.LockMv) is { } li ? $"{curve[li].OffsetKhz / 1000:+0;-0} MHz" : "no point";
+        Event("gpu-changed", $"the curve no longer carries the profile: the lock point at {_gpu.LockMv} mV has {lockOffset}, not {_gpu.LockOffsetMhz:+0;-0} MHz; {curve.Count(p => p.OffsetKhz != 0)} points with an offset");
         // A curve that vanished right after a driver reset is not re-applied: the reset is why it vanished.
         if (resets.Count > 0 && (DateTime.Now - resets[^1].Time).TotalMinutes < 10) { GpuSafetyLock($"curve lost within 10 min of a driver reset ({resets[^1].Time:HH:mm:ss})"); return; }
         _gpuReapplies.RemoveAll(t => (DateTime.Now - t).TotalHours >= 1);
