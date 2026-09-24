@@ -43,15 +43,18 @@ public sealed class GpuProfile
     public int LockBaseMhz { get; set; }
     public int LowOffsetMhz { get; set; }
     /// <summary>
-    /// How the points above the lock are written: "floor" (Green Curve's
-    /// Blackwell way: every tail point at the driver's minimum offset, the
-    /// lock point sets the ceiling) or "points" (Afterburner's way: each
-    /// tail point gets the offset that puts it at the lock's clock, the
-    /// default). The driver honoured both on the reference machine and Time
-    /// Spy could not tell them apart (2026-09-04: 20449 floor, 20342 points,
-    /// 20069 stock; the GPU sits at its power limit under the lock).
+    /// How the points above the lock are written on Blackwell: "floor"
+    /// (Green Curve's way, the default: every tail point at the driver's
+    /// minimum offset, and the driver holds the tail at the lock point's
+    /// clock) or "points" (Afterburner's way: each tail point gets the offset
+    /// that puts it at the lock's clock against the base read at apply). The
+    /// base sits in two states and shifts more at the top than at the lock
+    /// (233 MHz at 875 mV, 330 at 1240 mV), so per-point offsets derived in
+    /// one state leave the tail up to ~100 MHz off the lock in the other. Time
+    /// Spy could not tell the two apart (2026-09-04: 20449 floor, 20342
+    /// points, 20069 stock; the GPU sits at its power limit under the lock).
     /// </summary>
-    public string Tail { get; set; } = "points";
+    public string Tail { get; set; } = "floor";
     [JsonIgnore] public bool TailPerPoint => string.Equals(Tail, "points", StringComparison.OrdinalIgnoreCase);
     public string? SafetyLock { get; set; }
     public GpuFingerprint? Fingerprint { get; set; }

@@ -245,6 +245,15 @@ public class GpuProfileTests
         // A profile with no offset (a clock never applied) or a lock above the curve: never on it.
         Assert.False(CurveApply.IsApplied(a, new GpuProfile { LockMv = 875, LockMhz = 2655 }));
         Assert.False(CurveApply.IsApplied(a, new GpuProfile { LockMv = 1300, LockOffsetMhz = 300 }));
+    }
+
+    [Fact]
+    public void TheTailIsFlooredByDefault()
+    {
+        var p = new GpuProfile { LockMv = 875, LockOffsetMhz = 300 };
+        Assert.False(p.TailPerPoint);
+        Assert.Equal("+300 MHz at 875 mV", p.Describe);
+        p.Tail = "points";
         Assert.Equal("+300 MHz at 875 mV, tail per point", p.Describe);
     }
 }
