@@ -1186,3 +1186,50 @@ off`, `Resets` 1 -> 0 in `validation.json`, `rycolab on`; the verdict went
 to steady on the first tick (130.8 h guarded, 23 resumes, 0 WHEA). Event
 557 stays in the database as the record of what happened. Lesson: check
 `bat_pct` on the last ticks before a reset before blaming the margins.
+
+## 2026-09-24 - The three GPU safety locks were the per-point tail meeting the two-state base
+
+The GPU curve had been under a safety lock since 2026-09-12 11:54, and it
+was the third: 09-04 13:23 (12 h after the guard was installed with the
+curve), 09-06 10:42 (10 min after `gpu on`), 09-12 11:54 (14 h after `gpu
+on`). All three were "3 GPU re-applies within an hour" with no driver
+reset: no `gpu-tdr`, no `nvlddmkm` or `Display` event in the System log
+around them. Every "lost" re-apply read the lock point's base in the other
+state from the one before (2355 -> 2122 -> 2362 -> 2122 ...). On 09-12 the
+card was in a game (94 % at 11:12, 49 % at 11:53) and the guard reset and
+rewrote the curve under load twice before locking. Since 09-04 the curve
+was on 376 of 7197 ticks with the dGPU on the bus (~6 h of ~120 h), and
+nobody knew: the lock raised no toast.
+
+The two states of the base are not parallel. The idle curve read today (no
+offsets) against the awake bases Afterburner saved in its profile (the same
+mV at all 127 points):
+
+| Point | mV | Idle MHz | Awake MHz | Shift |
+|---|---|---|---|---|
+| 68 | 875 | 2122 | 2355 | 233 |
+| 80 | 950 | 2355 | 2610 | 255 |
+| 100 | 1075 | 2617 | 2925 | 308 |
+| 126 | 1240 | 2827 | 3157 | 330 |
+
+The profile's tail per point (+300 at 875 mV, each tail point at the lock's
+clock against the base of the moment), written in one state and read in
+the other, through the guard's check (`DetectLock`, 8 MHz tolerance):
+
+| Written in | Read in | Lock point | Tail | Flat from |
+|---|---|---|---|---|
+| awake | idle | 2422 | 2325-2438 | point 118 |
+| idle | awake | 2655 | 2639-2752 | point 118 |
+
+`IsApplied` checked the shape, so each change of state read as a lost curve
+with every offset in place, and three an hour made a lock. The per-point
+tail became the default at 01:05 on 09-04, six minutes before the guard was
+installed with it. The guard did not record what it read at a "lost", so
+this is the one explanation that fits the events and the numbers, not an
+observation; `gpu-changed` now records the lock point's offset and how
+many points carry one. Fixed in code: the check is the offset on the lock
+point, the Blackwell tail is floored by default (the driver clamps it to
+the lock), and every lock toasts and puts the curve back to the driver's
+own (a lock from re-applies used to leave the last offsets on the card,
+unwatched). The installed guard and the saved profile (`Tail: points`)
+still carry the old behaviour until the reinstall and `gpu tail floor`.
