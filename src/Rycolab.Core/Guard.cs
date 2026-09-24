@@ -77,6 +77,8 @@ public sealed class Guard
         ["apply-failed"] = "rycolab: profile apply failed",
         ["error"] = "rycolab: guard error",
         ["dgpu-stuck"] = "rycolab: dGPU stuck awake",
+        ["gpu-tdr"] = "rycolab: GPU driver reset",
+        ["gpu-lock"] = "rycolab: GPU curve safety lock",
     };
     private readonly Dictionary<string, DateTime> _notified = [];
     private const int NotifyCooldownMinutes = 10;
@@ -388,6 +390,11 @@ public sealed class Guard
         else GpuSafetyLock($"{why}: {r.Detail}");
     }
 
+    /// <summary>
+    /// Locks the profile, then puts the curve back to the driver's own: a
+    /// locked profile is not watched, so no offsets of ours stay on the card.
+    /// The lock is saved first; a reset that fails leaves it in place.
+    /// </summary>
     private void GpuSafetyLock(string reason)
     {
         if (_gpu is null) return;
@@ -396,7 +403,20 @@ public sealed class Guard
         _gpu.Save();
         _state.GpuApplied = false;
         _state.GpuLock = _gpu.SafetyLock;
-        Event("gpu-lock", $"safety lock: {reason}; `rycolab gpu on` clears it");
+        string curve;
+        if (!LenovoEc.DgpuPresent()) curve = "the dGPU is off the bus, nothing to reset";
+        else
+        {
+            // Right after a TDR the driver may refuse the read: the lock must still be logged and toasted.
+            using var api = new NvApi();
+            try
+            {
+                curve = !api.IsAvailable ? $"curve not reset (NvAPI: {api.Unavailable})"
+                    : new VfCurve(api).Reset() ? "curve back to the driver's own" : "some offsets did not reset";
+            }
+            catch (InvalidOperationException ex) { curve = $"curve not reset ({ex.Message})"; }
+        }
+        Event("gpu-lock", $"safety lock: {reason}; {curve}; `rycolab gpu on` clears it");
     }
 
     /// <summary>
@@ -433,11 +453,7 @@ public sealed class Guard
         {
             foreach (var e in resets.Skip(_tdrSeen)) Event("gpu-tdr", $"{e.Time:HH:mm:ss} {e.Provider} id {e.Id}: {e.Message}");
             _tdrSeen = resets.Count;
-            if (_gpu.Enabled)
-            {
-                GpuSafetyLock($"driver reset (TDR) at {resets[^1].Time:HH:mm:ss}");
-                if (present) { using var api = new NvApi(); if (api.IsAvailable) new VfCurve(api).Reset(); }
-            }
+            if (_gpu.Enabled) GpuSafetyLock($"driver reset (TDR) at {resets[^1].Time:HH:mm:ss}");
             return;
         }
         if (!_gpu.Enabled || _gpu.SafetyLock is not null || !present)
