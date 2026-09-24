@@ -60,7 +60,7 @@ if (command is "help" or "-h" or "--help")
 var unelevated = command is null or "status" or "report" or "profile" or "version" or "db" || (dev && command is "plan" or "toast") || (gpu && command is "probe" or "show" or "import" or "set" or "tail");
 if (!unelevated && !Elevation.IsElevated())
 {
-    Console.Error.WriteLine($"'rycolab {(dev ? "dev " : legion ? "legion " : "")}{command}' needs administrator privileges to talk to the {(legion ? "EC" : "SMU")}.");
+    Console.Error.WriteLine($"'rycolab {(dev ? "dev " : legion ? "legion " : gpu ? "gpu " : "")}{command}' needs administrator privileges to {(legion ? "talk to the EC" : gpu ? "write the GPU's V/F curve" : "talk to the SMU")}.");
     Console.Error.WriteLine("Open an elevated console (or use sudo) and try again.");
     return 3;
 }
