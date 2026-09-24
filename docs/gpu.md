@@ -33,13 +33,17 @@ both.
 
 Applying it means writing a frequency offset per point through the private
 NvAPI calls the overclocking tools use. The points above the lock can be
-written two ways (`gpu tail`): each with the offset that puts it at the
-lock's clock, which is what Afterburner writes and the default, or all at
-the driver's minimum offset (-1000 MHz) with the lock point alone setting
-the ceiling, Green Curve's Blackwell way. On the reference machine the
-driver honoured both, reported both as flat, and Time Spy could not tell
-them apart (2026-09-04: the GPU sits at its power limit well under the
-lock). Every write is read back; a curve that does not land is reset to
+written two ways (`gpu tail`): all at the driver's minimum offset (-1000
+MHz) with the lock point alone setting the ceiling, Green Curve's Blackwell
+way and the default, or each with the offset that puts it at the lock's
+clock, which is what Afterburner writes. Time Spy could not tell them apart
+(2026-09-04: the GPU sits at its power limit well under the lock), but the
+per-point offsets are derived against the base of the moment and the two
+states of the base are not parallel (233 MHz apart at 875 mV, 330 at 1240
+mV): written in one state, the tail ends up to ~100 MHz off the lock in the
+other. The floored tail does not depend on the base it was written
+against: the driver clamps it to the lock point (seen in one state,
+2026-09-03). Every write is read back; a curve that does not land is reset to
 the driver's own (`FlattenTargets`, `Apply` in `VfCurve.cs`), and an apply
 always starts from offsets 0 because the base cannot be read off a curve
 that carries them.
@@ -50,7 +54,7 @@ that carries them.
 rycolab gpu probe [--all]                  the GPU, its family, the curve and the offsets on it
 rycolab gpu import <file> [--profile 1]    an Afterburner profile (Profiles\VEN_10DE...cfg) or a Green Curve config.ini
 rycolab gpu set --offset +300@875 [--below 300]   (or --lock 2655@875: derived against the base read now)
-rycolab gpu tail points|floor                 how the points above the lock are written (default points)
+rycolab gpu tail floor|points                 how the points above the lock are written (default floor)
 rycolab gpu show                           the saved profile and whether it is on the curve
 rycolab gpu apply | on | off               put it on the curve (the guard keeps it) | clear a safety lock and apply | offsets to 0
 ```
@@ -64,8 +68,10 @@ MHz on the 2355 base Afterburner saw) with +300 MHz below.
 `apply` writes, verifies and marks the profile enabled. From then on the
 guard re-applies it at logon, after sleep and when the dGPU comes back on
 the bus (on a Legion in iGPU-only mode the card is gone on battery); it
-checks every tick that the curve still carries the profile and re-applies
-at most three times an hour.
+checks every tick that the lock point still carries the profile's offset
+and re-applies at most three times an hour. When it does, the `gpu-changed`
+event says what was on the curve: no offsets at all is the driver, other
+offsets are another tool.
 
 ## The safety lock
 
@@ -74,8 +80,9 @@ A driver reset (System log: `nvlddmkm` 153 "Restarting TDR occurred",
 (`gpu-tdr`), resets the offsets to 0, disables the profile and writes a
 safety lock into it. The same happens when an apply does not verify, when
 the curve loses the profile within ten minutes of a reset, or when it keeps
-losing it (three re-applies in an hour). Nothing is re-applied until you
-run `rycolab gpu on`. `rycolab status` shows the lock
+losing it (three re-applies in an hour): every lock puts the curve back to
+the driver's own and raises a toast, as a driver reset does. Nothing is
+re-applied until you run `rycolab gpu on`. `rycolab status` shows the lock
 on the `gpu curve` row; `rycolab report --power` counts the resets.
 
 ## What the guard records
@@ -107,8 +114,12 @@ profile was on; `rycolab db sql` has the rest.
 - The base curve moves. Minutes apart the same point read 2355 and 2617
   MHz with no offset on it (temperature, power mode). The offsets ride on
   the base, so a lock's clock drifts with it, exactly as Afterburner's
-  does; the guard therefore checks the shape (flat from the lock voltage)
-  and not the MHz, which is verified once at apply and shown by `probe`.
+  does, and the shape can bend too: the two states are not parallel. The
+  guard therefore checks the offset on the lock point, which does not
+  move; the shape and the MHz are verified once at apply and shown by
+  `probe`. Checking the shape instead made every change of state look
+  like a lost curve: three false safety locks between 2026-09-04 and
+  2026-09-12.
 
 ## Sources
 
