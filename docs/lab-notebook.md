@@ -1233,3 +1233,24 @@ the lock), and every lock toasts and puts the curve back to the driver's
 own (a lock from re-applies used to leave the last offsets on the card,
 unwatched). The installed guard and the saved profile (`Tail: points`)
 still carry the old behaviour until the reinstall and `gpu tail floor`.
+
+## 2026-09-24 18:25 - The floored tail holds in both states of the base
+
+Guard reinstalled with the offset check (18:25), the profile's tail set to
+floor and `gpu on` (18:26): lock point 68 at +300 MHz, the 58 points above
+at -1000, applied against the idle base (2122 -> 2422 MHz). `gpu probe`
+every 30 s for 25 min:
+
+- Idle, 18:25-18:28: flat from point 68 at 2422 MHz, point 126 at 2422.
+- A game opened at 18:29: the base went to the awake state and the curve
+  read flat from point 68 at 2662 MHz, point 126 at 2662, for the rest of
+  the run (to 18:51). The driver clamps the floored tail to the lock in
+  both states, so the curve keeps its shape whichever state it was written
+  in.
+- The guard across the change of state: no `gpu-changed`, no `gpu-lock`,
+  26 of 26 ticks with the profile on the curve, 0 driver resets.
+
+The game ran in Legion's quiet mode (`power_mode` 1): the GPU sat at 99 %
+and ~55 W, 1200-1500 MHz, never near the lock; no performance reading
+today. Still to see under the guard: the way back from awake to idle, and
+a few days of games and resumes without a lock.

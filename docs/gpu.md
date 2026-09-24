@@ -42,8 +42,8 @@ per-point offsets are derived against the base of the moment and the two
 states of the base are not parallel (233 MHz apart at 875 mV, 330 at 1240
 mV): written in one state, the tail ends up to ~100 MHz off the lock in the
 other. The floored tail does not depend on the base it was written
-against: the driver clamps it to the lock point (seen in one state,
-2026-09-03). Every write is read back; a curve that does not land is reset to
+against: the driver clamps it to the lock point in both states (2422 MHz
+idle, 2662 awake, 2026-09-24). Every write is read back; a curve that does not land is reset to
 the driver's own (`FlattenTargets`, `Apply` in `VfCurve.cs`), and an apply
 always starts from offsets 0 because the base cannot be read off a curve
 that carries them.
