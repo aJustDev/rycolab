@@ -33,8 +33,9 @@ public static class ModeCommand
 
         var after = ec.SetSmartFanMode(mode);
         var limits = ec.PowerLimits;
-        // The limits readout trails a mode change (2026-09-16: extreme's limits still read right after switching to quiet).
-        Console.WriteLine($"  power mode {LenovoEc.ModeName(before)} -> {LenovoEc.ModeName(after)}{(after == mode ? "" : " (FAILED)")}; limits in effect: {LenovoEc.Describe(limits)}{(limits == limitsBefore && after != before ? " (unchanged so far: the EC can take a few seconds; `rycolab legion mode` reads them again)" : "")}");
+        // The limits readout is a hint: it trailed a mode change on 2026-09-16 and read 90/95 W in every mode from
+        // 2026-09-20 while the CPU drew 144 W under extreme. The package power in `dev log` is the measure.
+        Console.WriteLine($"  power mode {LenovoEc.ModeName(before)} -> {LenovoEc.ModeName(after)}{(after == mode ? "" : " (FAILED)")}; limits in effect: {LenovoEc.Describe(limits)}{(limits == limitsBefore && after != before ? " (unchanged: this readout can lag or stick; `rycolab dev log` measures the real package power)" : "")}");
         return after == mode ? 0 : 1;
     }
 }

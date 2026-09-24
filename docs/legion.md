@@ -29,7 +29,10 @@ The EC power mode (WMI `LENOVO_GAMEZONE_DATA`, `GetSmartFanMode` /
 quiet, balanced and performance only: extreme and custom are reachable from
 software alone. `rycolab legion mode` shows the mode and the CPU limits in
 effect; `rycolab legion mode extreme` sets it, reads it back and prints the
-limits, which can trail the change by a few seconds. The battery profile
+limits. Take that readout as a hint: it trailed a mode change on 2026-09-16,
+and from 2026-09-20 it read PL1 90 / PL2 95 W in every mode while the CPU
+drew 128-144 W under extreme (thermally limited at 100 C); `rycolab dev log`
+measures the package. The battery profile
 saves the mode it finds and restores it on AC; a mode that fell to quiet
 while nobody looked (2026-09-20, after the battery ran out) was then saved
 and restored as quiet, and Fn+Q could not get extreme back.
