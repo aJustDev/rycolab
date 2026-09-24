@@ -100,7 +100,7 @@ rycolab report --campaigns    every campaign and the limit per core side by side
 rycolab profile show|from-sweep <campaign> [--margin 5]|export <path>
 rycolab db stats|sql "<select>"|export <table>   the database: the history of everything (also path, import)
 rycolab gpu probe|import|set|show|apply|on|off   the NVIDIA V/F curve, kept by the guard (docs/gpu.md)
-rycolab legion <command>      Lenovo Legion only: fan, power (battery profile), charge (docs/legion.md)
+rycolab legion <command>      Lenovo Legion only: fan, mode, power (battery profile), charge (docs/legion.md)
 rycolab uninstall [--purge]   task, PATH and binaries; --purge also the data
 ```
 
@@ -231,8 +231,8 @@ verified on an RTX 5080 Laptop (Blackwell); see `docs/gpu.md`.
 
 ## Lenovo Legion extras
 
-`rycolab legion fan|power|charge` drives what only a Legion machine has: the
-EC fan switch, a measured battery profile (quiet mode, iGPU only, 60 Hz) that
+`rycolab legion fan|mode|power|charge` drives what only a Legion machine has: the
+EC fan switch and power mode, a measured battery profile (quiet mode, iGPU only, 60 Hz) that
 the guard can apply on AC line changes, and the charge modes. Not needed for
 Curve Optimizer; see `docs/legion.md`.
 

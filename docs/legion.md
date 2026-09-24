@@ -18,7 +18,21 @@ rycolab legion charge full [--target 98]   one-shot full charge: rapid now, and 
                               previous mode when the battery reaches the target (a manual mode change cancels it)
 rycolab legion fan show|on|off|auto [--on 85] [--off 80] [--hold 3]   the EC "fan full speed" switch, by hand or
                               driven by the EC CPU temperature; selects the custom power mode itself, restores it on exit
+rycolab legion mode [quiet|balanced|performance|extreme|custom]   the EC power mode, shown or set and read back
 ```
+
+## Power mode
+
+The EC power mode (WMI `LENOVO_GAMEZONE_DATA`, `GetSmartFanMode` /
+`SetSmartFanMode`: quiet 1, balanced 2, performance 3, extreme 224, custom
+255) sets the CPU and GPU power limits. On the reference machine Fn+Q cycles
+quiet, balanced and performance only: extreme and custom are reachable from
+software alone. `rycolab legion mode` shows the mode and the CPU limits in
+effect; `rycolab legion mode extreme` sets it, reads it back and prints the
+limits, which can trail the change by a few seconds. The battery profile
+saves the mode it finds and restores it on AC; a mode that fell to quiet
+while nobody looked (2026-09-20, after the battery ran out) was then saved
+and restored as quiet, and Fn+Q could not get extreme back.
 
 ## Fans on Lenovo Legion
 
