@@ -14,6 +14,28 @@ public class NvmlTests
         if (!nvml.IsAvailable) return;
         Assert.InRange(nvml.Read()!.Value.VramMb!.Value, 0, 199999);
     }
+
+    [Fact]
+    public void ThePowerReadAtTheFloorIsDropped()
+    {
+        // 2026-10-07: 842 W with the card asleep at 180 / 405 MHz. The rest of that sample was fine.
+        var s = Nvml.Checked(new Nvml.Sample(180, 405, 842.0, 39, 0, 0))!.Value;
+        Assert.Null(s.Watts);
+        Assert.Equal(new Nvml.Sample(180, 405, null, 39, 0, 0), s);
+        // The same clock with the memory awake, and the other idle (480 / 405), keep their reading.
+        Assert.Equal(17.0, Nvml.Checked(new Nvml.Sample(180, 14001, 17.0, 40, 0, 0))!.Value.Watts);
+        Assert.Equal(4.1, Nvml.Checked(new Nvml.Sample(480, 405, 4.1, 44, 0, 0))!.Value.Watts);
+    }
+
+    [Fact]
+    public void OneReadingOutOfRangeGoesAloneTwoAreTheStaleHandle()
+    {
+        var s = Nvml.Checked(new Nvml.Sample(2497, 14001, 1042.0, 70, 99, 7825))!.Value;
+        Assert.Equal(new Nvml.Sample(2497, 14001, null, 70, 99, 7825), s);
+        Assert.Null(Nvml.Checked(new Nvml.Sample(12945, 14001, 20.0, 41, 0, 0))!.Value.Mhz);
+        // After a driver reset on 2026-09-03 the dead handle answered 2332033 MHz and 2336538 W.
+        Assert.Null(Nvml.Checked(new Nvml.Sample(2332033, 14001, 2336538.0, 40, 0, 0)));
+    }
 }
 
 public class VfCurveTests

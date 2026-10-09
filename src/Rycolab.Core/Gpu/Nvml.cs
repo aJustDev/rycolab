@@ -23,6 +23,8 @@ public sealed class Nvml : IDisposable
     [StructLayout(LayoutKind.Sequential)] private struct Memory { public uint Version; public ulong Total, Reserved, Free, Used; }
 
     private const uint ClockGraphics = 0, ClockMemory = 2;
+    // The bottom of the curve and the memory's lowest clock: the card's deepest idle.
+    private const int FloorMhz = 180, FloorMemMhz = 405;
     // NVML_STRUCT_VERSION(Memory, 2): the size of the struct and the version. The first version counts the driver's own reservation as used (300 MiB on an idle 5080).
     private const uint MemoryV2 = 2u << 24 | 40;
 
@@ -55,17 +57,31 @@ public sealed class Nvml : IDisposable
     {
         if (!_open) return null;
         var mem = new Memory { Version = MemoryV2 };
-        var s = new Sample(
+        return Checked(new Sample(
             GetClock(_device, ClockGraphics, out var g) == 0 ? (int)g : null,
             GetClock(_device, ClockMemory, out var m) == 0 ? (int)m : null,
             GetPower(_device, out var mw) == 0 ? mw / 1000.0 : null,
             GetTemperature(_device, 0, out var c) == 0 ? (int)c : null,
             GetUtilization(_device, out var u) == 0 ? (int)u.Gpu : null,
-            GetMemory(_device, ref mem) == 0 ? (int)(mem.Used >> 20) : null);
-        var plausible = s.Mhz is null or (>= 0 and < 10000) && s.MemMhz is null or (>= 0 and < 40000)
-            && s.Watts is null or (>= 0 and < 1000) && s.TempC is null or (>= 0 and < 150) && s.Util is null or (>= 0 and <= 100)
-            && s.VramMb is null or (>= 0 and < 200000);
-        return plausible ? s : null;
+            GetMemory(_device, ref mem) == 0 ? (int)(mem.Used >> 20) : null));
+    }
+
+    /// <summary>
+    /// What a raw read is worth. At the floor (180 MHz with the memory at 405) the power reading is not one:
+    /// 307 W on 2026-10-05, a number that climbed from 16 to 842 W through 2026-10-07; it is dropped. One
+    /// reading out of range is dropped alone, the rest of the sample stands; two or more are the stale handle.
+    /// </summary>
+    internal static Sample? Checked(Sample s)
+    {
+        if (s is { Mhz: FloorMhz, MemMhz: FloorMemMhz }) s = s with { Watts = null };
+        var bad = 0;
+        if (s.Mhz is not (null or (>= 0 and < 10000))) { s = s with { Mhz = null }; bad++; }
+        if (s.MemMhz is not (null or (>= 0 and < 40000))) { s = s with { MemMhz = null }; bad++; }
+        if (s.Watts is not (null or (>= 0 and < 1000))) { s = s with { Watts = null }; bad++; }
+        if (s.TempC is not (null or (>= 0 and < 150))) { s = s with { TempC = null }; bad++; }
+        if (s.Util is not (null or (>= 0 and <= 100))) { s = s with { Util = null }; bad++; }
+        if (s.VramMb is not (null or (>= 0 and < 200000))) { s = s with { VramMb = null }; bad++; }
+        return bad > 1 ? null : s;
     }
 
     public void Dispose()
