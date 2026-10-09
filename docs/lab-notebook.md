@@ -1329,3 +1329,34 @@ Also in today's events: at 20:06:36 the guard logged `gpu-changed` and
 `gpu-apply: lost` for a card that had only come back. `GpuTick` has the
 same blind spot between ticks, and the return spent one of the three
 re-applies an hour.
+
+## 2026-10-06 18:00 - The tick records the VRAM in use; a game loses frame generation and nothing says why
+
+The Witcher 3 (DX12, path tracing, DLSS with frame generation) drops frame
+generation in the middle of a session and plays on without it. Steam's
+overlay log (`gameoverlay_renderer.txt`, UTC) has the moment: off, on, off
+within one second and nothing after. 10-05 20:30:39 and 10-06 16:37:12,
+seven minutes into the session; on 10-06 the card then ran 56 minutes at
+172 W without it. The game's saved setting stays `DLSSGMode=1`.
+
+What the database and Windows have for those sessions: 0 driver resets,
+the curve on at every tick, AC, 240 Hz, no `nvlddmkm` or `Display` event
+since 09-04, no AC change in `nvtopps.log`. Not the path through the iGPU:
+on 10-06 the panel was on the RTX from 16:30:18 to 17:33:09 (the NVIDIA mux
+had been off automatic since 09-12 20:08 and every session in between went
+through the Radeon 610M) and it dropped all the same. Not alt-tab: one
+focus loss in that session, at 16:57:36, twenty minutes after the drop.
+
+Nothing recorded how full the card's memory was, so the tick now carries
+`gpu_vram_mb` (`nvmlDeviceGetMemoryInfo_v2`). The first version of that
+call counts the driver's own reservation as used: 300 MiB on an idle card
+where nvidia-smi says 0 used, 300 reserved, 16303 total. With the v2 call
+the installed guard's first tick (17:58:16) read 0 MiB against nvidia-smi's
+0. Under load: the next session.
+
+Also switched on for that session, neither verified to write anything yet:
+`LogLevel` = 1 under `HKLM\SOFTWARE\NVIDIA Corporation\Global\NGXCore` and
+`ShowStreamlineConsole=true` in the game's `dx12user.settings`.
+
+The build installed for this carries the `DgpuArrival` fix of the entry
+above; what that entry leaves to verify is still open.
