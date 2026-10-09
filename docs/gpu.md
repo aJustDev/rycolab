@@ -71,7 +71,9 @@ the bus (on a Legion in iGPU-only mode the card is gone on battery); it
 checks every tick that the lock point still carries the profile's offset
 and re-applies at most three times an hour. When it does, the `gpu-changed`
 event says what was on the curve: no offsets at all is the driver, other
-offsets are another tool.
+offsets are another tool. A card that left the bus and came back between
+two checks, or got a new driver, is a return and not one of the three: the
+node's arrival and install dates tell them apart.
 
 ## The safety lock
 
