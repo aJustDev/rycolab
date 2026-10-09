@@ -1360,3 +1360,49 @@ Also switched on for that session, neither verified to write anything yet:
 
 The build installed for this carries the `DgpuArrival` fix of the entry
 above; what that entry leaves to verify is still open.
+
+## 2026-10-07 18:10 - A driver update the guard lived through; NVML's power at the floor is not a reading
+
+The NVIDIA App put driver 617.42 (32.0.16.1742) over 617.14 this morning:
+UserPnp 20003 for `nvlddmkm` at 09:48:28, the node's
+`DEVPKEY_Device_InstallDate` 09:48:49. The three installs before it
+(09-05, 09-10, 09-22) each killed the guard within a minute. This one did
+not: session 95, the build of 10-06 with the `DgpuArrival` check, logged
+`gpu-changed` at 09:49:37 (the lock point at +0 MHz, 0 points with an
+offset), put the curve back a second later and ticked on to the reboot of
+16:34. The install date is half of the stamp the guard compares, so the
+dead handle was shut down with the card on the bus. That is the install
+half of what the 10-02 entry left to verify; an eject and a return inside
+one tick has not happened yet.
+
+NVML came out of the install worse than the guard. Until the reboot the
+range check, all or nothing, emptied the GPU columns on 47 of the 385
+ticks with the card on the bus (1 of 394 before the install, same
+session), and 17 more carried a clock above 3000 MHz, up to 9600. And the
+power read with the card at the floor of the curve (180 MHz, memory at 405
+MHz, 42-44 C, 0 %) climbed all morning:
+
+| 09:50 | 10:24 | 10:54 | 11:28 | 12:12 | 12:41 | 13:01 | 13:31 | 13:47 |
+|---|---|---|---|---|---|---|---|---|
+| 41.0 W | 196.2 | 332.9 | 452.3 | 594.1 | 751.8 | 814.5 | 951.5 | 991.5 |
+
+125 ticks at the floor, four of them off the ramp (17.0, 126.8, 16.5 and
+16.9 W). The ramp is the new driver's; the fault is older: 307.7 W at the
+floor on 10-05 13:06 and 88.0 W on 10-06 19:05, both on 617.14. The reboot
+reset the ramp and nothing else: 75.6 and 142.3 W at the floor at 16:38
+and 16:42. Off the floor the reading stayed under 180 W except on one
+tick, 913.3 W at 13:26 with the clock at 180 and the memory awake at
+14001.
+
+In code, installed at 18:09 (session 97):
+
+- The power read at 180 / 405 MHz is stored empty.
+- Each reading is range-checked on its own and dropped alone; two or more
+  out of range are still the stale handle of 09-03, the whole sample goes
+  and the guard reopens.
+- The tick carries `gpu_energy_mj`, the driver's energy counter
+  (`nvmlDeviceGetTotalEnergyConsumption`, mJ since the driver loaded), to
+  have the power between two ticks where the reading is not one.
+
+To see with a few days of ticks: the floor without a W, how many readings
+go alone, and whether the counter is any better than the reading.
