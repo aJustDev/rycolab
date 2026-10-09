@@ -88,11 +88,18 @@ on the `gpu curve` row; `rycolab report --power` counts the resets.
 ## What the guard records
 
 With the card on the bus every tick carries the GPU clock, memory clock,
-power, temperature and utilisation (NVML, opened only while the card is
-present because opening it wakes a sleeping dGPU), whether the profile was
-on the curve, and the driver resets so far. `rycolab report --power` turns
-that into hours on the bus, MHz p50 / p95, W, temperature and the hours the
-profile was on; `rycolab db sql` has the rest.
+power, temperature, utilisation, memory in use and the driver's energy
+counter (NVML, opened only while the card is present because opening it
+wakes a sleeping dGPU), whether the profile was on the curve, and the
+driver resets so far. The power reading is left empty while the card sits
+at the floor of the curve (180 MHz, memory at 405): there it is not a
+reading (842 W on an idle card, 2026-10-07). The energy counter
+(`gpu_energy_mj`, mJ since the driver loaded) gives the mean power between
+two ticks; it holds at the floor and under load and runs away in the idle
+above the floor (350 W for four hours on an idle card, 2026-10-09), so it
+is in the database and in no report. `rycolab report --power` turns the
+rest into hours on the bus, MHz p50 / p95, W, temperature, VRAM and the
+hours the profile was on; `rycolab db sql` has everything.
 
 ## Limits and the honest bits
 
