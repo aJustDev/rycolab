@@ -1281,3 +1281,51 @@ y-cruncher on all 32 threads (SFTv4, FFTv4, N63, 90 s, profile applied),
 All three tests passed, no WHEA. The CPU is not held at 90 W: it runs into
 its 100 C limit, as extreme should. What is stuck is the readout, not the
 limit; `legion mode` prints it as a hint and `dev log` is the measure.
+
+## 2026-10-02 20:40 - The guard dies when the dGPU comes back under an open NVML handle
+
+20:06:37, a system dialog out of nowhere: "rycolab.exe - Exception
+Processing Message 0xc0000005 - Unexpected parameters". The Application
+log has the .NET Runtime 1026 behind it: unhandled exception in
+`Nvml.GetClock` <- `Nvml.Read` <- `Guard.Extras` <- `Guard.Tick`. An access
+violation inside nvml.dll; .NET does not let a catch see it, so `Source`
+and `Safe` were no help. It is the fifth one with the same stack:
+
+| Crash | What happened to the card just before | Seen in |
+|---|---|---|
+| 09-03 23:52:50 | twenty `nvlddmkm` 153 from 23:44; the tick of 23:51:49 read 2332033 MHz | notebook 09-03 |
+| 09-05 00:22:46 | UserPnp 20003, `nvlddmkm` service added to the PCI instance, 00:21:59 | System log |
+| 09-10 15:48:36 | UserPnp 20003 at 15:48:05 | System log |
+| 09-22 19:46:24 | UserPnp 20003 at 19:45:50; the node's `DEVPKEY_Device_InstallDate` is 19:46:10 | System log, PnP |
+| 10-02 20:06:37 | power auto: "dGPU gone" 20:06:01, "dGPU back" 20:06:24; `DEVPKEY_Device_LastArrivalDate` is 20:06:21 | guard events, PnP |
+
+Today the line dropped for 20 s. The last tick was 20:05:36 and the next
+one 20:06:37: the card left the bus and came back between the two, both
+ticks read `dgpu` true, and the handle opened before the eject was never
+closed. The garbage check of 09-03 does not cover this: there was no
+garbage tick first, the first read through the dead handle was the crash.
+
+What the crash leaves: no `restore` event and no end for session 92 (the
+`finally` does not run), `state.json` still "steady" with pid 11548, and no
+guard, because the task has a logon trigger and no restart. `status` does
+say "the profile is not being applied: run `rycolab on`".
+
+Opening NVML at every tick instead of keeping the handle, measured from
+PowerShell with the card idle on AC (17 W, 43-44 C), ten open / read /
+close in a row: `nvmlInit_v2` 2464 ms the first time and 756-832 ms after,
+and the graphics clock read right after it was 0, 4792, 4095, 3270, 1012,
+10635, 12945, 19770, 8917, 9525 MHz (the guard's kept handle read 690 MHz
+at 20:05:36). Not an option: 0.8 s a tick for a clock column of noise.
+
+Fix in code, not yet on the machine: the guard keeps the handle and closes
+it when the node's last arrival or install date changes
+(`LenovoEc.DgpuArrival`, `Win32_PnPEntity.GetDeviceProperties`, PnP data
+like the presence check; 324 ms from PowerShell). Still to verify with the
+installed guard: an unplug and replug inside one tick, and that
+`nvmlShutdown` on the dead handle is safe with the card back (it is with
+the card gone: every battery session since 09-04).
+
+Also in today's events: at 20:06:36 the guard logged `gpu-changed` and
+`gpu-apply: lost` for a card that had only come back. `GpuTick` has the
+same blind spot between ticks, and the return spent one of the three
+re-applies an hour.
