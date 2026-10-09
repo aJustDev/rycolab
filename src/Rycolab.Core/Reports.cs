@@ -89,6 +89,7 @@ public static class PowerReport
             sb.AppendLine($"| GPU W mean / p95 | {MeanP95(gpuAc, t => t.Tick.Extras?.GpuW)} | {MeanP95(gpuBat, t => t.Tick.Extras?.GpuW)} |");
             sb.AppendLine($"| GPU C mean / max | {MeanMax(gpuAc, t => t.Tick.Extras?.GpuC)} | {MeanMax(gpuBat, t => t.Tick.Extras?.GpuC)} |");
             sb.AppendLine($"| GPU util % mean / p95 | {MeanP95(gpuAc, t => (double?)t.Tick.Extras?.GpuUtil)} | {MeanP95(gpuBat, t => (double?)t.Tick.Extras?.GpuUtil)} |");
+            sb.AppendLine($"| GPU VRAM MiB mean / max | {MeanMax(gpuAc, t => t.Tick.Extras?.GpuVramMb)} | {MeanMax(gpuBat, t => t.Tick.Extras?.GpuVramMb)} |");
             var curveTicks = ticks.Where(t => t.Tick.Extras?.GpuCurve is not null).ToList();
             if (curveTicks.Count > 0)
                 sb.AppendLine($"| GPU curve profile on | {curveTicks.Where(t => t.Tick.Extras?.Ac == true).Sum(t => t.Tick.Extras!.GpuCurve == true ? Hours(t) : 0):F1} h of {gpuAc.Sum(Hours):F1} | {curveTicks.Where(t => t.Tick.Extras?.Ac == false).Sum(t => t.Tick.Extras!.GpuCurve == true ? Hours(t) : 0):F1} h of {gpuBat.Sum(Hours):F1} |");
