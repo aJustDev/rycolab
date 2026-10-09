@@ -41,6 +41,7 @@ public sealed class Guard
     // the TDRs seen so far, whether the card was on the bus at the last tick, and the re-applies this hour.
     private GpuProfile? _gpu;
     private Nvml? _nvml;
+    private string? _nvmlArrival;
     private int _tdrSeen;
     private bool? _dgpuLast;
     private readonly List<DateTime> _gpuReapplies = [];
@@ -551,6 +552,10 @@ public sealed class Guard
         Nvml.Sample g = default;
         if (dgpu == true) Source("nvml", () =>
         {
+            // The card can leave the bus and come back, or get a new driver, between two ticks: the handle from before is dead.
+            var arrival = LenovoEc.DgpuArrival();
+            if (_nvml is not null && arrival != _nvmlArrival) { _nvml.Dispose(); _nvml = null; }
+            _nvmlArrival = arrival;
             _nvml ??= new Nvml();
             if (!_nvml.IsAvailable) return;
             if (_nvml.Read() is { } sample) g = sample;

@@ -14,4 +14,13 @@ public class LenovoEcModeTests
         Assert.Null(LenovoEc.ModeFromName("turbo"));
         Assert.Null(LenovoEc.ModeFromName("0"));   // SetSmartFanMode(0) is invalid and ignored by the EC
     }
+
+    [Fact]
+    public void DgpuArrivalIsThereWithTheCardAndHoldsStill()
+    {
+        // On a machine without the card (CI) both are empty; with it, the stamp is what tells the guard its NVML handle is still good.
+        var arrival = LenovoEc.DgpuArrival();
+        if (LenovoEc.DgpuPresent()) Assert.False(string.IsNullOrWhiteSpace(arrival));
+        Assert.Equal(arrival, LenovoEc.DgpuArrival());
+    }
 }

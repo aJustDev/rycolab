@@ -128,6 +128,28 @@ public sealed class LenovoEc : IDisposable
         catch { return false; }
     }
 
+    /// <summary>
+    /// When the NVIDIA adapter last arrived on the bus and when its driver
+    /// was last installed (PnP data, like <see cref="DgpuPresent"/>); null
+    /// without the node. A handle into the driver from before either date is
+    /// dead, and NVML reads through one with an access violation that no
+    /// catch stops: it killed the guard on 2026-10-02 (card ejected and back
+    /// within one tick) and on three driver updates before.
+    /// </summary>
+    public static string? DgpuArrival()
+    {
+        try
+        {
+            using var s = new ManagementObjectSearcher(@"root\CIMV2", @"SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Display' AND PNPDeviceID LIKE 'PCI\\VEN_10DE%'");
+            if (s.Get().Cast<ManagementObject>().FirstOrDefault() is not { } node) return null;
+            using var p = node.GetMethodParameters("GetDeviceProperties");
+            p["devicePropertyKeys"] = new[] { "DEVPKEY_Device_LastArrivalDate", "DEVPKEY_Device_InstallDate" };
+            using var r = node.InvokeMethod("GetDeviceProperties", p, null);
+            return string.Join(" ", ((ManagementBaseObject[])r["deviceProperties"]).Select(d => d["Data"]));
+        }
+        catch { return null; }
+    }
+
     public static string IGpuModeName(int? mode) => mode switch { 0 => "hybrid", 1 => "igpu-only", 2 => "auto", null => "?", _ => mode.ToString()! };
 
     /// <summary>
