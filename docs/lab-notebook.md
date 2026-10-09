@@ -1406,3 +1406,52 @@ In code, installed at 18:09 (session 97):
 
 To see with a few days of ticks: the floor without a W, how many readings
 go alone, and whether the counter is any better than the reading.
+
+## 2026-10-09 18:30 - Two days of the new GPU columns: the floor is clean, the energy counter is half a measure
+
+The ticks of sessions 95 to 99 (the builds of 10-06 17:58 and 10-07 18:09)
+up to 18:20 today, read with `rycolab db sql`.
+
+VRAM, the question of the 10-06 entry: with the card above 50 % the
+hour's maximum ran from 7791 to 11550 MiB, of 16303. Frame generation
+dropped once more, on 10-07 at 16:59:50 (overlay log; driver 617.42, after
+the reboot), with 7648 MiB in use and 171-173 W on the ticks either side:
+it is not the memory. Since 17:36 that day `dx12user.settings` has
+`VSync=true` and `LimitFPS=120`, the workaround of
+github.com/ArmandoGaleano/Witcher3RemasteredDLSSGFix, which puts the drop
+on the game's own check of its render extent against the viewport (not
+verified here). After it: eight launches and 6.9 h of the game (Steam's
+`gameprocess_log.txt`, 10-07 18:16 to 10-09 17:59) and no drop seen by the
+user. The two log switches of 10-06 gave nothing (no console; NGX writes
+only `nvngx_update*.log`) and are still on.
+
+Power at the floor: 322 ticks at 180 / 405 MHz since the install of 10-07,
+none with a W.
+
+One reading at a time: four ticks lost the clock alone and kept the rest
+(17.0-17.2 W, 43-46 C), and one lost the power alone (10-08 16:00, the
+clock at 180 with the memory awake, the state of the 913 W of 10-07). No
+sample was dropped whole. Five clocks between 3097 and 9150 MHz on an idle
+card still got through: the check is `< 10000` and the awake base ends at
+3157 MHz.
+
+The energy counter, as W between two consecutive ticks (50-70 s apart)
+that read the same state:
+
+| Both ticks | Intervals | Counter W: min / mean / max | NVML W, mean |
+|---|---|---|---|
+| at the floor | 179 | 0.8 / 6.5 / 14.2 | (dropped) |
+| above 90 % | 259 | 52.1 / 161.9 / 173.1 | 168.5 |
+| below 5 %, off the floor | 898 | 0.5 / 188.7 / 1381.0 | 13.0 |
+
+It behaves where the reading does not, at the floor, and agrees with it
+under load within 4 %. In the awake idle it runs away: 277 of the 898
+intervals are above 200 W, and between 10:20 and 14:24 today it added 5118
+kJ, 350 W for four hours, on a card that never passed 1 % or 20.1 W in any
+tick. So `gpu_energy_mj` is a measure at the floor and under load and not
+one in between; nothing in `report` uses it.
+
+Still open: the eject and return inside one tick (the line drop of 10-06
+18:05 did not eject the card: a game held it, 9011 and 8739 MiB on the
+ticks either side); `GpuTick`'s blind spot between ticks; the clocks above
+the curve that pass the range check.
