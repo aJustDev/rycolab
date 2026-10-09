@@ -18,7 +18,7 @@ public sealed record TickExtras(
     double? CoreTempMax = null, int? CoreHot = null, double? CoreVoltMean = null, double? CoreGhzMax = null,
     int? IdleS = null, double? ChargeW = null, string? ChargeMode = null, bool? Dgpu = null, string? Overlay = null, int? SmuMs = null,
     int? GpuMhz = null, int? GpuMemMhz = null, double? GpuW = null, int? GpuC = null, int? GpuUtil = null, bool? GpuCurve = null, int? Tdr = null,
-    int? GpuVramMb = null)
+    int? GpuVramMb = null, long? GpuEnergyMj = null)
 {
     public static readonly TickExtras Empty = new(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 }
@@ -81,7 +81,7 @@ public sealed class Store : IDisposable
                 power_mode INT, gpu_mode INT, hz INT, brightness INT,
                 core_temp_max REAL, core_hot INT, core_volt_mean REAL, core_ghz_max REAL,
                 idle_s INT, charge_w REAL, charge_mode TEXT, dgpu INT, overlay TEXT, smu_ms INT,
-                gpu_mhz INT, gpu_mem_mhz INT, gpu_w REAL, gpu_c INT, gpu_util INT, gpu_curve INT, tdr INT, gpu_vram_mb INT);
+                gpu_mhz INT, gpu_mem_mhz INT, gpu_w REAL, gpu_c INT, gpu_util INT, gpu_curve INT, tdr INT, gpu_vram_mb INT, gpu_energy_mj INT);
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY, ts TEXT, source TEXT, session_id INT, campaign_id INT, kind TEXT, detail TEXT);
             CREATE TABLE IF NOT EXISTS health (
@@ -129,7 +129,7 @@ public sealed class Store : IDisposable
             ("ticks", "idle_s INT"), ("ticks", "charge_w REAL"), ("ticks", "charge_mode TEXT"), ("ticks", "dgpu INT"), ("ticks", "overlay TEXT"), ("ticks", "smu_ms INT"),
             // 0.4.0, the GPU
             ("ticks", "gpu_mhz INT"), ("ticks", "gpu_mem_mhz INT"), ("ticks", "gpu_w REAL"), ("ticks", "gpu_c INT"), ("ticks", "gpu_util INT"), ("ticks", "gpu_curve INT"), ("ticks", "tdr INT"),
-            ("ticks", "gpu_vram_mb INT"),
+            ("ticks", "gpu_vram_mb INT"), ("ticks", "gpu_energy_mj INT"),
             ("events", "source TEXT"), ("events", "session_id INT"), ("events", "campaign_id INT"),
             ("bench_samples", "gpu_mhz INT"), ("bench_samples", "gpu_w REAL"), ("bench_samples", "gpu_c INT"), ("bench_samples", "gpu_util INT"),
         ];
@@ -273,11 +273,11 @@ public sealed class Store : IDisposable
             INSERT INTO ticks (session_id, ts, elapsed, ok, hardware, whea, cpu, pkg_w, state,
                 ac, bat_w, bat_pct, bat_wh, bat_full_wh, ec_cpu_c, ec_gpu_c, ec_pch_c, fan_cpu, fan_gpu, fan_pch, power_mode, gpu_mode, hz, brightness,
                 core_temp_max, core_hot, core_volt_mean, core_ghz_max, idle_s, charge_w, charge_mode, dgpu, overlay, smu_ms,
-                gpu_mhz, gpu_mem_mhz, gpu_w, gpu_c, gpu_util, gpu_curve, tdr, gpu_vram_mb)
+                gpu_mhz, gpu_mem_mhz, gpu_w, gpu_c, gpu_util, gpu_curve, tdr, gpu_vram_mb, gpu_energy_mj)
             VALUES ($sid, $ts, $el, $ok, $hw, $whea, $cpu, $pkg, $state,
                 $ac, $batw, $batpct, $batwh, $batfull, $eccpu, $ecgpu, $ecpch, $fancpu, $fangpu, $fanpch, $pmode, $gmode, $hz, $bright,
                 $ctmax, $chot, $cvolt, $cghz, $idle, $chargew, $chargemode, $dgpu, $overlay, $smu,
-                $gmhz, $gmem, $gw, $gc, $gutil, $gcurve, $tdr, $gvram)
+                $gmhz, $gmem, $gw, $gc, $gutil, $gcurve, $tdr, $gvram, $gmj)
             """,
             ("$sid", sessionId), ("$ts", Iso(t.Ts)), ("$el", t.Elapsed), ("$ok", t.Ok ? 1 : 0), ("$hw", string.Join(",", t.Hardware.Select(h => h?.ToString() ?? "-"))),
             ("$whea", t.Whea), ("$cpu", t.CpuLoad), ("$pkg", t.PackagePower), ("$state", t.State),
@@ -287,7 +287,7 @@ public sealed class Store : IDisposable
             ("$ctmax", x.CoreTempMax), ("$chot", x.CoreHot), ("$cvolt", x.CoreVoltMean), ("$cghz", x.CoreGhzMax), ("$idle", x.IdleS),
             ("$chargew", x.ChargeW), ("$chargemode", x.ChargeMode), ("$dgpu", x.Dgpu is { } d ? (d ? 1 : 0) : null), ("$overlay", x.Overlay), ("$smu", x.SmuMs),
             ("$gmhz", x.GpuMhz), ("$gmem", x.GpuMemMhz), ("$gw", x.GpuW), ("$gc", x.GpuC), ("$gutil", x.GpuUtil), ("$gcurve", x.GpuCurve is { } gc ? (gc ? 1 : 0) : null), ("$tdr", x.Tdr),
-            ("$gvram", x.GpuVramMb));
+            ("$gvram", x.GpuVramMb), ("$gmj", x.GpuEnergyMj));
     }
 
     public List<TickRow> Ticks(DateTime since, DateTime? until = null)
@@ -295,7 +295,7 @@ public sealed class Store : IDisposable
             SELECT id, session_id, ts, elapsed, ok, hardware, whea, cpu, pkg_w, state,
                    ac, bat_w, bat_pct, bat_wh, bat_full_wh, ec_cpu_c, ec_gpu_c, ec_pch_c, fan_cpu, fan_gpu, fan_pch, power_mode, gpu_mode, hz, brightness,
                    core_temp_max, core_hot, core_volt_mean, core_ghz_max, idle_s, charge_w, charge_mode, dgpu, overlay, smu_ms,
-                   gpu_mhz, gpu_mem_mhz, gpu_w, gpu_c, gpu_util, gpu_curve, tdr, gpu_vram_mb
+                   gpu_mhz, gpu_mem_mhz, gpu_w, gpu_c, gpu_util, gpu_curve, tdr, gpu_vram_mb, gpu_energy_mj
             FROM ticks WHERE ts >= $since AND ($until IS NULL OR ts < $until) ORDER BY id
             """, r =>
             {
@@ -303,7 +303,8 @@ public sealed class Store : IDisposable
                 var extras = new TickExtras(r.IsDBNull(10) ? null : r.GetInt32(10) != 0, D(r, 11), D(r, 12), D(r, 13), D(r, 14),
                     I(r, 15), I(r, 16), I(r, 17), I(r, 18), I(r, 19), I(r, 20), I(r, 21), I(r, 22), I(r, 23), I(r, 24),
                     D(r, 25), I(r, 26), D(r, 27), D(r, 28), I(r, 29), D(r, 30), S(r, 31), r.IsDBNull(32) ? null : r.GetInt32(32) != 0, S(r, 33), I(r, 34),
-                    I(r, 35), I(r, 36), D(r, 37), I(r, 38), I(r, 39), r.IsDBNull(40) ? null : r.GetInt32(40) != 0, I(r, 41), I(r, 42));
+                    I(r, 35), I(r, 36), D(r, 37), I(r, 38), I(r, 39), r.IsDBNull(40) ? null : r.GetInt32(40) != 0, I(r, 41), I(r, 42),
+                    r.IsDBNull(43) ? null : r.GetInt64(43));
                 return new TickRow(r.GetInt64(0), r.IsDBNull(1) ? null : r.GetInt64(1),
                     new GuardTick(Ts(r, 2)!.Value, r.IsDBNull(3) ? 0 : r.GetInt32(3), !r.IsDBNull(4) && r.GetInt32(4) != 0, hw, r.IsDBNull(6) ? 0 : r.GetInt32(6),
                         D(r, 7), D(r, 8), S(r, 9) ?? "", extras));

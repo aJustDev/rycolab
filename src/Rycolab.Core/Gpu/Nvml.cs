@@ -21,6 +21,7 @@ public sealed class Nvml : IDisposable
     [StructLayout(LayoutKind.Sequential)] private struct Utilization { public uint Gpu, Memory; }
     [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetMemoryInfo_v2")] private static extern int GetMemory(IntPtr device, ref Memory m);
     [StructLayout(LayoutKind.Sequential)] private struct Memory { public uint Version; public ulong Total, Reserved, Free, Used; }
+    [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetTotalEnergyConsumption")] private static extern int GetEnergy(IntPtr device, out ulong mj);
 
     private const uint ClockGraphics = 0, ClockMemory = 2;
     // The bottom of the curve and the memory's lowest clock: the card's deepest idle.
@@ -49,8 +50,9 @@ public sealed class Nvml : IDisposable
 
     /// <summary>
     /// <paramref name="VramMb"/>: the card's memory in use by every process, MiB, as nvidia-smi shows it.
+    /// <paramref name="EnergyMj"/>: the driver's energy counter since it loaded, mJ; two reads give the mean power between them.
     /// </summary>
-    public readonly record struct Sample(int? Mhz, int? MemMhz, double? Watts, int? TempC, int? Util, int? VramMb);
+    public readonly record struct Sample(int? Mhz, int? MemMhz, double? Watts, int? TempC, int? Util, int? VramMb, long? EnergyMj = null);
 
     /// <summary>Null when the handle went stale: after a driver reset NVML answers success with garbage (2332033 MHz, 2336538 W on 2026-09-03); the caller reopens.</summary>
     public Sample? Read()
@@ -63,7 +65,8 @@ public sealed class Nvml : IDisposable
             GetPower(_device, out var mw) == 0 ? mw / 1000.0 : null,
             GetTemperature(_device, 0, out var c) == 0 ? (int)c : null,
             GetUtilization(_device, out var u) == 0 ? (int)u.Gpu : null,
-            GetMemory(_device, ref mem) == 0 ? (int)(mem.Used >> 20) : null));
+            GetMemory(_device, ref mem) == 0 ? (int)(mem.Used >> 20) : null,
+            GetEnergy(_device, out var mj) == 0 ? (long)mj : null));
     }
 
     /// <summary>

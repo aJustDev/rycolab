@@ -564,7 +564,7 @@ public sealed class Guard
         else if (_nvml is not null) { _nvml.Dispose(); _nvml = null; }
         return new TickExtras(ac, batW, batPct, batWh, batFull, ecCpu, ecGpu, ecPch, fanCpu, fanGpu, fanPch, mode, gpu, hz, bright,
             coreTempMax, coreHot, coreVoltMean, coreGhzMax, idle, chargeW, chargeMode, dgpu, overlay, _smuMs,
-            g.Mhz, g.MemMhz, g.Watts, g.TempC, g.Util, _gpu is null ? null : _state.GpuApplied, _gpu is null ? null : _tdrSeen, g.VramMb);
+            g.Mhz, g.MemMhz, g.Watts, g.TempC, g.Util, _gpu is null ? null : _state.GpuApplied, _gpu is null ? null : _tdrSeen, g.VramMb, g.EnergyMj);
 
         void Source(string name, Action read)
         {
