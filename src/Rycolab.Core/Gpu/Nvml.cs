@@ -4,7 +4,7 @@ namespace Rycolab.Core.Gpu;
 
 /// <summary>
 /// NVML (nvml.dll, shipped with the driver) for telemetry only: clocks,
-/// power, temperature, utilisation. Opening it wakes a sleeping dGPU, so the
+/// power, temperature, utilisation, memory in use. Opening it wakes a sleeping dGPU, so the
 /// guard opens it only while the card is on the bus and closes it when the
 /// card leaves. Writes (clock lock, offsets) stay out: they share state with
 /// the NvAPI curve writes and clobber them (Green Curve, LACT #936).
@@ -19,8 +19,12 @@ public sealed class Nvml : IDisposable
     [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetTemperature")] private static extern int GetTemperature(IntPtr device, uint sensor, out uint c);
     [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetUtilizationRates")] private static extern int GetUtilization(IntPtr device, out Utilization u);
     [StructLayout(LayoutKind.Sequential)] private struct Utilization { public uint Gpu, Memory; }
+    [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetMemoryInfo_v2")] private static extern int GetMemory(IntPtr device, ref Memory m);
+    [StructLayout(LayoutKind.Sequential)] private struct Memory { public uint Version; public ulong Total, Reserved, Free, Used; }
 
     private const uint ClockGraphics = 0, ClockMemory = 2;
+    // NVML_STRUCT_VERSION(Memory, 2): the size of the struct and the version. The first version counts the driver's own reservation as used (300 MiB on an idle 5080).
+    private const uint MemoryV2 = 2u << 24 | 40;
 
     private readonly IntPtr _device;
     private readonly bool _open;
@@ -41,20 +45,26 @@ public sealed class Nvml : IDisposable
         catch (Exception ex) { Unavailable = ex.Message; }
     }
 
-    public readonly record struct Sample(int? Mhz, int? MemMhz, double? Watts, int? TempC, int? Util);
+    /// <summary>
+    /// <paramref name="VramMb"/>: the card's memory in use by every process, MiB, as nvidia-smi shows it.
+    /// </summary>
+    public readonly record struct Sample(int? Mhz, int? MemMhz, double? Watts, int? TempC, int? Util, int? VramMb);
 
     /// <summary>Null when the handle went stale: after a driver reset NVML answers success with garbage (2332033 MHz, 2336538 W on 2026-09-03); the caller reopens.</summary>
     public Sample? Read()
     {
         if (!_open) return null;
+        var mem = new Memory { Version = MemoryV2 };
         var s = new Sample(
             GetClock(_device, ClockGraphics, out var g) == 0 ? (int)g : null,
             GetClock(_device, ClockMemory, out var m) == 0 ? (int)m : null,
             GetPower(_device, out var mw) == 0 ? mw / 1000.0 : null,
             GetTemperature(_device, 0, out var c) == 0 ? (int)c : null,
-            GetUtilization(_device, out var u) == 0 ? (int)u.Gpu : null);
+            GetUtilization(_device, out var u) == 0 ? (int)u.Gpu : null,
+            GetMemory(_device, ref mem) == 0 ? (int)(mem.Used >> 20) : null);
         var plausible = s.Mhz is null or (>= 0 and < 10000) && s.MemMhz is null or (>= 0 and < 40000)
-            && s.Watts is null or (>= 0 and < 1000) && s.TempC is null or (>= 0 and < 150) && s.Util is null or (>= 0 and <= 100);
+            && s.Watts is null or (>= 0 and < 1000) && s.TempC is null or (>= 0 and < 150) && s.Util is null or (>= 0 and <= 100)
+            && s.VramMb is null or (>= 0 and < 200000);
         return plausible ? s : null;
     }
 

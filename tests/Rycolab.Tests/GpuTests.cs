@@ -1,6 +1,20 @@
 using Rycolab.Core.Gpu;
+using Rycolab.Core.Legion;
 
 namespace Rycolab.Tests;
+
+public class NvmlTests
+{
+    [Fact]
+    public void TheSampleCarriesTheMemoryInUse()
+    {
+        // Without the card on the bus (CI, or iGPU-only on battery) NVML is not opened: opening it would wake the card.
+        if (!LenovoEc.DgpuPresent()) return;
+        using var nvml = new Nvml();
+        if (!nvml.IsAvailable) return;
+        Assert.InRange(nvml.Read()!.Value.VramMb!.Value, 0, 199999);
+    }
+}
 
 public class VfCurveTests
 {
