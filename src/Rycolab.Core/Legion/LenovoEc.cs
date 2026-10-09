@@ -150,6 +150,13 @@ public sealed class LenovoEc : IDisposable
         catch { return null; }
     }
 
+    /// <summary>
+    /// Two stamps from <see cref="DgpuArrival"/> that were both read and
+    /// differ: the card left the bus and came back, or got a new driver, in
+    /// between. A stamp that could not be read says nothing.
+    /// </summary>
+    public static bool DgpuCameBack(string? before, string? now) => before is not null && now is not null && before != now;
+
     public static string IGpuModeName(int? mode) => mode switch { 0 => "hybrid", 1 => "igpu-only", 2 => "auto", null => "?", _ => mode.ToString()! };
 
     /// <summary>

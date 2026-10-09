@@ -44,6 +44,7 @@ public sealed class Guard
     private string? _nvmlArrival;
     private int _tdrSeen;
     private bool? _dgpuLast;
+    private string? _dgpuArrival;
     private readonly List<DateTime> _gpuReapplies = [];
     private readonly HashSet<string> _failedSources = [];
     private readonly CpuLoad _load = new();
@@ -462,6 +463,10 @@ public sealed class Guard
             if (!present) _state.GpuApplied = null;
             return;
         }
+        // Present at two ticks in a row says nothing about the time between them; the card's PnP stamp does.
+        var arrival = LenovoEc.DgpuArrival();
+        var cameBack = LenovoEc.DgpuCameBack(_dgpuArrival, arrival);
+        _dgpuArrival = arrival ?? _dgpuArrival;
         if (wasPresent == false) { ApplyGpu("dGPU back on the bus"); return; }
 
         VfPoint[] curve;
@@ -473,6 +478,8 @@ public sealed class Guard
             _state.GpuApplied = applied;
             if (applied) return;
         }
+        // A curve without the profile on a card that came back between two ticks is a return, not a loss: no re-apply spent.
+        if (cameBack) { ApplyGpu("dGPU back on the bus"); return; }
         // What was on the curve says who took the profile off: no offsets at all is the driver, others are another tool.
         var lockOffset = VfCurve.IndexForMv(curve, _gpu.LockMv) is { } li ? $"{curve[li].OffsetKhz / 1000:+0;-0} MHz" : "no point";
         Event("gpu-changed", $"the curve no longer carries the profile: the lock point at {_gpu.LockMv} mV has {lockOffset}, not {_gpu.LockOffsetMhz:+0;-0} MHz; {curve.Count(p => p.OffsetKhz != 0)} points with an offset");
