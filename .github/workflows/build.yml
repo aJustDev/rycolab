@@ -52,6 +52,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
+          # checkout leaves the tag on the commit: fetch the annotated tag, its message is the notes
+          git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
           $notes = git tag -l --format='%(contents)' $tag
           if (-not $notes) { $notes = "rycolab $tag" }
-          gh release create $tag "rycolab-$tag-win-x64.zip" SHA256SUMS.txt --title "rycolab $tag" --notes "$notes"
+          $notes | Out-File -Encoding utf8 notes.txt
+          gh release create $tag "rycolab-$tag-win-x64.zip" SHA256SUMS.txt --title "rycolab $tag" --notes-file notes.txt
