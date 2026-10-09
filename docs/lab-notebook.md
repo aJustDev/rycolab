@@ -1455,3 +1455,48 @@ Still open: the eject and return inside one tick (the line drop of 10-06
 18:05 did not eject the card: a game held it, 9011 and 8739 MiB on the
 ticks either side); `GpuTick`'s blind spot between ticks; the clocks above
 the curve that pass the range check.
+
+## 2026-10-09 19:15 - A card that comes back between two ticks is a return, not a lost curve
+
+Since the offset check of 09-24 the guard has logged two `gpu-changed`, and
+neither was a curve the driver dropped: 10-02 20:06 (the line off for 25
+s, the card ejected and back between two ticks) and 10-07 09:49 (the
+driver install). Both read +0 MHz on the lock point and 0 points with an
+offset, and each spent one of the three re-applies an hour. `GpuTick` only
+knew a return when a tick had seen the card gone: of the three ejections
+with a quick return since 09-24, two had such a tick (09-25 and 10-03) and
+one did not.
+
+In code: `GpuTick` keeps the node's arrival and install stamp
+(`LenovoEc.DgpuArrival`, the one the NVML handle already goes by). A curve
+without the profile on a card whose stamp changed since the last tick is
+applied as `dGPU back on the bus`: no `gpu-changed`, no re-apply spent. A
+stamp that could not be read says nothing.
+
+On the machine, build installed at 18:57 (session 101):
+
+- The charger, pulled at 19:01:14, did not make the case. The card did not
+  leave within the 25 s wait (the third time in 19 switches since 09-24)
+  and went 62 s after the switch; the tick of 19:03:16 saw it gone. Line
+  back at 19:03:37, card back at 19:04:20, curve back at 19:04:23 by the
+  old path.
+- The node restarted with `pnputil /restart-device` at 19:09:34, one
+  second after the tick of 19:09:33: the arrival date went from 19:04:20
+  to 19:09:35, the install date stayed. The tick of 19:10:34 read the card
+  present, as the one before, and logged `gpu-apply: dGPU back on the bus`
+  (flat from 875 mV at 2422 MHz) with no `gpu-changed`. The driver's
+  energy counter had started again (512018 -> 165422 mJ): the driver
+  reloaded under the guard's open NVML handle and the guard lived, same
+  pid, no .NET Runtime 1026.
+
+A node restart is not the EC's ejection, but it is what the guard sees of
+one: present at both ticks, a new arrival date, a fresh driver. With it the
+10-02 entry has nothing left to verify. The stamp held still on the quiet
+ticks (four before the tests, 60.8-61.1 s apart; no apply logged), and the
+second WMI read of the tick does not show in the interval: the old build
+ran at 60.6 s in session 99 and 62.1 s in session 98.
+
+The two log switches of 10-06 are off again: `LogLevel` deleted from the
+NGXCore key, `ShowStreamlineConsole=false`.
+
+Still open: the clocks above the curve that pass the range check.
