@@ -40,7 +40,8 @@ public static class Whea
     {
         if (provider != WheaProvider) return (true, null);
         if (id == 17) return (false, null);
-        var m = Regex.Match(xml, @"<Data Name=""ApicId"">\s*(0x[0-9A-Fa-f]+|\d+)\s*</Data>");
+        // EventRecord.ToXml quotes attributes with ' (Name='ApicId'), not ".
+        var m = Regex.Match(xml, @"<Data Name=['""]ApicId['""]>\s*(0x[0-9A-Fa-f]+|\d+)\s*</Data>");
         if (!m.Success) return (true, null);
         var v = m.Groups[1].Value;
         return (true, v.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? Convert.ToInt32(v[2..], 16) : int.Parse(v, CultureInfo.InvariantCulture));

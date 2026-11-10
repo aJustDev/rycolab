@@ -192,6 +192,7 @@ public class WheaTests
     [Theory]
     [InlineData(18, "<Data Name=\"ApicId\">22</Data>", 22)]
     [InlineData(19, "<Data Name=\"ApicId\">0x16</Data>", 22)]
+    [InlineData(19, "<Data Name='ApicId'>0x16</Data>", 22)]   // what EventRecord.ToXml writes
     [InlineData(47, "<Data Name=\"MemoryComponent\">1</Data>", null)]
     public void MachineCheckAndMemoryCount(int id, string xml, int? apic)
     {
