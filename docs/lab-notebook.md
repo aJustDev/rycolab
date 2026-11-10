@@ -1500,3 +1500,74 @@ The two log switches of 10-06 are off again: `LogLevel` deleted from the
 NGXCore key, `ShowStreamlineConsole=false`.
 
 Still open: the clocks above the curve that pass the range check.
+
+## 2026-11-10 17:10 - A month of the guard: a NaN killed it, a card that woke late locked the curve, and the one BSOD was the dGPU leaving the bus
+
+Review of 10-09 to 11-10 from the database and the System log. The
+validation stands at 585.5 h guarded, 133 resumes, 0 WHEA. Three things
+went wrong, none of them the CO.
+
+**The guard died on a NaN (11-01 20:22:33).** The first tick after a 10 h
+sleep threw `Cannot store 'NaN' values` out of `AddTick`, which is not
+inside `Safe`: exit code 1, baseline -5 restored, and no guard until the
+logon of 11-04 08:46, 60 h later. Which column: of the doubles in a tick,
+the CPU load (GetSystemTimes, a positive denominator), the battery (WMI
+integers) cannot be NaN, and the package power and NVML's W pass a range
+check that a NaN fails. The per-core temperature, voltage and GHz go
+straight from the PM table's floats. By elimination it is the PM table
+right after waking; the value itself was not kept. Fixed in a3052b0:
+`Store.Exec` binds a NaN or an infinity as NULL, so no value from a source
+can end the guard.
+
+**A card that woke late locked the curve for five days (11-05 15:16:31).**
+On resume NvAPI initialised and read the name, but not the PCI ids (device
+0), and the curve read gave status -220. `Refuse` compared the profile's
+2C5910DE with 0, took it for another card and set the safety lock: the
+curve stayed off until today. 11-01 09:45 was the same card one step
+earlier (`NvAPI_Initialize` -6, then -104) and ended as a `gpu-skip`.
+Fixed in bdbc1de: no PCI ids is a card that does not answer yet; the
+guard logs one `gpu-skip` and retries every tick until it does, and
+`Refuse` reads a device id of 0 as unknown, not as a mismatch.
+
+**The unexpected reboot of 10-28 16:34 was a bugcheck.** The guard logged
+"unexpected reboot, no WHEA"; the System log has `volmgr` 162 (dump
+written) and WER-SystemErrorReporting 1001: 0x113 (0x19, 0x2, 0x10de,
+0x2c59). The only bugcheck since 08-25. cdb from WinDbg 1.2611 on the
+minidump (`C:\Windows\Minidump\102826-12546-01.dmp`): VIDEO_DXGKRNL_FATAL_ERROR,
+subtype 0x19 UNEXPECTED_SURPRISE_REMOVAL, vendor 10DE device 2C59 (the
+RTX 5080), bucket `0x113_19_nvlddmkm!unknown_function`, at 16:32:06.6 in
+the System process under `dxgkrnl!DpiFdoHandleDevicePower`: the card left
+the bus while the driver handled a device power transition. The minutes
+before, from Kernel-Power 105, `nvtopps.log` and the guard's events:
+
+| Time | What |
+|---|---|
+| 16:26:42.9 | charger out (AcOnline=false; nvtopps AC event 0) |
+| 16:27:04.2 | the battery profile ejects the card (nvtopps: device removed) |
+| 16:27:04.7 | the system sleeps in the middle of the battery profile |
+| 16:30:53 | resume |
+| 16:30:54.0 | AcOnline=true: the line is back |
+| 16:30:56 | the battery profile finishes, stale (gpu igpu-only, panel Hz FAILED) |
+| 16:30:58.2 | the card arrives with the EC still in igpu-only |
+| 16:31:04-05 | CO and GPU curve applied (resume) |
+| 16:31:14 | AC restore: gpu -> hybrid, dGPU notified 1 |
+| 16:32:06.6 | bugcheck: surprise removal under a power IRP |
+
+A surprise removal is the card leaving the bus, which is what the EC's GPU
+mode does; the V/F curve changes clocks, not presence. So the lead is two
+GPU mode switches around a wake with the card arriving between them: a
+battery profile cut by sleep and finished after resume with the line
+already back, then the restore 18 s later. One case in 133 resumes, so a
+lead and not a finding. The guard still does not read bugchecks.
+
+Also: on 10-27 and 10-28 the daily battery-health sample failed every
+minute with an empty message (1038 `tick-failed` events), until the
+reboot. `HealthTick` does not mark the day when it throws. Not fixed.
+
+On the machine, on AC: `rycolab off` 17:10:38 (baseline -5, code 0), the
+build of 8d02a41 installed, `rycolab on` 17:10:52 (session 114, profile
+applied and verified), `rycolab gpu on` 17:11 (lock at point 68, 875 mV,
++300 on a 2122 base -> 2422 MHz, batch write status 0, 0 offsets not
+exact); the tick of 17:11:58 has `gpu_curve` 1 and `gpu-enabled` logged.
+Neither fix can be shown on demand: the NaN and the card without PCI ids
+came after a long sleep, and the next such resume is the test.
