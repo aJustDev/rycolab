@@ -203,6 +203,19 @@ public class WheaTests
 
     [Fact]
     public void KernelPowerAlwaysCounts() => Assert.True(Whea.Interpret("Microsoft-Windows-Kernel-Power", 41, "").Counts);
+
+    private static string Kp41(int code, string p1 = "0x0", string p2 = "0x0", string p3 = "0x0", string p4 = "0x0") =>
+        $"<EventData><Data Name='BugcheckCode'>{code}</Data><Data Name='BugcheckParameter1'>{p1}</Data><Data Name='BugcheckParameter2'>{p2}</Data>" +
+        $"<Data Name='BugcheckParameter3'>{p3}</Data><Data Name='BugcheckParameter4'>{p4}</Data><Data Name='SleepInProgress'>0</Data></EventData>";
+
+    [Fact]
+    public void ARebootThatWasACrashCarriesItsStopCode()
+    {
+        // The reference machine's Kernel-Power 41 of 2026-10-28 16:34:18 (VIDEO_DXGKRNL_FATAL_ERROR on the RTX 5080).
+        Assert.Equal("0x113 (0x19, 0x2, 0x10de, 0x2c59)", Whea.Bugcheck(Kp41(275, "0x19", "0x2", "0x10de", "0x2c59")));
+        Assert.Null(Whea.Bugcheck(Kp41(0)));   // a hang, a power loss or a held button
+        Assert.Null(Whea.Bugcheck(""));
+    }
 }
 
 public class ValidationTests

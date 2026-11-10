@@ -121,7 +121,8 @@ public sealed class Guard
         if (_validation?.LastTickAt is { } lastTick)
         {
             var resets = Whea.UnexpectedRebootsSince(lastTick);
-            foreach (var r in resets) Event("reset", $"unexpected reboot recorded at {r.Time:yyyy-MM-dd HH:mm:ss}; last guard tick {lastTick:HH:mm:ss}, no WHEA");
+            // The stop code tells a crash from a hang or a power loss, and whose: both resets of October were 0x113, the display stack.
+            foreach (var r in resets) Event("reset", $"unexpected reboot recorded at {r.Time:yyyy-MM-dd HH:mm:ss}; last guard tick {lastTick:HH:mm:ss}, no WHEA, {(r.Bugcheck is { } b ? $"bugcheck {b}" : "no bugcheck")}");
             _validation.Resets += resets.Count;
         }
 

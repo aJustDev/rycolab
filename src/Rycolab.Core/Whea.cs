@@ -4,8 +4,8 @@ using System.Text.RegularExpressions;
 
 namespace Rycolab.Core;
 
-/// <summary><paramref name="Counts"/>: whether the event says something about a core (WHEA 17 is PCIe and does not). <paramref name="ApicId"/>: the logical processor the event names, when it does.</summary>
-public sealed record SystemEvent(DateTime Time, string Provider, int Id, string Message, bool Counts = true, int? ApicId = null);
+/// <summary><paramref name="Counts"/>: whether the event says something about a core (WHEA 17 is PCIe and does not). <paramref name="ApicId"/>: the logical processor the event names, when it does. <paramref name="Bugcheck"/>: the stop code of an unexpected reboot that was a crash.</summary>
+public sealed record SystemEvent(DateTime Time, string Provider, int Id, string Message, bool Counts = true, int? ApicId = null, string? Bugcheck = null);
 
 /// <summary>
 /// Windows System log: hardware errors (WHEA-Logger 17-20, 46, 47) and power
@@ -45,6 +45,24 @@ public static class Whea
         if (!m.Success) return (true, null);
         var v = m.Groups[1].Value;
         return (true, v.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? Convert.ToInt32(v[2..], 16) : int.Parse(v, CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// The stop code a Kernel-Power 41 carries, "0x113 (0x19, 0x2, 0x10de,
+    /// 0x2c59)"; null when the reboot was not a crash (code 0: a hang, a
+    /// power loss, a held power button). It is there even when no dump was
+    /// written (2026-10-13, recovered from EFI).
+    /// </summary>
+    internal static string? Bugcheck(string xml)
+    {
+        if (Field("BugcheckCode") is not { } code || !ulong.TryParse(code, out var c) || c == 0) return null;
+        return $"0x{c:x} ({string.Join(", ", Enumerable.Range(1, 4).Select(i => Field($"BugcheckParameter{i}") ?? "?"))})";
+
+        string? Field(string name)
+        {
+            var m = Regex.Match(xml, $@"<Data Name=['""]{name}['""]>\s*([^<]*?)\s*</Data>");
+            return m.Success ? m.Groups[1].Value : null;
+        }
     }
 
     /// <summary>Unexpected reboots only (Kernel-Power 41).</summary>
@@ -88,8 +106,9 @@ public static class Whea
                     try { msg = e.FormatDescription() ?? ""; } catch { msg = ""; }
                     try { xml = e.ToXml() ?? ""; } catch { xml = ""; }
                     var (counts, apic) = Interpret(e.ProviderName, e.Id, xml);
+                    var stop = e.ProviderName == KernelPower && e.Id == 41 ? Bugcheck(xml) : null;
                     list.Add(new SystemEvent(e.TimeCreated ?? DateTime.MinValue, e.ProviderName, e.Id,
-                        FirstLine(msg) + (apic is { } a ? $" [apic {a}]" : ""), counts, apic));
+                        FirstLine(msg) + (apic is { } a ? $" [apic {a}]" : "") + (stop is { } s ? $" [bugcheck {s}]" : ""), counts, apic, stop));
                 }
             }
         }
