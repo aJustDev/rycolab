@@ -67,11 +67,15 @@ public sealed class GpuProfile
     public static GpuProfile? Load() => Journal.ReadJsonFile<GpuProfile>(AppPaths.GpuProfile);
     public void Save() => Journal.WriteJsonFile(AppPaths.GpuProfile, this);
 
-    /// <summary>Null when the profile can be applied to this GPU; the reason otherwise.</summary>
-    public string? Refuse(NvApi api)
+    /// <summary>
+    /// Null when the profile can be applied to this GPU; the reason otherwise.
+    /// A device id of 0 is a card that did not answer the PCI ids (right after
+    /// waking, 2026-11-05), not another card.
+    /// </summary>
+    public string? Refuse(string name, uint deviceId)
     {
         if (LockMv <= 0 || (LockOffsetMhz == 0 && LockMhz <= 0)) return "the profile has no lock";
-        if (Fingerprint is { } f && f.DeviceId != 0 && f.DeviceId != api.DeviceId) return $"the profile is for {f.Name} (device {f.DeviceId:X8}), this is {api.Name} ({api.DeviceId:X8})";
+        if (Fingerprint is { } f && f.DeviceId != 0 && deviceId != 0 && f.DeviceId != deviceId) return $"the profile is for {f.Name} (device {f.DeviceId:X8}), this is {name} ({deviceId:X8})";
         return null;
     }
 }

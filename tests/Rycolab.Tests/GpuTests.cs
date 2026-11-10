@@ -258,6 +258,16 @@ public class GpuProfileTests
     }
 
     [Fact]
+    public void ACardWithoutPciIdsIsNotAnotherCard()
+    {
+        var p = new GpuProfile { LockMv = 875, LockOffsetMhz = 300, Fingerprint = new GpuFingerprint { Name = "RTX 5080", DeviceId = 0x2C5910DE } };
+        Assert.Null(p.Refuse("RTX 5080", 0x2C5910DE));
+        Assert.Null(p.Refuse("RTX 5080", 0));   // the ids did not answer: unknown, not a mismatch
+        Assert.NotNull(p.Refuse("RTX 4090", 0x268410DE));
+        Assert.NotNull(new GpuProfile { Fingerprint = p.Fingerprint }.Refuse("RTX 5080", 0x2C5910DE));   // no lock
+    }
+
+    [Fact]
     public void AppliedMeansTheLockPointCarriesTheOffset()
     {
         var p = new GpuProfile { LockMv = 875, LockOffsetMhz = 300 };

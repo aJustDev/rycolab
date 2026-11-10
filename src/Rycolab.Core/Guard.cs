@@ -46,6 +46,8 @@ public sealed class Guard
     private bool? _dgpuLast;
     private string? _dgpuArrival;
     private readonly List<DateTime> _gpuReapplies = [];
+    // An apply the card was on the bus for but not answering: retried every tick, not counted as a loss.
+    private string? _gpuPending;
     private readonly HashSet<string> _failedSources = [];
     private readonly CpuLoad _load = new();
     private readonly PmTable? _pm;
@@ -382,10 +384,19 @@ public sealed class Guard
     private void ApplyGpu(string why)
     {
         if (_gpu is null) return;
-        if (!LenovoEc.DgpuPresent()) { Event("gpu-skip", $"{why}: the dGPU is not on the bus; the curve waits for it"); _state.GpuApplied = null; return; }
+        if (!LenovoEc.DgpuPresent()) { Event("gpu-skip", $"{why}: the dGPU is not on the bus; the curve waits for it"); _state.GpuApplied = null; _gpuPending = null; return; }
         using var api = new NvApi();
-        if (!api.IsAvailable) { Event("gpu-skip", $"{why}: NvAPI: {api.Unavailable}"); _state.GpuApplied = null; return; }
-        if (_gpu.Refuse(api) is { } refused) { GpuSafetyLock($"{why}: refused, {refused}"); return; }
+        // Right after waking the driver can answer before the card does (2026-11-05: no PCI ids, curve read -220).
+        var notReady = !api.IsAvailable ? $"NvAPI: {api.Unavailable}" : api.DeviceId == 0 ? "the card does not answer yet (no PCI ids)" : null;
+        if (notReady is not null)
+        {
+            if (_gpuPending is null) Event("gpu-skip", $"{why}: {notReady}; retried every tick until it does");
+            _gpuPending = why;
+            _state.GpuApplied = null;
+            return;
+        }
+        _gpuPending = null;
+        if (_gpu.Refuse(api.Name, api.DeviceId) is { } refused) { GpuSafetyLock($"{why}: refused, {refused}"); return; }
         var r = CurveApply.Apply(api, new VfCurve(api), _gpu);
         _state.GpuApplied = r.Ok;
         if (r.Ok) Event("gpu-apply", $"{why}: {r.Detail}");
@@ -468,6 +479,7 @@ public sealed class Guard
         var cameBack = LenovoEc.DgpuCameBack(_dgpuArrival, arrival);
         _dgpuArrival = arrival ?? _dgpuArrival;
         if (wasPresent == false) { ApplyGpu("dGPU back on the bus"); return; }
+        if (_gpuPending is { } pending) { ApplyGpu(pending); return; }
 
         VfPoint[] curve;
         using (var api2 = new NvApi())

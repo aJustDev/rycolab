@@ -183,7 +183,7 @@ public static class GpuCommand
         if (p.SafetyLock is { } s && !clearLock) { Console.Error.WriteLine($"  Safety lock: {s}. `rycolab gpu on` clears it and applies."); return 2; }
         using var api = new NvApi();
         if (!api.IsAvailable) { Console.Error.WriteLine($"  No NVIDIA GPU through NvAPI: {api.Unavailable}"); return 1; }
-        if (p.Refuse(api) is { } why) { Console.Error.WriteLine($"  Refused: {why}."); return 2; }
+        if (p.Refuse(api.Name, api.DeviceId) is { } why) { Console.Error.WriteLine($"  Refused: {why}."); return 2; }
         Console.WriteLine();
         Console.WriteLine($"  {api.Name}: applying {p.Describe}");
         var result = CurveApply.Apply(api, new VfCurve(api), p, line => Console.WriteLine($"    {line}"));
