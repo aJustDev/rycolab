@@ -312,7 +312,7 @@ public sealed class Guard
     private void Safe(string what, Action tick)
     {
         try { tick(); }
-        catch (Exception ex) { Event("tick-failed", $"{what}: {ex.Message}"); }
+        catch (Exception ex) { Event("tick-failed", $"{what}: {(ex.Message is "" ? ex.GetType().Name : ex.Message)}"); }   // the health failures of 10-27 had no message
     }
 
     /// <summary>Applies the battery/AC profile once the line has been stable for the debounce, if `legion power auto` is on.</summary>
@@ -504,14 +504,18 @@ public sealed class Guard
         ApplyGpu("lost");
     }
 
-    /// <summary>One battery-health sample per day.</summary>
+    /// <summary>
+    /// One battery-health attempt per day: the day is marked before the read,
+    /// so a failure is one `tick-failed` and not one a minute (1038 of them on
+    /// 2026-10-27/28, until a reboot).
+    /// </summary>
     private void HealthTick()
     {
         if (!_o.PublishState || _lastHealthAt?.Date == DateTime.Now.Date) return;
+        _lastHealthAt = DateTime.Now;
         var s = BatteryHealth.Read();
-        if (s.FullWh is null) { _lastHealthAt = s.Ts; return; }   // no battery here; do not retry every minute
+        if (s.FullWh is null) return;   // no battery here
         _store.AddHealth(s);
-        _lastHealthAt = s.Ts;
     }
 
     /// <summary>
