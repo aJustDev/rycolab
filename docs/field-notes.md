@@ -34,7 +34,11 @@ not assumed. The raw numbers are in `lab-notebook.md`; the Lenovo-only ones
 - A too-deep margin cold-reboots the machine with no WHEA and no journal
   line: the only trace is Kernel-Power 41 at the next boot. The sweep treats
   a run left in progress across a reboot as a positive (hang); the guard
-  counts the reboot as a `reset`.
+  counts the reboot as a `reset`. Kernel-Power 41 also says whether it was
+  a crash: `BugcheckCode` and four parameters, 0 for a hang or a power
+  loss, filled even when no dump was written (recovered from EFI on
+  2026-10-13). Both resets of October 2026 were 0x113 (dxgkrnl), one naming
+  the RTX 5080 (10DE 2C59).
 - The SMU mailbox has no cross-process lock: ZenStates.Core takes no
   global mutex (LibreHardwareMonitor takes `Global\Access_PCI`, HWiNFO the
   usual `Global\Access_*` ones; none of them covers the SMU). `dev probe`,

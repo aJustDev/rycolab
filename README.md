@@ -69,7 +69,8 @@ restores the baseline and stops with code 10. A profile starts in
 `validating` and becomes `steady` after 20 h guarded, or 7 days with at least
 8 h guarded, without WHEA and without an unexpected reboot (Kernel-Power 41
 since the previous guard tick counts as a `reset`; a hard reset leaves no
-WHEA). Bad news (WHEA, reset, margin lost, giveup) raises a Windows toast
+WHEA; when the reboot was a crash the event carries its stop code, such as
+0x113 from the display stack). Bad news (WHEA, reset, margin lost, giveup) raises a Windows toast
 with its own chime, one per kind per 10 min; `rycolab dev plan set notify
 false` turns it off.
 
