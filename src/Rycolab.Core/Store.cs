@@ -618,11 +618,17 @@ public sealed class Store : IDisposable
         return list;
     }
 
+    /// <summary>
+    /// A NaN or an infinity is stored as NULL: SQLite refuses them, and one
+    /// bad float from a source (the PM table right after waking, 2026-11-01)
+    /// threw out of the guard's tick and left the cores unwatched for 60 h.
+    /// </summary>
     private void Exec(string sql, params (string Name, object? Value)[] args)
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = sql;
-        foreach (var (name, value) in args) cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
+        foreach (var (name, value) in args)
+            cmd.Parameters.AddWithValue(name, value is null || value is double d && !double.IsFinite(d) ? DBNull.Value : value);
         cmd.ExecuteNonQuery();
     }
 

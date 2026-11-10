@@ -117,6 +117,22 @@ public class StoreTests : IDisposable
     }
 
     [Fact]
+    public void ANaNOrInfinityIsStoredAsNull()
+    {
+        using var s = new Store(DbPath);
+        var session = s.BeginSession(1234, "-40", 60, adhoc: false, T0);
+        var extras = TickExtras.Empty with { CoreTempMax = double.NaN, CoreVoltMean = double.PositiveInfinity, CoreGhzMax = 5.45 };
+        s.AddTick(session, new GuardTick(T0.AddMinutes(1), 60, true, [-40], 0, double.NaN, double.NegativeInfinity, "ok", extras));
+
+        var back = Assert.Single(s.Ticks(T0)).Tick;
+        Assert.Null(back.CpuLoad);
+        Assert.Null(back.PackagePower);
+        Assert.Null(back.Extras!.CoreTempMax);
+        Assert.Null(back.Extras.CoreVoltMean);
+        Assert.Equal(5.45, back.Extras.CoreGhzMax);
+    }
+
+    [Fact]
     public void QueryIsReadOnlyAndExportKnowsItsTables()
     {
         using var s = new Store(DbPath);
