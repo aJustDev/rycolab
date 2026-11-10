@@ -1601,3 +1601,61 @@ core; the tests had `"` too. Both quotes are read now.
 Guard reinstalled 18:45 (session 115): profile applied and verified at
 18:45:14, curve at 18:45:17 (`gpu-apply: start`, 2422 MHz at 875 mV).
 Nothing to show for the reset line until the next one.
+
+## 2026-11-10 19:30 - Subtype 0x10 is DDI_NOT_ORIGINAL_IRQL; on 10-13 the guard had been silent for ten hours
+
+**The validation counter.** The 10-28 reset is the dGPU leaving the bus
+(entries above), so it was taken out by hand as on 09-20: `rycolab off`
+18:53, `Resets` 2 -> 1 in `validation.json`, `rycolab on` (session 116).
+The 10-13 one stays until it is understood.
+
+**Naming a 0x113 subtype without its dump.** Microsoft's page for 0x113
+lists no subtypes, and the public `dxgkrnl` PDB has no enum for them
+(`dt dxgkrnl!*FATAL*` finds nothing). The names are a table inside
+WinDbg's `winext\ext.dll` (UTF-16), which `!analyze -v` indexes with
+bugcheck parameter 1 as the dump header holds it (`PAGEDU64`, code at
+0x38, parameters at 0x40..0x58); `!analyze -show` does not decode it. A
+copy of the 10-28 minidump with parameter 1 rewritten, through WinDbg
+1.2611: 0x10 DDI_NOT_ORIGINAL_IRQL, 0x18 DOD_INVALID_INTERRUPT_TYPE, 0x19
+UNEXPECTED_SURPRISE_REMOVAL, 0x1a FAILED_START_DEVICE_IN_BAD_STATE, in the
+order of the table (0x1-0x9, then 0x10 on: no 0xa-0xf). The name is
+WinDbg's reading, not a spec: a Microsoft Q&A thread (Intel GPU, build
+22621, the same `DpiFdoHandleDevicePower` frame) shows an older WinDbg
+naming 0x19 UNEXPECTED_DEFERRED_DESTRUCTION. What holds without the name
+on 10-28 is the stack: the device power handler.
+
+DDI_NOT_ORIGINAL_IRQL reads as a display driver callback that came back
+at a different IRQL than it was called at: a driver bug the kernel
+caught. The 10-13 arguments are 0, 0, 0: no adapter named, so NVIDIA or
+the Radeon 610M.
+
+**What the machine was doing on 10-13.** The guard's last tick was 11:18:38
+(a `gpu-changed` and a re-apply after `NvAPI_Initialize` -6 at the 11:17
+resume) and it logged nothing after that, while the System log has a
+sleep at 13:30, resumes at 14:39 and 21:36, AC changes at 15:07, 16:08,
+20:31, 20:40, 21:35 and 21:36, and no boot until the crash. The process
+did not exit (no `restore`, the session never ended) and left no .NET
+Runtime 1026 or Application Error. So from the 14:39 resume on the
+cores were at the BIOS baseline -5 (nothing re-applied the profile), the
+battery profile never ran, and the GPU curve was unwatched and probably
+gone after the sleeps. The crash came between 21:36:49 (the last System
+event) and the boot at 21:58:57, within 23 min of a wake with the line
+coming back: the shape of 10-28, without rycolab switching GPU modes this
+time.
+
+**The guard has gone silent before.** Sessions that never ended, checked
+against Power-Troubleshooter resumes between their last tick and the next
+start (a resume with no `resume` event means the guard was not there):
+
+| Session | Last tick | Next start | What it was |
+|---|---|---|---|
+| 69 | 09-05 00:21 | 09-06 10:31 | .NET 1026 at 00:22:46 in `Nvml.GetClock`: the dead-handle crash fixed on 10-02 |
+| 73 | 09-11 09:51 | 09-11 21:39 | no event; NVML reading the card on every tick (no GPU profile then) |
+| 76 | 09-15 06:08 | 09-15 16:50 | Windows Update restart at 06:08:39; no logon until 16:50 |
+| 103 | 10-13 11:18 | 10-13 21:59 | no event; NvAPI write a minute after `NvAPI_Initialize` -6 |
+
+The task does not stop on battery and has no time limit, and the Task
+Scheduler log is off, so a hang and a silent death cannot be told apart
+after the fact. Both silent cases had the dGPU on the bus and an NVIDIA
+call in the tick: a lead, not a finding. Nothing raises a toast when the
+guard stops ticking; `status` only shows an old `last sample`.
