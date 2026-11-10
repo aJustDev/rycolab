@@ -252,3 +252,37 @@ public class SweepBootTests
     [Fact]
     public void BootTimeIsInThePast() => Assert.True(Sweep.BootTime() < DateTime.Now);
 }
+
+public class StallWatchTests
+{
+    private const long T0 = 1_000_000_000_000, Min = TimeSpan.TicksPerMinute;
+
+    [Fact]
+    public void AStageThatDoesNotMoveOnIsReportedOnceAndSoIsItsEnd()
+    {
+        var w = new StallWatch(TimeSpan.FromMinutes(5));
+        w.Enter("wait", T0);
+        Assert.Null(w.Check(T0 + 4 * Min));
+        w.Enter("tick: nvml", T0 + 4 * Min);
+        Assert.Null(w.Check(T0 + 8 * Min));   // 4 min in it: not yet
+
+        var stalled = w.Check(T0 + 10 * Min)!.Value;
+        Assert.Equal("stalled", stalled.Kind);
+        Assert.Contains("6 min in 'tick: nvml'", stalled.Detail);
+        Assert.Null(w.Check(T0 + 60 * Min));   // once
+
+        w.Enter("smu", T0 + 64 * Min);
+        var over = w.Check(T0 + 64 * Min)!.Value;
+        Assert.Equal("stall-over", over.Kind);
+        Assert.Equal("'tick: nvml' returned after 60 min; now in 'smu'", over.Detail);
+        Assert.Null(w.Check(T0 + 65 * Min));
+    }
+
+    [Fact]
+    public void TheClockMovesForward()
+    {
+        var a = StallWatch.Now();
+        Thread.Sleep(20);
+        Assert.True(StallWatch.Now() > a);
+    }
+}

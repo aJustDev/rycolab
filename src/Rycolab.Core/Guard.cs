@@ -58,6 +58,10 @@ public sealed class Guard
     private DateTime? _resumeAt;
     private volatile bool _suspendSeen;
 
+    // The loop's current stage, read by the watchdog thread (see Watchdog).
+    private readonly StallWatch _stall = new(TimeSpan.FromMinutes(5));
+    private readonly ManualResetEventSlim _watchdogStop = new();
+
     // Power auto: the AC line state waiting to be acted on, and since when. Spontaneous
     // line blips of a few seconds were logged on this machine; the debounce ignores them.
     private readonly object _acLock = new();
@@ -126,6 +130,7 @@ public sealed class Guard
             _validation.Resets += resets.Count;
         }
 
+        new Thread(Watchdog) { IsBackground = true, Name = "guard watchdog" }.Start();
         try
         {
             if (!ApplyProfile("start")) { code = 1; return 1; }
@@ -170,6 +175,7 @@ public sealed class Guard
 
                 if (_resumeAt is { } r)
                 {
+                    _stall.Enter("resume");
                     var settle = _o.ResumeSettleSeconds - (DateTime.Now - r).TotalSeconds;
                     if (settle > 0) Thread.Sleep(TimeSpan.FromSeconds(settle));
                     _resumeAt = null;
@@ -186,6 +192,7 @@ public sealed class Guard
                 var readings = ReadTimed();
                 var hw = readings.Select(x => x.Margin).ToArray();
                 var bad = _profile.Mismatches(readings);
+                _stall.Enter("event log");
                 var hardware = Whea.HardwareSince(_t0);
                 var ignored = Whea.IgnoredSince(_t0);
                 for (; ignoredSeen < ignored.Count; ignoredSeen++)
@@ -243,6 +250,7 @@ public sealed class Guard
         }
         finally
         {
+            _stall.Enter("restore");
             var restored = _co.TryRestore(_profile.Base);
             var after = ReadTimed().Select(x => x.Margin).ToArray();
             _state.Hardware = after;
@@ -255,8 +263,32 @@ public sealed class Guard
             _energy?.Dispose();
             _nvml?.Dispose();
             _store.Dispose();
+            _watchdogStop.Set();
         }
         return code;
+    }
+
+    /// <summary>
+    /// A second thread that only reads the stage the loop is in. A call that
+    /// never returns (09-11 and 10-13: no exception, no exit, ten hours with
+    /// the cores unwatched, the dGPU on the bus both times) becomes an event
+    /// and a toast that say where. It writes through its own connection, as
+    /// the loop's may be the one stuck, and it must never throw: an unhandled
+    /// exception on a thread ends the process.
+    /// </summary>
+    private void Watchdog()
+    {
+        while (!_watchdogStop.Wait(TimeSpan.FromSeconds(30)))
+        {
+            try
+            {
+                if (_stall.Check(StallWatch.Now()) is not { } e) continue;
+                using (var store = Store.Open()) store.AddEvent("guard", _session, null, DateTime.Now, e.Kind, e.Detail);
+                _onEvent($"{DateTime.Now:HH:mm:ss}  {e.Kind}: {e.Detail}");
+                if (e.Kind == "stalled" && _o.PublishState && Plan.LoadOrDefault().Notify) Notifier.Notify("rycolab: the guard is stuck", e.Detail);
+            }
+            catch { /* the next check tries again */ }
+        }
     }
 
     /// <summary>
@@ -265,6 +297,7 @@ public sealed class Guard
     /// </summary>
     private bool ApplyProfile(string why, int attempts = 3)
     {
+        _stall.Enter("apply");
         for (var i = 1; i <= attempts; i++)
         {
             try
@@ -290,6 +323,7 @@ public sealed class Guard
         var deadline = DateTime.Now.AddSeconds(_o.IntervalSeconds);
         while (DateTime.Now < deadline)
         {
+            _stall.Enter("wait");
             if (ct.IsCancellationRequested) return false;
             if (File.Exists(StopFile(_o.RunsDir)))
             {
@@ -311,6 +345,7 @@ public sealed class Guard
     /// </summary>
     private void Safe(string what, Action tick)
     {
+        _stall.Enter(what);
         try { tick(); }
         catch (Exception ex) { Event("tick-failed", $"{what}: {(ex.Message is "" ? ex.GetType().Name : ex.Message)}"); }   // the health failures of 10-27 had no message
     }
@@ -530,6 +565,7 @@ public sealed class Guard
     /// <summary>The margins of every core, timed: the SMU mailbox has no cross-process lock, and contention shows here before it shows as a wrong readback.</summary>
     private IReadOnlyList<CoreReading> ReadTimed()
     {
+        _stall.Enter("smu");
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var r = _co.ReadAll();
         _smuMs = (int)sw.ElapsedMilliseconds;
@@ -592,6 +628,7 @@ public sealed class Guard
 
         void Source(string name, Action read)
         {
+            _stall.Enter($"tick: {name}");
             try { read(); }
             catch (Exception ex) { if (_failedSources.Add(name)) Event("tick-failed", $"{name}: {ex.Message} (its columns stay empty; not repeated)"); }
         }
@@ -600,6 +637,7 @@ public sealed class Guard
     private void Tick(int el, bool ok, int?[] hw, int whea, double? cpu, double? pkg, string state)
     {
         var t = new GuardTick(DateTime.Now, el, ok, hw, whea, cpu, pkg, state, Extras());
+        _stall.Enter("tick: store");
         _store.AddTick(_session, t);
 
         _state.Hardware = hw;
