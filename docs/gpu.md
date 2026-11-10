@@ -73,7 +73,11 @@ and re-applies at most three times an hour. When it does, the `gpu-changed`
 event says what was on the curve: no offsets at all is the driver, other
 offsets are another tool. A card that left the bus and came back between
 two checks, or got a new driver, is a return and not one of the three: the
-node's arrival and install dates tell them apart.
+node's arrival and install dates tell them apart. Right after waking the
+driver can answer before the card does (no PCI ids, the curve unreadable):
+the guard logs one `gpu-skip` and retries every tick until the card
+answers. It used to take the missing ids for another card and lock the
+profile, which kept the curve off for five days from 2026-11-05.
 
 ## The safety lock
 
