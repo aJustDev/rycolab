@@ -1571,3 +1571,33 @@ applied and verified), `rycolab gpu on` 17:11 (lock at point 68, 875 mV,
 exact); the tick of 17:11:58 has `gpu_curve` 1 and `gpu-enabled` logged.
 Neither fix can be shown on demand: the NaN and the card without PCI ids
 came after a long sleep, and the next such resume is the test.
+
+## 2026-11-10 18:50 - Kernel-Power 41 knows it was a crash; both resets of October were 0x113
+
+Kernel-Power 41 carries `BugcheckCode` (decimal) and
+`BugcheckParameter1-4`. On this machine, from 08-25 on: six with code 0
+(08-27, 08-28, 08-31 three times, 09-20) and two crashes, both counted in
+the current validation as unexplained resets:
+
+- 10-13 21:58:58: 275 = 0x113 (0x10, 0x0, 0x0, 0x0),
+  `BugcheckInfoFromEFI` true. No dump and no WER 1001: the code survived
+  in the firmware only. Subtype 0x10 not looked up; no device named.
+- 10-28 16:34:18: 0x113 (0x19, 0x2, 0x10de, 0x2c59), the surprise removal
+  of the RTX 5080 in the entry above.
+
+In code (5908fca): `Whea.Bugcheck` reads the five fields, the reset event
+ends in `bugcheck 0x113 (...)` or `no bugcheck`. Checked against the live
+System log with a scratch program on the new `Rycolab.Core.dll`: the eight
+Kernel-Power 41 read as above, the same values `Get-WinEvent` shows.
+
+Found on the way (75f38f6): `EventRecord.ToXml` quotes attributes with
+`'` (`<Data Name='ErrorSource'>` on the only WHEA in the log, a 47 of
+08-27), and the ApicId pattern only knew `"`, so no WHEA ever named its
+core; the tests had `"` too. Both quotes are read now.
+
+`HealthTick` (6e3d70c) marks the day before the read: a failure is one
+`tick-failed`, and one without a message shows the exception's type.
+
+Guard reinstalled 18:45 (session 115): profile applied and verified at
+18:45:14, curve at 18:45:17 (`gpu-apply: start`, 2422 MHz at 875 mV).
+Nothing to show for the reset line until the next one.
