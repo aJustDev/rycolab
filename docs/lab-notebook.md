@@ -1659,3 +1659,27 @@ Scheduler log is off, so a hang and a silent death cannot be told apart
 after the fact. Both silent cases had the dGPU on the bus and an NVIDIA
 call in the tick: a lead, not a finding. Nothing raises a toast when the
 guard stops ticking; `status` only shows an old `last sample`.
+
+## 2026-11-10 19:20 - Steady, and a watchdog on the guard
+
+**The counter.** The 10-13 crash came with the cores at the BIOS baseline,
+not the profile (entry above), so it says nothing about the profile:
+`rycolab off` 19:12:59, `Resets` 1 -> 0 in `validation.json`, build of
+e272311 installed, `rycolab on` 19:13. The verdict went to steady on the
+first tick: 588.3 h guarded, 133 resumes, 0 WHEA. Both events stay in the
+database as `reset` rows.
+
+**The watchdog** (64253ae). The loop says which stage it enters (each
+`Safe` tick by name, `wait`, `resume`, `apply`, `smu`, `event log`, every
+tick source as `tick: <name>`, `tick: store`, `restore`); a second thread
+checks every 30 s and logs `stalled` with the stage once it has not moved
+on in 5 min, raises a toast, and logs `stall-over` with the time it took
+if it returns. The clock is QueryUnbiasedInterruptTime, which leaves out
+sleep, so the wait across a night asleep is not a stall. It writes
+through its own connection to the database, since the loop's may be the
+one stuck, and it catches everything, since an exception on a thread ends
+the process. It does not cover a guard that dies without an exception:
+the thread dies with it. The stage logic has a test with synthetic times;
+the stall path itself has not fired on the machine. Session 117, 19:13 to
+19:19: seven ticks 63-64 s apart (64 s before the change too, 17:11:58 to
+17:13:02), `gpu_curve` 1 on all, no `stalled`.
