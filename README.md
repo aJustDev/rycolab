@@ -70,9 +70,13 @@ restores the baseline and stops with code 10. A profile starts in
 8 h guarded, without WHEA and without an unexpected reboot (Kernel-Power 41
 since the previous guard tick counts as a `reset`; a hard reset leaves no
 WHEA; when the reboot was a crash the event carries its stop code, such as
-0x113 from the display stack). Bad news (WHEA, reset, margin lost, giveup) raises a Windows toast
-with its own chime, one per kind per 10 min; `rycolab dev plan set notify
-false` turns it off.
+0x113 from the display stack). Bad news (WHEA, reset, margin lost, giveup)
+raises a Windows toast with its own chime, one per kind per 10 min; `rycolab
+dev plan set notify false` turns it off. A second thread watches the guard
+itself: a step that has not returned in 5 min (sleep not counted) logs
+`stalled` with the step's name, raises a toast, and logs `stall-over` if it
+ever returns. A guard that dies without an exception is not covered: the
+thread dies with it.
 
 Talking to the SMU needs a kernel driver: `inpoutx64.sys` (InpOut32),
 installed as a system service the first time the SMU is opened and left in
